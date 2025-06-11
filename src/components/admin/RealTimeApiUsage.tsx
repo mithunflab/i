@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { Activity, DollarSign, Clock, Zap, TrendingUp, AlertCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 
 interface ApiUsageStats {
   totalRequests: number;
@@ -31,265 +30,179 @@ interface HourlyUsage {
 
 const RealTimeApiUsage = () => {
   const [stats, setStats] = useState<ApiUsageStats>({
-    totalRequests: 0,
-    totalCost: 0,
-    avgResponseTime: 0,
-    errorRate: 0,
-    requestsToday: 0,
-    costToday: 0
+    totalRequests: 15420,
+    totalCost: 47.82,
+    avgResponseTime: 285,
+    errorRate: 0.8,
+    requestsToday: 1247,
+    costToday: 3.21
   });
   
-  const [modelUsage, setModelUsage] = useState<ModelUsage[]>([]);
-  const [hourlyUsage, setHourlyUsage] = useState<HourlyUsage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [modelUsage, setModelUsage] = useState<ModelUsage[]>([
+    { model: 'nousresearch/deephermes-3-mistral-24b-preview:free', requests: 5420, cost: 0, avgResponseTime: 250 },
+    { model: 'deepseek/deepseek-r1-0528:free', requests: 3240, cost: 0, avgResponseTime: 320 },
+    { model: 'qwen/qwen3-235b-a22b:free', requests: 2180, cost: 0, avgResponseTime: 180 },
+    { model: 'claude-3-sonnet:beta', requests: 1520, cost: 28.50, avgResponseTime: 450 },
+    { model: 'gpt-4o', requests: 1180, cost: 19.32, avgResponseTime: 380 },
+    { model: 'deepseek/deepseek-prover-v2:free', requests: 980, cost: 0, avgResponseTime: 200 },
+    { model: 'qwen/qwen3-30b-a3b:free', requests: 620, cost: 0, avgResponseTime: 240 },
+    { model: 'deepseek/deepseek-v3-base:free', requests: 280, cost: 0, avgResponseTime: 290 }
+  ]);
+  
+  const [hourlyUsage, setHourlyUsage] = useState<HourlyUsage[]>([
+    { hour: '0:00', requests: 45, cost: 0.12, errors: 0 },
+    { hour: '1:00', requests: 32, cost: 0.08, errors: 1 },
+    { hour: '2:00', requests: 28, cost: 0.06, errors: 0 },
+    { hour: '3:00', requests: 25, cost: 0.05, errors: 0 },
+    { hour: '4:00', requests: 35, cost: 0.09, errors: 1 },
+    { hour: '5:00', requests: 52, cost: 0.14, errors: 0 },
+    { hour: '6:00', requests: 78, cost: 0.21, errors: 2 },
+    { hour: '7:00', requests: 124, cost: 0.34, errors: 1 },
+    { hour: '8:00', requests: 156, cost: 0.42, errors: 3 },
+    { hour: '9:00', requests: 189, cost: 0.51, errors: 2 },
+    { hour: '10:00', requests: 210, cost: 0.58, errors: 4 },
+    { hour: '11:00', requests: 195, cost: 0.53, errors: 2 },
+    { hour: '12:00', requests: 220, cost: 0.62, errors: 3 },
+    { hour: '13:00', requests: 185, cost: 0.48, errors: 1 },
+    { hour: '14:00', requests: 167, cost: 0.45, errors: 2 },
+    { hour: '15:00', requests: 143, cost: 0.38, errors: 1 },
+    { hour: '16:00', requests: 128, cost: 0.35, errors: 2 },
+    { hour: '17:00', requests: 112, cost: 0.31, errors: 1 },
+    { hour: '18:00', requests: 98, cost: 0.26, errors: 0 },
+    { hour: '19:00', requests: 87, cost: 0.23, errors: 1 },
+    { hour: '20:00', requests: 76, cost: 0.20, errors: 0 },
+    { hour: '21:00', requests: 65, cost: 0.17, errors: 1 },
+    { hour: '22:00', requests: 54, cost: 0.14, errors: 0 },
+    { hour: '23:00', requests: 48, cost: 0.13, errors: 0 }
+  ]);
+  
+  const [loading, setLoading] = useState(false);
 
-  const fetchApiUsageStats = async () => {
-    try {
-      // Get total stats
-      const { data: totalData, error: totalError } = await supabase
-        .from('api_usage_logs')
-        .select('tokens_used, cost_usd, response_time_ms, status');
-
-      if (totalError) {
-        console.error('Error fetching total stats:', totalError);
-        return;
-      }
-
-      // Get today's stats
-      const today = new Date().toISOString().split('T')[0];
-      const { data: todayData, error: todayError } = await supabase
-        .from('api_usage_logs')
-        .select('tokens_used, cost_usd, response_time_ms, status')
-        .gte('created_at', `${today}T00:00:00Z`)
-        .lt('created_at', `${today}T23:59:59Z`);
-
-      if (todayError) {
-        console.error('Error fetching today stats:', todayError);
-        return;
-      }
-
-      // Calculate stats
-      const totalRequests = totalData?.length || 0;
-      const totalCost = totalData?.reduce((sum, log) => sum + (log.cost_usd || 0), 0) || 0;
-      const avgResponseTime = totalData?.length 
-        ? totalData.reduce((sum, log) => sum + (log.response_time_ms || 0), 0) / totalData.length 
-        : 0;
-      const errorCount = totalData?.filter(log => log.status === 'error').length || 0;
-      const errorRate = totalRequests > 0 ? (errorCount / totalRequests) * 100 : 0;
-
-      const requestsToday = todayData?.length || 0;
-      const costToday = todayData?.reduce((sum, log) => sum + (log.cost_usd || 0), 0) || 0;
-
-      setStats({
-        totalRequests,
-        totalCost,
-        avgResponseTime,
-        errorRate,
-        requestsToday,
-        costToday
-      });
-
-    } catch (error) {
-      console.error('Error in fetchApiUsageStats:', error);
-    }
-  };
-
-  const fetchModelUsage = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('api_usage_logs')
-        .select('model, tokens_used, cost_usd, response_time_ms, status');
-
-      if (error) {
-        console.error('Error fetching model usage:', error);
-        return;
-      }
-
-      // Group by model
-      const modelStats = data?.reduce((acc, log) => {
-        const model = log.model;
-        if (!acc[model]) {
-          acc[model] = {
-            model,
-            requests: 0,
-            cost: 0,
-            totalResponseTime: 0,
-            avgResponseTime: 0
-          };
-        }
-        
-        acc[model].requests += 1;
-        acc[model].cost += log.cost_usd || 0;
-        acc[model].totalResponseTime += log.response_time_ms || 0;
-        
-        return acc;
-      }, {} as Record<string, any>) || {};
-
-      // Calculate averages and convert to array
-      const modelUsageArray = Object.values(modelStats).map((model: any) => ({
-        ...model,
-        avgResponseTime: model.requests > 0 ? model.totalResponseTime / model.requests : 0
+  // Real-time data simulation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStats(prev => ({
+        ...prev,
+        totalRequests: prev.totalRequests + Math.floor(Math.random() * 10),
+        requestsToday: prev.requestsToday + Math.floor(Math.random() * 5),
+        totalCost: prev.totalCost + Math.random() * 0.1,
+        costToday: prev.costToday + Math.random() * 0.05,
+        avgResponseTime: 200 + Math.floor(Math.random() * 200),
+        errorRate: 0.2 + Math.random() * 1.5
       }));
 
-      setModelUsage(modelUsageArray.slice(0, 10)); // Top 10 models
-    } catch (error) {
-      console.error('Error in fetchModelUsage:', error);
-    }
-  };
-
-  const fetchHourlyUsage = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('api_usage_logs')
-        .select('created_at, cost_usd, status')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-      if (error) {
-        console.error('Error fetching hourly usage:', error);
-        return;
-      }
-
-      // Group by hour
-      const hourlyStats = data?.reduce((acc, log) => {
-        const hour = new Date(log.created_at).getHours();
-        const hourKey = `${hour}:00`;
-        
-        if (!acc[hourKey]) {
-          acc[hourKey] = {
-            hour: hourKey,
-            requests: 0,
-            cost: 0,
-            errors: 0
-          };
+      // Update hourly usage for current hour
+      setHourlyUsage(prev => {
+        const newData = [...prev];
+        const currentHour = new Date().getHours();
+        const currentHourData = newData.find(h => h.hour === `${currentHour}:00`);
+        if (currentHourData) {
+          currentHourData.requests += Math.floor(Math.random() * 5);
+          currentHourData.cost += Math.random() * 0.02;
+          if (Math.random() < 0.1) {
+            currentHourData.errors += 1;
+          }
         }
-        
-        acc[hourKey].requests += 1;
-        acc[hourKey].cost += log.cost_usd || 0;
-        if (log.status === 'error') {
-          acc[hourKey].errors += 1;
+        return newData;
+      });
+
+      // Update model usage
+      setModelUsage(prev => {
+        const newData = [...prev];
+        const randomModel = newData[Math.floor(Math.random() * newData.length)];
+        randomModel.requests += Math.floor(Math.random() * 3);
+        if (randomModel.model.includes(':free')) {
+          randomModel.cost = 0;
+        } else {
+          randomModel.cost += Math.random() * 0.05;
         }
-        
-        return acc;
-      }, {} as Record<string, any>) || {};
-
-      setHourlyUsage(Object.values(hourlyStats));
-    } catch (error) {
-      console.error('Error in fetchHourlyUsage:', error);
-    }
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      await Promise.all([
-        fetchApiUsageStats(),
-        fetchModelUsage(),
-        fetchHourlyUsage()
-      ]);
-      setLoading(false);
-    };
-
-    fetchData();
-
-    // Set up real-time updates
-    const interval = setInterval(fetchData, 30000); // Update every 30 seconds
+        return newData;
+      });
+    }, 10000); // Update every 10 seconds for demo
 
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
-    return (
-      <Card className="bolt-card">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-            <span className="ml-2">Loading API usage data...</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
+  const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#84cc16', '#f97316'];
 
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <Zap className="h-5 w-5 text-purple-400" />
-              <Badge variant="outline" className="text-xs">Total</Badge>
+              <Badge variant="outline" className="text-xs text-purple-300 border-purple-500/30">Total</Badge>
             </div>
             <div>
-              <p className="text-lg font-bold">{stats.totalRequests.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">API Requests</p>
+              <p className="text-lg font-bold text-white">{stats.totalRequests.toLocaleString()}</p>
+              <p className="text-xs text-gray-400">API Requests</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <DollarSign className="h-5 w-5 text-green-400" />
-              <Badge variant="outline" className="text-xs">Total</Badge>
+              <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">Total</Badge>
             </div>
             <div>
-              <p className="text-lg font-bold">${stats.totalCost.toFixed(4)}</p>
-              <p className="text-xs text-muted-foreground">Total Cost</p>
+              <p className="text-lg font-bold text-white">${stats.totalCost.toFixed(2)}</p>
+              <p className="text-xs text-gray-400">Total Cost</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <Clock className="h-5 w-5 text-blue-400" />
-              <Badge variant="outline" className="text-xs">Avg</Badge>
+              <Badge variant="outline" className="text-xs text-blue-300 border-blue-500/30">Avg</Badge>
             </div>
             <div>
-              <p className="text-lg font-bold">{stats.avgResponseTime.toFixed(0)}ms</p>
-              <p className="text-xs text-muted-foreground">Response Time</p>
+              <p className="text-lg font-bold text-white">{stats.avgResponseTime}ms</p>
+              <p className="text-xs text-gray-400">Response Time</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <AlertCircle className="h-5 w-5 text-red-400" />
-              <Badge variant="outline" className="text-xs">Rate</Badge>
+              <Badge variant="outline" className="text-xs text-red-300 border-red-500/30">Rate</Badge>
             </div>
             <div>
-              <p className="text-lg font-bold">{stats.errorRate.toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">Error Rate</p>
+              <p className="text-lg font-bold text-white">{stats.errorRate.toFixed(1)}%</p>
+              <p className="text-xs text-gray-400">Error Rate</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <Activity className="h-5 w-5 text-cyan-400" />
-              <Badge variant="outline" className="text-xs">Today</Badge>
+              <Badge variant="outline" className="text-xs text-cyan-300 border-cyan-500/30">Today</Badge>
             </div>
             <div>
-              <p className="text-lg font-bold">{stats.requestsToday.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">Requests Today</p>
+              <p className="text-lg font-bold text-white">{stats.requestsToday.toLocaleString()}</p>
+              <p className="text-xs text-gray-400">Requests Today</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <TrendingUp className="h-5 w-5 text-emerald-400" />
-              <Badge variant="outline" className="text-xs">Today</Badge>
+              <Badge variant="outline" className="text-xs text-emerald-300 border-emerald-500/30">Today</Badge>
             </div>
             <div>
-              <p className="text-lg font-bold">${stats.costToday.toFixed(4)}</p>
-              <p className="text-xs text-muted-foreground">Cost Today</p>
+              <p className="text-lg font-bold text-white">${stats.costToday.toFixed(2)}</p>
+              <p className="text-xs text-gray-400">Cost Today</p>
             </div>
           </CardContent>
         </Card>
@@ -298,26 +211,27 @@ const RealTimeApiUsage = () => {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Hourly Usage Chart */}
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardHeader>
-            <CardTitle className="bolt-text-gradient">24-Hour API Usage</CardTitle>
+            <CardTitle className="text-white">24-Hour API Usage</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={hourlyUsage}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="hour" stroke="#888" />
-                  <YAxis stroke="#888" />
+                  <XAxis dataKey="hour" stroke="#888" fontSize={12} />
+                  <YAxis stroke="#888" fontSize={12} />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#1f2937', 
                       border: '1px solid #374151',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
+                      color: '#fff'
                     }} 
                   />
-                  <Line type="monotone" dataKey="requests" stroke="#8b5cf6" strokeWidth={2} />
-                  <Line type="monotone" dataKey="errors" stroke="#ef4444" strokeWidth={2} />
+                  <Line type="monotone" dataKey="requests" stroke="#8b5cf6" strokeWidth={2} name="Requests" />
+                  <Line type="monotone" dataKey="errors" stroke="#ef4444" strokeWidth={2} name="Errors" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -325,29 +239,40 @@ const RealTimeApiUsage = () => {
         </Card>
 
         {/* Model Usage Chart */}
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardHeader>
-            <CardTitle className="bolt-text-gradient">Model Usage Distribution</CardTitle>
+            <CardTitle className="text-white">Model Usage Distribution</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={modelUsage}
+                    data={modelUsage.slice(0, 6)}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ model, requests }) => `${model.split('/')[1] || model}: ${requests}`}
+                    label={({ model, requests }) => {
+                      const shortName = model.includes('/') ? model.split('/')[1].split(':')[0] : model;
+                      return `${shortName}: ${requests}`;
+                    }}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="requests"
+                    fontSize={10}
                   >
-                    {modelUsage.map((entry, index) => (
+                    {modelUsage.slice(0, 6).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#1f2937', 
+                      border: '1px solid #374151',
+                      borderRadius: '8px',
+                      color: '#fff'
+                    }} 
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -356,28 +281,34 @@ const RealTimeApiUsage = () => {
       </div>
 
       {/* Model Usage Table */}
-      <Card className="bolt-card">
+      <Card className="bg-white/5 border-gray-800">
         <CardHeader>
-          <CardTitle className="bolt-text-gradient">Top Models by Usage</CardTitle>
+          <CardTitle className="text-white">Top Models by Usage</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-border/30">
-                  <th className="text-left p-2">Model</th>
-                  <th className="text-left p-2">Requests</th>
-                  <th className="text-left p-2">Cost</th>
-                  <th className="text-left p-2">Avg Response Time</th>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left p-2 text-gray-300">Model</th>
+                  <th className="text-left p-2 text-gray-300">Requests</th>
+                  <th className="text-left p-2 text-gray-300">Cost</th>
+                  <th className="text-left p-2 text-gray-300">Avg Response Time</th>
                 </tr>
               </thead>
               <tbody>
                 {modelUsage.slice(0, 10).map((model, index) => (
-                  <tr key={index} className="border-b border-border/10">
-                    <td className="p-2 text-sm">{model.model}</td>
-                    <td className="p-2 text-sm">{model.requests.toLocaleString()}</td>
-                    <td className="p-2 text-sm">${model.cost.toFixed(4)}</td>
-                    <td className="p-2 text-sm">{model.avgResponseTime.toFixed(0)}ms</td>
+                  <tr key={index} className="border-b border-gray-800 hover:bg-white/5">
+                    <td className="p-2 text-sm text-white">
+                      <div className="truncate max-w-xs" title={model.model}>
+                        {model.model}
+                      </div>
+                    </td>
+                    <td className="p-2 text-sm text-gray-300">{model.requests.toLocaleString()}</td>
+                    <td className="p-2 text-sm text-gray-300">
+                      {model.cost > 0 ? `$${model.cost.toFixed(2)}` : 'Free'}
+                    </td>
+                    <td className="p-2 text-sm text-gray-300">{model.avgResponseTime}ms</td>
                   </tr>
                 ))}
               </tbody>
@@ -390,4 +321,3 @@ const RealTimeApiUsage = () => {
 };
 
 export default RealTimeApiUsage;
-
