@@ -44,19 +44,14 @@ const ProjectApproval = () => {
 
   const loadProjects = async () => {
     try {
-      const { data, error } = await supabase
+      // First get all projects
+      const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select(`
-          *,
-          profiles(
-            full_name,
-            email
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading projects:', error);
+      if (projectsError) {
+        console.error('Error loading projects:', projectsError);
         toast({
           title: "Error",
           description: "Failed to load projects",
@@ -65,17 +60,44 @@ const ProjectApproval = () => {
         return;
       }
 
-      const formattedProjects: Project[] = (data || []).map(project => ({
-        id: project.id,
-        name: project.name,
-        description: project.description || '',
-        status: project.status as 'active' | 'pending' | 'approved' | 'rejected',
-        created_at: project.created_at,
-        user_id: project.user_id,
-        user_name: project.profiles?.full_name || 'Unknown User',
-        user_email: project.profiles?.email || 'No email',
-        is_verified: project.status === 'approved'
-      }));
+      // Then get all profiles for the user_ids in projects
+      const userIds = projectsData?.map(project => project.user_id) || [];
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Error loading profiles:', profilesError);
+        toast({
+          title: "Error",
+          description: "Failed to load user profiles",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Create a map of user_id to profile data
+      const profilesMap = new Map();
+      profilesData?.forEach(profile => {
+        profilesMap.set(profile.id, profile);
+      });
+
+      // Combine the data
+      const formattedProjects: Project[] = (projectsData || []).map(project => {
+        const profile = profilesMap.get(project.user_id);
+        return {
+          id: project.id,
+          name: project.name,
+          description: project.description || '',
+          status: project.status as 'active' | 'pending' | 'approved' | 'rejected',
+          created_at: project.created_at,
+          user_id: project.user_id,
+          user_name: profile?.full_name || 'Unknown User',
+          user_email: profile?.email || 'No email',
+          is_verified: project.status === 'approved'
+        };
+      });
 
       setProjects(formattedProjects);
     } catch (error) {
