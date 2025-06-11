@@ -78,6 +78,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (!error && data) {
           setProfile(data as Profile);
+        } else {
+          // Fallback to local profile if update fails
+          setProfile({
+            ...profileData,
+            created_at: existingProfile.created_at || new Date().toISOString()
+          });
         }
       } else {
         // Create new profile
@@ -92,6 +98,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (!error && data) {
           setProfile(data as Profile);
+        } else {
+          // Fallback to local profile if insert fails
+          setProfile({
+            ...profileData,
+            created_at: new Date().toISOString()
+          });
         }
       }
     } catch (error) {
@@ -111,10 +123,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    let mounted = true;
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session);
+        
+        if (!mounted) return;
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -130,17 +147,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
         createOrUpdateProfile(session.user);
+      } else {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {

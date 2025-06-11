@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ const LoginForm = () => {
   const [loading, setLoading] = useState(false);
   const { login, signUp, loginWithGoogle } = useAuth();
 
-  // Special admin credentials
+  // Special admin credentials for validation only
   const ADMIN_CREDENTIALS = [
     { email: 'kirishmithun2006@gmail.com', password: 'GoZ22266' },
     { email: 'zenmithun@outlook.com', password: 'GoZ22266' }

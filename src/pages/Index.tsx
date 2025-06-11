@@ -1,18 +1,31 @@
 
 import { useAuth } from "../contexts/AuthContext";
-import DeveloperDashboard from "../components/admin/DeveloperDashboard";
-import UserDashboard from "../components/user/UserDashboard";
-import LoginForm from "../components/LoginForm";
+import { Navigate } from "react-router-dom";
 
 const Index = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, isLoading } = useAuth();
 
-  if (!user) {
-    return <LoginForm />;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Show dashboard based on user role
-  return profile?.role === 'admin' ? <DeveloperDashboard /> : <UserDashboard />;
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Redirect based on user role
+  if (profile?.role === 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Navigate to="/user-dashboard" replace />;
 };
 
 export default Index;

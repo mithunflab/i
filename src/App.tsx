@@ -32,7 +32,7 @@ const AppContent = () => {
     );
   }
 
-  // Always show public routes for non-authenticated users
+  // Show login form for non-authenticated users
   if (!user) {
     return (
       <Routes>
@@ -42,18 +42,42 @@ const AppContent = () => {
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/login" element={<LoginForm />} />
-        <Route path="*" element={<Home />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   }
 
-  // For authenticated users, show dashboard based on role
+  // For authenticated users, redirect based on role
   return (
     <Routes>
       <Route 
         path="/" 
         element={
-          profile?.role === 'admin' ? <DeveloperDashboard /> : <UserDashboard />
+          profile?.role === 'admin' ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <Navigate to="/user-dashboard" replace />
+          )
+        } 
+      />
+      <Route 
+        path="/dashboard" 
+        element={
+          profile?.role === 'admin' ? (
+            <DeveloperDashboard />
+          ) : (
+            <Navigate to="/user-dashboard" replace />
+          )
+        } 
+      />
+      <Route 
+        path="/user-dashboard" 
+        element={
+          profile?.role === 'user' ? (
+            <UserDashboard />
+          ) : (
+            <Navigate to="/dashboard" replace />
+          )
         } 
       />
       <Route path="/workspace" element={<Workspace />} />
