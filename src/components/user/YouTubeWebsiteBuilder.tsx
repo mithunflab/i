@@ -70,12 +70,13 @@ const YouTubeWebsiteBuilder = () => {
           event: '*',
           schema: 'public',
           table: 'api_keys',
-          filter: `provider=eq.YouTube AND user_id=eq.${user.id}`
+          filter: `user_id=eq.${user.id}`
         },
         (payload) => {
           console.log('Real-time YouTube API key update:', payload);
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            if (payload.new && payload.new.user_id === user?.id) {
+            if (payload.new && payload.new.user_id === user?.id && 
+                (payload.new.provider === 'YouTube' || payload.new.provider === 'YouTube Data API v3')) {
               setYoutubeApiKey(payload.new.key_value || '');
               setError('');
               toast({
@@ -101,10 +102,10 @@ const YouTubeWebsiteBuilder = () => {
       
       const { data: apiKeyData, error } = await supabase
         .from('api_keys')
-        .select('key_value, is_active')
-        .eq('provider', 'YouTube')
+        .select('key_value, is_active, provider')
         .eq('user_id', user.id)
         .eq('is_active', true)
+        .in('provider', ['YouTube', 'YouTube Data API v3'])
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -113,6 +114,8 @@ const YouTubeWebsiteBuilder = () => {
         setError('Failed to load YouTube API configuration');
         return;
       }
+
+      console.log('YouTube API key data:', apiKeyData);
 
       if (apiKeyData && apiKeyData.length > 0 && apiKeyData[0].key_value) {
         setYoutubeApiKey(apiKeyData[0].key_value);
