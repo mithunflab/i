@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
@@ -14,13 +14,14 @@ interface Profile {
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
+  session: Session | null;
   loading: boolean;
-  isLoading: boolean; // Added missing property
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  signup: (email: string, password: string, fullName: string) => Promise<void>; // Fixed return type
-  signUp: (email: string, password: string, fullName: string) => Promise<void>; // Added missing method
-  loginWithGoogle: () => Promise<void>; // Added missing method
+  signup: (email: string, password: string, fullName: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +37,7 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -59,63 +61,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          setUser(session.user);
-          const profileData = await loadProfile(session.user.id);
-          setProfile(profileData);
-          
-          // Auto-redirect based on role
-          const currentPath = window.location.pathname;
-          if (currentPath === '/' || currentPath === '/login') {
-            if (profileData?.role === 'admin') {
-              navigate('/dashboard');
-            } else {
-              navigate('/user-dashboard');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error getting initial session:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getInitialSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.email);
-        
-        if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user);
-          const profileData = await loadProfile(session.user.id);
-          setProfile(profileData);
-          
-          // Redirect after successful login
+  const handleAuthStateChange = async (event: string, session: Session | null) => {
+    console.log('Auth state change:', event, session?.user?.email);
+    
+    setSession(session);
+    
+    if (session?.user) {
+      setUser(session.user);
+      
+      // Load profile data
+      const profileData = await loadProfile(session.user.id);
+      setProfile(profileData);
+      
+      // Only redirect on successful login, not on initial load
+      if (event === 'SIGNED_IN') {
+        const currentPath = window.location.pathname;
+        if (currentPath === '/' || currentPath === '/login') {
           if (profileData?.role === 'admin') {
             navigate('/dashboard');
           } else {
             navigate('/user-dashboard');
           }
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setProfile(null);
-          navigate('/');
         }
-        
-        setLoading(false);
       }
-    );
+    } else {
+      setUser(null);
+      setProfile(null);
+      
+      // Only redirect to login if user was signed out, not on initial load
+      if (event === 'SIGNED_OUT') {
+        navigate('/');
+      }
+    }
+    
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    // Get initial session
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setLoading(false);
+          return;
+        }
+
+        if (mounted) {
+          await handleAuthStateChange('INITIAL_SESSION', session);
+        }
+      } catch (error) {
+        console.error('Error in getInitialSession:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+    // Get initial session
+    getInitialSession();
 
     return () => {
+      mounted = false;
       subscription?.unsubscribe();
     };
   }, [navigate]);
@@ -131,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      // Auth state change will handle the redirect
+      return data;
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -147,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           data: {
             full_name: fullName,
           },
+          emailRedirectTo: `${window.location.origin}/`
         },
       });
 
@@ -154,7 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      // Don't return anything, just handle success
+      return data;
     } catch (error) {
       console.error('Signup error:', error);
       throw error;
@@ -198,13 +213,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = {
     user,
     profile,
+    session,
     loading,
-    isLoading: loading, // Added alias
+    isLoading: loading,
     login,
     logout,
     signup,
-    signUp, // Added missing method
-    loginWithGoogle, // Added missing method
+    signUp,
+    loginWithGoogle,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

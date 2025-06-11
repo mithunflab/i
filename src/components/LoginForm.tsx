@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,7 @@ const LoginForm = () => {
 
     try {
       await login(email, password);
+      // Navigation will be handled by AuthContext
     } catch (loginError: any) {
       setError(loginError.message);
     }
@@ -89,6 +91,7 @@ const LoginForm = () => {
 
     try {
       await loginWithGoogle();
+      // Navigation will be handled by AuthContext
     } catch (googleError: any) {
       setError(googleError.message);
     }
