@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +19,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import UserProjects from './UserProjects';
 import YouTubeWebsiteBuilder from './YouTubeWebsiteBuilder';
+import ServiceStatusIndicators from '../ui/ServiceStatusIndicators';
 
 const UserDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -229,6 +229,7 @@ const UserDashboard = () => {
               <p className="text-sm text-gray-400">Welcome back, {displayName}</p>
             </div>
             <div className="flex items-center gap-4">
+              <ServiceStatusIndicators />
               <Badge variant="secondary" className="bg-gradient-to-r from-red-600/20 to-pink-600/20 text-red-300 border-red-500/30">
                 <Zap size={14} className="mr-1" />
                 Pro Creator
