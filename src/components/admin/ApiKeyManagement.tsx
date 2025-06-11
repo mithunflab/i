@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -128,13 +129,13 @@ const ApiKeyManagement = () => {
 
       if (error) {
         console.error('Error fetching API keys:', error);
-        setApiKeys([]); // Set empty array instead of staying in loading state
+        setApiKeys([]);
       } else {
         setApiKeys(data || []);
       }
     } catch (error) {
       console.error('Error in fetchApiKeys:', error);
-      setApiKeys([]); // Set empty array instead of staying in loading state
+      setApiKeys([]);
     } finally {
       setLoading(false);
     }
@@ -225,7 +226,6 @@ const ApiKeyManagement = () => {
     setTestingModel(model);
     
     try {
-      // Use a random API key for load balancing
       const randomKey = openRouterKeys[Math.floor(Math.random() * openRouterKeys.length)];
       
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -263,8 +263,7 @@ const ApiKeyManagement = () => {
   };
 
   const getUserPlan = () => {
-    // This would normally come from user profile/subscription
-    return 'free'; // Default to free plan
+    return 'free';
   };
 
   const getAvailableModels = () => {
@@ -456,5 +455,3 @@ const ApiKeyManagement = () => {
 };
 
 export default ApiKeyManagement;
-
-</edits_to_apply>
