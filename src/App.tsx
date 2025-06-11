@@ -15,10 +15,12 @@ import Features from "./pages/Features";
 import Pricing from "./pages/Pricing";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
-const AppContent = () => {
+// Protected Route component to handle authentication checks
+const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode, requiredRole?: string }) => {
   const { user, profile, isLoading } = useAuth();
 
   if (isLoading) {
@@ -32,6 +34,18 @@ const AppContent = () => {
     );
   }
 
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (requiredRole && profile?.role !== requiredRole) {
+    return <Navigate to={profile?.role === 'admin' ? '/dashboard' : '/user-dashboard'} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const AppContent = () => {
   return (
     <Routes>
       {/* Public routes */}
@@ -42,49 +56,32 @@ const AppContent = () => {
       <Route path="/contact" element={<Contact />} />
       <Route path="/login" element={<LoginForm />} />
       
-      {/* Root route logic */}
-      <Route 
-        path="/" 
-        element={
-          !user ? (
-            <Home />
-          ) : profile?.role === 'admin' ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <Navigate to="/user-dashboard" replace />
-          )
-        } 
-      />
+      {/* Root route */}
+      <Route path="/" element={<Index />} />
       
       {/* Protected routes */}
       <Route 
         path="/dashboard" 
         element={
-          user && profile?.role === 'admin' ? (
+          <ProtectedRoute requiredRole="admin">
             <DeveloperDashboard />
-          ) : (
-            <Navigate to="/login" replace />
-          )
+          </ProtectedRoute>
         } 
       />
       <Route 
         path="/user-dashboard" 
         element={
-          user && profile?.role === 'user' ? (
+          <ProtectedRoute requiredRole="user">
             <UserDashboard />
-          ) : (
-            <Navigate to="/login" replace />
-          )
+          </ProtectedRoute>
         } 
       />
       <Route 
         path="/workspace" 
         element={
-          user ? (
+          <ProtectedRoute>
             <Workspace />
-          ) : (
-            <Navigate to="/login" replace />
-          )
+          </ProtectedRoute>
         } 
       />
       

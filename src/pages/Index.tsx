@@ -1,6 +1,7 @@
 
 import { useAuth } from "../contexts/AuthContext";
 import { Navigate } from "react-router-dom";
+import Home from "./Home";
 
 const Index = () => {
   const { user, profile, isLoading } = useAuth();
@@ -16,11 +17,12 @@ const Index = () => {
     );
   }
 
+  // If no user, show the home page directly instead of redirecting
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Home />;
   }
 
-  // Redirect based on user role
+  // Redirect authenticated users based on their role
   if (profile?.role === 'admin') {
     return <Navigate to="/dashboard" replace />;
   }
