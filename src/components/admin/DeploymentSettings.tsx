@@ -4,236 +4,202 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Globe, Github, Key, Save, AlertCircle, CheckCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Github, Globe, Plus, Trash2, Key, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
+
+interface DeploymentToken {
+  id: string;
+  provider: 'github' | 'netlify';
+  token_name: string;
+  token_value: string;
+  is_active: boolean;
+  created_at: string;
+}
 
 const DeploymentSettings = () => {
-  const [netlifyToken, setNetlifyToken] = useState('');
-  const [githubClientId, setGithubClientId] = useState('');
-  const [githubClientSecret, setGithubClientSecret] = useState('');
-  const [githubAccessToken, setGithubAccessToken] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
-  const { user } = useAuth();
+  const [githubTokens, setGithubTokens] = useState<DeploymentToken[]>([]);
+  const [netlifyTokens, setNetlifyTokens] = useState<DeploymentToken[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newToken, setNewToken] = useState({ name: '', value: '', provider: 'github' as 'github' | 'netlify' });
+  const [showTokens, setShowTokens] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
-      loadSettings();
-    } else {
-      setLoadingData(false);
-    }
-  }, [user]);
+    loadTokens();
+  }, []);
 
-  const loadSettings = async () => {
-    if (!user) {
-      setLoadingData(false);
-      return;
-    }
-
+  const loadTokens = async () => {
     try {
-      // Load all deployment-related tokens
-      const { data: tokensData } = await supabase
-        .from('api_keys')
-        .select('key_value, name, provider')
-        .eq('user_id', user.id)
-        .in('provider', ['Netlify', 'GitHub']);
+      const { data, error } = await supabase
+        .from('deployment_tokens')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      if (tokensData && tokensData.length > 0) {
-        tokensData.forEach(token => {
-          if (token.provider === 'Netlify') {
-            setNetlifyToken(token.key_value);
-          } else if (token.provider === 'GitHub') {
-            if (token.name?.includes('Client ID') || token.name?.includes('client_id')) {
-              setGithubClientId(token.key_value);
-            } else if (token.name?.includes('Client Secret') || token.name?.includes('client_secret')) {
-              setGithubClientSecret(token.key_value);
-            } else if (token.name?.includes('Access Token') || token.name?.includes('access_token')) {
-              setGithubAccessToken(token.key_value);
-            }
-          }
+      if (error) {
+        console.error('Error loading tokens:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load deployment tokens",
+          variant: "destructive"
         });
+        return;
       }
-    } catch (err) {
-      console.log('No existing deployment settings found');
+
+      const tokens = data || [];
+      setGithubTokens(tokens.filter(token => token.provider === 'github'));
+      setNetlifyTokens(tokens.filter(token => token.provider === 'netlify'));
+    } catch (error) {
+      console.error('Error in loadTokens:', error);
     } finally {
-      setLoadingData(false);
+      setLoading(false);
     }
   };
 
-  const saveSettings = async () => {
-    if (!netlifyToken.trim() && !githubClientId.trim() && !githubClientSecret.trim() && !githubAccessToken.trim()) {
-      setError('Please fill in at least one field');
+  const saveToken = async () => {
+    if (!newToken.name.trim() || !newToken.value.trim()) {
       toast({
         title: "Error",
-        description: "Please fill in at least one field",
+        description: "Please fill in all fields",
         variant: "destructive"
       });
       return;
     }
-
-    if (!user) {
-      setError('User not authenticated');
-      toast({
-        title: "Error",
-        description: "User not authenticated", 
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    setError('');
 
     try {
-      // Save Netlify token if provided
-      if (netlifyToken.trim()) {
-        const { data: existingNetlify } = await supabase
-          .from('api_keys')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('provider', 'Netlify')
-          .single();
+      const { error } = await supabase
+        .from('deployment_tokens')
+        .insert({
+          provider: newToken.provider,
+          token_name: newToken.name,
+          token_value: newToken.value,
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        });
 
-        if (existingNetlify) {
-          await supabase
-            .from('api_keys')
-            .update({
-              key_value: netlifyToken,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingNetlify.id);
-        } else {
-          await supabase
-            .from('api_keys')
-            .insert({
-              user_id: user.id,
-              name: 'Netlify Access Token',
-              key_value: netlifyToken,
-              provider: 'Netlify',
-              is_active: true
-            });
-        }
+      if (error) {
+        console.error('Error saving token:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save token",
+          variant: "destructive"
+        });
+        return;
       }
 
-      // Save GitHub Client ID if provided
-      if (githubClientId.trim()) {
-        const { data: existingGithubId } = await supabase
-          .from('api_keys')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('provider', 'GitHub')
-          .like('name', '%Client ID%')
-          .single();
-
-        if (existingGithubId) {
-          await supabase
-            .from('api_keys')
-            .update({
-              key_value: githubClientId,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingGithubId.id);
-        } else {
-          await supabase
-            .from('api_keys')
-            .insert({
-              user_id: user.id,
-              name: 'GitHub OAuth Client ID',
-              key_value: githubClientId,
-              provider: 'GitHub',
-              is_active: true
-            });
-        }
-      }
-
-      // Save GitHub Client Secret if provided
-      if (githubClientSecret.trim()) {
-        const { data: existingGithubSecret } = await supabase
-          .from('api_keys')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('provider', 'GitHub')
-          .like('name', '%Client Secret%')
-          .single();
-
-        if (existingGithubSecret) {
-          await supabase
-            .from('api_keys')
-            .update({
-              key_value: githubClientSecret,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingGithubSecret.id);
-        } else {
-          await supabase
-            .from('api_keys')
-            .insert({
-              user_id: user.id,
-              name: 'GitHub OAuth Client Secret',
-              key_value: githubClientSecret,
-              provider: 'GitHub',
-              is_active: true
-            });
-        }
-      }
-
-      // Save GitHub Access Token if provided
-      if (githubAccessToken.trim()) {
-        const { data: existingGithubToken } = await supabase
-          .from('api_keys')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('provider', 'GitHub')
-          .like('name', '%Access Token%')
-          .single();
-
-        if (existingGithubToken) {
-          await supabase
-            .from('api_keys')
-            .update({
-              key_value: githubAccessToken,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingGithubToken.id);
-        } else {
-          await supabase
-            .from('api_keys')
-            .insert({
-              user_id: user.id,
-              name: 'GitHub Access Token',
-              key_value: githubAccessToken,
-              provider: 'GitHub',
-              is_active: true
-            });
-        }
-      }
-
-      setSaved(true);
       toast({
         title: "Success",
-        description: "Deployment settings saved successfully"
+        description: `${newToken.provider} token saved successfully`,
       });
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
-      console.error('Save error:', err);
-      setError('Failed to save deployment settings');
-      toast({
-        title: "Error",
-        description: "Failed to save deployment settings",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+
+      setNewToken({ name: '', value: '', provider: 'github' });
+      loadTokens();
+    } catch (error) {
+      console.error('Error in saveToken:', error);
     }
   };
 
-  if (loadingData) {
+  const deleteToken = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('deployment_tokens')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting token:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete token",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Token deleted successfully",
+      });
+
+      loadTokens();
+    } catch (error) {
+      console.error('Error in deleteToken:', error);
+    }
+  };
+
+  const toggleTokenVisibility = (tokenId: string) => {
+    setShowTokens(prev => ({
+      ...prev,
+      [tokenId]: !prev[tokenId]
+    }));
+  };
+
+  const maskToken = (token: string) => {
+    return token.slice(0, 8) + '*'.repeat(Math.max(0, token.length - 8));
+  };
+
+  const renderTokenList = (tokens: DeploymentToken[], provider: 'github' | 'netlify') => {
+    const icon = provider === 'github' ? Github : Globe;
+    const IconComponent = icon;
+
+    return (
+      <div className="space-y-4">
+        {tokens.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <IconComponent className="mx-auto h-12 w-12 mb-4 opacity-50" />
+            <p>No {provider} tokens configured</p>
+          </div>
+        ) : (
+          tokens.map((token) => (
+            <div key={token.id} className="flex items-center justify-between p-4 rounded-lg border border-gray-700 bg-gray-800/30">
+              <div className="flex items-center gap-4">
+                <IconComponent className="h-5 w-5 text-gray-400" />
+                <div>
+                  <h3 className="font-semibold text-white">{token.token_name}</h3>
+                  <div className="flex items-center gap-2">
+                    <code className="text-sm text-gray-400 font-mono">
+                      {showTokens[token.id] ? token.token_value : maskToken(token.token_value)}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleTokenVisibility(token.id)}
+                      className="h-6 w-6 p-0"
+                    >
+                      {showTokens[token.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Created: {new Date(token.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant={token.is_active ? "default" : "secondary"}
+                  className={token.is_active ? "bg-green-500/20 text-green-400" : ""}
+                >
+                  {token.is_active ? "Active" : "Inactive"}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => deleteToken(token.id)}
+                  className="border-red-600 text-red-400 hover:bg-red-600/20"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    );
+  };
+
+  if (loading) {
     return (
       <Card className="bg-white/5 border-gray-800">
         <CardContent className="p-6">
@@ -247,151 +213,120 @@ const DeploymentSettings = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="bg-white/5 border-gray-800">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Globe className="h-5 w-5 text-blue-500" />
-            Deployment Configuration
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+    <Card className="bg-white/5 border-gray-800">
+      <CardHeader>
+        <CardTitle className="text-white">Deployment Settings</CardTitle>
+        <p className="text-gray-400">Manage your GitHub and Netlify deployment tokens</p>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="github" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="github" className="flex items-center gap-2">
+              <Github size={16} />
+              GitHub Tokens
+            </TabsTrigger>
+            <TabsTrigger value="netlify" className="flex items-center gap-2">
+              <Globe size={16} />
+              Netlify Tokens
+            </TabsTrigger>
+          </TabsList>
 
-          {saved && (
-            <Alert className="border-green-500 text-green-400">
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>Deployment settings saved successfully!</AlertDescription>
-            </Alert>
-          )}
-
-          {/* Netlify Settings */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Globe className="h-4 w-4" />
-              Netlify Configuration
-            </h3>
-            <div className="space-y-2">
-              <Label htmlFor="netlify-token" className="text-white">
-                Netlify Access Token
-              </Label>
-              <div className="relative">
-                <Key className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="netlify-token"
-                  type="password"
-                  placeholder="Enter your Netlify access token"
-                  value={netlifyToken}
-                  onChange={(e) => setNetlifyToken(e.target.value)}
-                  className="pl-10 bg-gray-800 border-gray-600 text-white"
-                />
+          <TabsContent value="github" className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Github size={20} />
+                GitHub Access Tokens
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="github-name" className="text-gray-300">Token Name</Label>
+                  <Input
+                    id="github-name"
+                    placeholder="e.g., Personal Access Token"
+                    value={newToken.provider === 'github' ? newToken.name : ''}
+                    onChange={(e) => setNewToken(prev => ({ ...prev, name: e.target.value, provider: 'github' }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="github-token" className="text-gray-300">Access Token</Label>
+                  <Input
+                    id="github-token"
+                    type="password"
+                    placeholder="ghp_xxxxxxxxxxxx"
+                    value={newToken.provider === 'github' ? newToken.value : ''}
+                    onChange={(e) => setNewToken(prev => ({ ...prev, value: e.target.value, provider: 'github' }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button 
+                    onClick={saveToken}
+                    disabled={newToken.provider !== 'github'}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Plus size={16} className="mr-2" />
+                    Add Token
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-gray-400">
-                Get your token from{' '}
-                <a 
-                  href="https://app.netlify.com/user/applications#personal-access-tokens" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline"
-                >
-                  Netlify User Settings
-                </a>
-              </p>
             </div>
+            {renderTokenList(githubTokens, 'github')}
+          </TabsContent>
+
+          <TabsContent value="netlify" className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Globe size={20} />
+                Netlify Access Tokens
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="netlify-name" className="text-gray-300">Token Name</Label>
+                  <Input
+                    id="netlify-name"
+                    placeholder="e.g., Deployment Token"
+                    value={newToken.provider === 'netlify' ? newToken.name : ''}
+                    onChange={(e) => setNewToken(prev => ({ ...prev, name: e.target.value, provider: 'netlify' }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="netlify-token" className="text-gray-300">Access Token</Label>
+                  <Input
+                    id="netlify-token"
+                    type="password"
+                    placeholder="nfp_xxxxxxxxxxxx"
+                    value={newToken.provider === 'netlify' ? newToken.value : ''}
+                    onChange={(e) => setNewToken(prev => ({ ...prev, value: e.target.value, provider: 'netlify' }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button 
+                    onClick={saveToken}
+                    disabled={newToken.provider !== 'netlify'}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Plus size={16} className="mr-2" />
+                    Add Token
+                  </Button>
+                </div>
+              </div>
+            </div>
+            {renderTokenList(netlifyTokens, 'netlify')}
+          </TabsContent>
+        </Tabs>
+
+        <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+          <h4 className="font-medium text-blue-400 mb-2">💡 Token Setup Instructions</h4>
+          <div className="text-sm text-gray-300 space-y-2">
+            <p><strong>GitHub:</strong> Create a Personal Access Token with repo and workflow permissions</p>
+            <p><strong>Netlify:</strong> Generate a Personal Access Token from your Netlify account settings</p>
           </div>
-
-          {/* GitHub Settings */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Github className="h-4 w-4" />
-              GitHub Configuration
-            </h3>
-            
-            {/* GitHub OAuth Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="github-client-id" className="text-white">
-                  GitHub Client ID (OAuth)
-                </Label>
-                <Input
-                  id="github-client-id"
-                  type="text"
-                  placeholder="GitHub OAuth Client ID"
-                  value={githubClientId}
-                  onChange={(e) => setGithubClientId(e.target.value)}
-                  className="bg-gray-800 border-gray-600 text-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="github-client-secret" className="text-white">
-                  GitHub Client Secret (OAuth)
-                </Label>
-                <Input
-                  id="github-client-secret"
-                  type="password"
-                  placeholder="GitHub OAuth Client Secret"
-                  value={githubClientSecret}
-                  onChange={(e) => setGithubClientSecret(e.target.value)}
-                  className="bg-gray-800 border-gray-600 text-white"
-                />
-              </div>
-            </div>
-
-            {/* GitHub Access Token */}
-            <div className="space-y-2">
-              <Label htmlFor="github-access-token" className="text-white">
-                GitHub Personal Access Token
-              </Label>
-              <div className="relative">
-                <Key className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="github-access-token"
-                  type="password"
-                  placeholder="GitHub Personal Access Token"
-                  value={githubAccessToken}
-                  onChange={(e) => setGithubAccessToken(e.target.value)}
-                  className="pl-10 bg-gray-800 border-gray-600 text-white"
-                />
-              </div>
-              <p className="text-xs text-gray-400">
-                Create tokens at{' '}
-                <a 
-                  href="https://github.com/settings/tokens" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline"
-                >
-                  GitHub Personal Access Tokens
-                </a>
-                {' '}or OAuth apps at{' '}
-                <a 
-                  href="https://github.com/settings/applications/new" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline"
-                >
-                  GitHub Developer Settings
-                </a>
-              </p>
-            </div>
-          </div>
-
-          <Button 
-            onClick={saveSettings} 
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {isLoading ? 'Saving...' : 'Save Deployment Settings'}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

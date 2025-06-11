@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Bot, User, Sparkles, Wand2, Palette, Database, Shield, Youtube, Users, Smartphone } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   id: string;
@@ -15,21 +18,81 @@ interface Message {
 interface ChatbotProps {
   youtubeUrl: string;
   projectIdea: string;
+  projectId?: string;
 }
 
-const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea }) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
+const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 'default-project' }) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // Load chat history from database
+    loadChatHistory();
+    
+    // Initialize with welcome message if no history
+    const welcomeMessage: Message = {
       id: '1',
       type: 'bot',
       content: `🎥 **Welcome to YouTube Website Builder!**\n\nI've analyzed your channel and I'm ready to help you create an amazing website!\n\n**📺 Channel:** ${youtubeUrl}\n**💡 Vision:** ${projectIdea}\n\n**✨ Creator Features Available:**\n• YouTube Video Integration\n• Channel Branding Match\n• Subscribe Widgets\n• Mobile-First Design\n• SEO for Creators\n• Monetization Tools\n• Analytics Dashboard\n\n**🎯 Pro Tip:** Use "Edit" to click and customize any element for your brand!\n\nWhat would you like to add to your YouTube website first?`,
       timestamp: new Date()
-    }
-  ]);
-  const [inputValue, setInputValue] = useState('');
+    };
 
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
+    setMessages(prev => prev.length === 0 ? [welcomeMessage] : prev);
+  }, [projectId, user]);
+
+  const loadChatHistory = async () => {
+    if (!user || !projectId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('project_chat_history')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error loading chat history:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const loadedMessages: Message[] = data.map(msg => ({
+          id: msg.id,
+          type: msg.message_type as 'user' | 'bot',
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+          feature: msg.metadata?.feature
+        }));
+        setMessages(loadedMessages);
+      }
+    } catch (error) {
+      console.error('Error in loadChatHistory:', error);
+    }
+  };
+
+  const saveChatMessage = async (messageType: 'user' | 'assistant', content: string, metadata?: any) => {
+    if (!user || !projectId) return;
+
+    try {
+      await supabase
+        .from('project_chat_history')
+        .insert({
+          project_id: projectId,
+          user_id: user.id,
+          message_type: messageType,
+          content,
+          metadata
+        });
+    } catch (error) {
+      console.error('Error saving chat message:', error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || loading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -39,9 +102,14 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea }) => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    
+    // Save user message
+    await saveChatMessage('user', inputValue);
+
+    setLoading(true);
 
     // Enhanced AI response logic for YouTube creators
-    setTimeout(() => {
+    setTimeout(async () => {
       let botResponse = '';
       let feature = '';
 
@@ -68,14 +136,21 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea }) => {
         timestamp: new Date(),
         feature
       };
+      
       setMessages(prev => [...prev, botMessage]);
+      
+      // Save bot message
+      await saveChatMessage('assistant', botResponse, { feature });
+      
+      setLoading(false);
     }, 1000);
 
     setInputValue('');
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       handleSendMessage();
     }
   };
@@ -148,6 +223,22 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea }) => {
               )}
             </div>
           ))}
+          
+          {loading && (
+            <div className="flex gap-3 justify-start">
+              <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                <Bot size={14} className="text-white" />
+              </div>
+              <div className="bg-card/80 border border-border/50 glass p-3 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-current rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                  <span className="text-sm text-muted-foreground ml-2">AI is thinking...</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
@@ -160,8 +251,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea }) => {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             className="bg-input/80 border-border backdrop-blur-sm"
+            disabled={loading}
           />
-          <Button onClick={handleSendMessage} size="sm" className="cyber-button">
+          <Button onClick={handleSendMessage} size="sm" className="cyber-button" disabled={loading || !inputValue.trim()}>
             <Send size={16} />
           </Button>
         </div>
@@ -175,6 +267,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea }) => {
               size="sm"
               className="text-xs h-7 glass border-border/30"
               onClick={() => setInputValue(action.label)}
+              disabled={loading}
             >
               {action.icon} {action.label}
             </Button>
@@ -183,7 +276,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea }) => {
         
         {/* Feature Status */}
         <div className="mt-2 text-xs text-muted-foreground text-center">
-          🎥 YouTube tools active • Creator-focused features ready
+          🎥 YouTube tools active • Creator-focused features ready • Chat history saved
         </div>
       </div>
     </div>

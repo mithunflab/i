@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, CheckCircle, XCircle, Eye, Globe, Clock } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Search, CheckCircle, XCircle, Eye, Globe, Clock, Shield, MessageSquare } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -19,21 +21,38 @@ interface Project {
   is_verified?: boolean;
 }
 
+interface VerificationRequest {
+  id: string;
+  project_id: string;
+  project_name: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  status: 'pending' | 'approved' | 'rejected';
+  request_message: string;
+  requested_at: string;
+  admin_notes?: string;
+}
+
 const ProjectApproval = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
+  const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const { toast } = useToast();
 
   useEffect(() => {
-    loadProjects();
+    loadData();
     
     // Set up real-time subscription
     const subscription = supabase
-      .channel('projects_changes')
+      .channel('admin_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-        loadProjects();
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_verification_requests' }, () => {
+        loadData();
       })
       .subscribe();
 
@@ -42,9 +61,9 @@ const ProjectApproval = () => {
     };
   }, []);
 
-  const loadProjects = async () => {
+  const loadData = async () => {
     try {
-      // First get all projects
+      // Load projects with user info
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('*')
@@ -60,7 +79,21 @@ const ProjectApproval = () => {
         return;
       }
 
-      // Then get all profiles for the user_ids in projects
+      // Load verification requests with project and user info
+      const { data: verificationsData, error: verificationsError } = await supabase
+        .from('project_verification_requests')
+        .select(`
+          *,
+          projects!inner(name),
+          profiles!inner(full_name, email)
+        `)
+        .order('requested_at', { ascending: false });
+
+      if (verificationsError) {
+        console.error('Error loading verification requests:', verificationsError);
+      }
+
+      // Get user profiles for projects
       const userIds = projectsData?.map(project => project.user_id) || [];
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
@@ -69,21 +102,15 @@ const ProjectApproval = () => {
 
       if (profilesError) {
         console.error('Error loading profiles:', profilesError);
-        toast({
-          title: "Error",
-          description: "Failed to load user profiles",
-          variant: "destructive"
-        });
-        return;
       }
 
-      // Create a map of user_id to profile data
+      // Create profiles map
       const profilesMap = new Map();
       profilesData?.forEach(profile => {
         profilesMap.set(profile.id, profile);
       });
 
-      // Combine the data
+      // Format projects data
       const formattedProjects: Project[] = (projectsData || []).map(project => {
         const profile = profilesMap.get(project.user_id);
         return {
@@ -99,12 +126,27 @@ const ProjectApproval = () => {
         };
       });
 
+      // Format verification requests
+      const formattedVerifications: VerificationRequest[] = (verificationsData || []).map(req => ({
+        id: req.id,
+        project_id: req.project_id,
+        project_name: req.projects?.name || 'Unknown Project',
+        user_id: req.user_id,
+        user_name: req.profiles?.full_name || 'Unknown User',
+        user_email: req.profiles?.email || 'No email',
+        status: req.status,
+        request_message: req.request_message || 'No message provided',
+        requested_at: req.requested_at,
+        admin_notes: req.admin_notes
+      }));
+
       setProjects(formattedProjects);
+      setVerificationRequests(formattedVerifications);
     } catch (error) {
-      console.error('Error in loadProjects:', error);
+      console.error('Error in loadData:', error);
       toast({
         title: "Error",
-        description: "Failed to load projects",
+        description: "Failed to load data",
         variant: "destructive"
       });
     } finally {
@@ -137,19 +179,42 @@ const ProjectApproval = () => {
         description: `Project ${newStatus} successfully`,
       });
 
-      // Update local state
-      setProjects(prev => prev.map(project => 
-        project.id === projectId 
-          ? { ...project, status: newStatus, is_verified: newStatus === 'approved' }
-          : project
-      ));
+      loadData();
     } catch (error) {
       console.error('Error in updateProjectStatus:', error);
+    }
+  };
+
+  const updateVerificationStatus = async (requestId: string, newStatus: 'approved' | 'rejected', adminNotes?: string) => {
+    try {
+      const { error } = await supabase
+        .from('project_verification_requests')
+        .update({ 
+          status: newStatus,
+          admin_notes: adminNotes,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: (await supabase.auth.getUser()).data.user?.id
+        })
+        .eq('id', requestId);
+
+      if (error) {
+        console.error('Error updating verification status:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update verification status",
+          variant: "destructive"
+        });
+        return;
+      }
+
       toast({
-        title: "Error",
-        description: "Failed to update project status",
-        variant: "destructive"
+        title: "Success",
+        description: `Verification request ${newStatus} successfully`,
       });
+
+      loadData();
+    } catch (error) {
+      console.error('Error in updateVerificationStatus:', error);
     }
   };
 
@@ -163,13 +228,23 @@ const ProjectApproval = () => {
     return matchesSearch && matchesFilter;
   });
 
+  const filteredVerifications = verificationRequests.filter(req => {
+    const matchesSearch = req.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         req.user_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         req.user_email.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilter = filter === 'all' || req.status === filter;
+    
+    return matchesSearch && matchesFilter;
+  });
+
   if (loading) {
     return (
       <Card className="bg-white/5 border-gray-800">
         <CardContent className="p-6">
           <div className="flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-            <span className="ml-2 text-white">Loading projects...</span>
+            <span className="ml-2 text-white">Loading...</span>
           </div>
         </CardContent>
       </Card>
@@ -179,7 +254,7 @@ const ProjectApproval = () => {
   return (
     <Card className="bg-white/5 border-gray-800">
       <CardHeader>
-        <CardTitle className="text-white">Project Approval Management</CardTitle>
+        <CardTitle className="text-white">Project Management</CardTitle>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -206,112 +281,183 @@ const ProjectApproval = () => {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {filteredProjects.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              No projects found
-            </div>
-          ) : (
-            filteredProjects.map((project) => (
-              <div key={project.id} className="flex items-center justify-between p-4 rounded-lg border border-gray-700 bg-gray-800/30">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center relative">
-                    <Globe className="h-5 w-5 text-purple-400" />
-                    {project.is_verified && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                        <CheckCircle className="h-3 w-3 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-white">{project.name}</h3>
+        <Tabs defaultValue="projects" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="projects" className="flex items-center gap-2">
+              <Globe size={16} />
+              Projects ({projects.length})
+            </TabsTrigger>
+            <TabsTrigger value="verifications" className="flex items-center gap-2">
+              <Shield size={16} />
+              Verification Requests ({verificationRequests.filter(r => r.status === 'pending').length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="projects" className="space-y-4">
+            {filteredProjects.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                No projects found
+              </div>
+            ) : (
+              filteredProjects.map((project) => (
+                <div key={project.id} className="flex items-center justify-between p-4 rounded-lg border border-gray-700 bg-gray-800/30">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center relative">
+                      <Globe className="h-5 w-5 text-purple-400" />
                       {project.is_verified && (
-                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
-                          ✓ Verified
-                        </Badge>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                          <CheckCircle className="h-3 w-3 text-white" />
+                        </div>
                       )}
                     </div>
-                    <p className="text-sm text-gray-400 mb-1">{project.description}</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>By: {project.user_name} ({project.user_email})</span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} />
-                        {new Date(project.created_at).toLocaleDateString()}
-                      </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-white">{project.name}</h3>
+                        {project.is_verified && (
+                          <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+                            ✓ Verified
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-400 mb-1">{project.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <span>By: {project.user_name} ({project.user_email})</span>
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} />
+                          {new Date(project.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <Badge 
+                      variant={
+                        project.status === 'approved' ? 'default' : 
+                        project.status === 'pending' ? 'secondary' : 
+                        'destructive'
+                      }
+                      className={
+                        project.status === 'approved' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                        project.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                        'bg-red-500/20 text-red-400 border-red-500/30'
+                      }
+                    >
+                      {project.status}
+                    </Badge>
+                    
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="border-gray-600 text-white hover:bg-white/10"
+                      >
+                        <Eye size={14} />
+                      </Button>
+                      
+                      {project.status === 'pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => updateProjectStatus(project.id, 'approved')}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <CheckCircle size={14} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => updateProjectStatus(project.id, 'rejected')}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <XCircle size={14} />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
-                
-                <div className="flex items-center gap-4">
-                  <Badge 
-                    variant={
-                      project.status === 'approved' ? 'default' : 
-                      project.status === 'pending' ? 'secondary' : 
-                      'destructive'
-                    }
-                    className={
-                      project.status === 'approved' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                      project.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-                      'bg-red-500/20 text-red-400 border-red-500/30'
-                    }
-                  >
-                    {project.status}
-                  </Badge>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="border-gray-600 text-white hover:bg-white/10"
-                    >
-                      <Eye size={14} />
-                    </Button>
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="verifications" className="space-y-4">
+            {filteredVerifications.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                No verification requests found
+              </div>
+            ) : (
+              filteredVerifications.map((request) => (
+                <div key={request.id} className="p-4 rounded-lg border border-gray-700 bg-gray-800/30">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4 flex-1">
+                      <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center">
+                        <Shield className="h-5 w-5 text-green-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-white">{request.project_name}</h3>
+                          <Badge 
+                            variant={
+                              request.status === 'approved' ? 'default' : 
+                              request.status === 'pending' ? 'secondary' : 
+                              'destructive'
+                            }
+                            className={
+                              request.status === 'approved' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                              request.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                              'bg-red-500/20 text-red-400 border-red-500/30'
+                            }
+                          >
+                            {request.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-400 mb-2">By: {request.user_name} ({request.user_email})</p>
+                        
+                        {request.request_message && (
+                          <div className="flex items-start gap-2 mb-2">
+                            <MessageSquare className="h-4 w-4 text-gray-400 mt-0.5" />
+                            <p className="text-sm text-gray-300 italic">"{request.request_message}"</p>
+                          </div>
+                        )}
+                        
+                        <div className="text-xs text-gray-500">
+                          Requested: {new Date(request.requested_at).toLocaleDateString()}
+                        </div>
+                        
+                        {request.admin_notes && (
+                          <div className="mt-2 p-2 bg-gray-700/50 rounded text-sm text-gray-300">
+                            <strong>Admin Notes:</strong> {request.admin_notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     
-                    {project.status === 'pending' && (
-                      <>
+                    {request.status === 'pending' && (
+                      <div className="flex gap-2">
                         <Button
                           size="sm"
-                          onClick={() => updateProjectStatus(project.id, 'approved')}
+                          onClick={() => updateVerificationStatus(request.id, 'approved', 'Project approved for verification')}
                           className="bg-green-600 hover:bg-green-700 text-white"
                         >
                           <CheckCircle size={14} />
+                          Approve
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => updateProjectStatus(project.id, 'rejected')}
+                          onClick={() => updateVerificationStatus(request.id, 'rejected', 'Verification request rejected')}
                           className="bg-red-600 hover:bg-red-700 text-white"
                         >
                           <XCircle size={14} />
+                          Reject
                         </Button>
-                      </>
-                    )}
-                    
-                    {project.status === 'approved' && (
-                      <Button
-                        size="sm"
-                        onClick={() => updateProjectStatus(project.id, 'rejected')}
-                        variant="destructive"
-                      >
-                        <XCircle size={14} />
-                      </Button>
-                    )}
-                    
-                    {project.status === 'rejected' && (
-                      <Button
-                        size="sm"
-                        onClick={() => updateProjectStatus(project.id, 'approved')}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        <CheckCircle size={14} />
-                      </Button>
+                      </div>
                     )}
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

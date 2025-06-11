@@ -248,6 +248,39 @@ export type Database = {
         }
         Relationships: []
       }
+      deployment_tokens: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          provider: string
+          token_name: string
+          token_value: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          provider: string
+          token_name: string
+          token_value: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          provider?: string
+          token_name?: string
+          token_value?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       deployments: {
         Row: {
           created_at: string | null
@@ -478,6 +511,88 @@ export type Database = {
         }
         Relationships: []
       }
+      project_chat_history: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          message_type: string
+          metadata: Json | null
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          message_type: string
+          metadata?: Json | null
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_chat_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_verification_requests: {
+        Row: {
+          admin_notes: string | null
+          id: string
+          project_id: string
+          request_message: string | null
+          requested_at: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          id?: string
+          project_id: string
+          request_message?: string | null
+          requested_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          id?: string
+          project_id?: string
+          request_message?: string | null
+          requested_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_verification_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           created_at: string | null
@@ -505,6 +620,33 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      storage_usage_tracking: {
+        Row: {
+          bucket_name: string
+          file_count: number | null
+          id: string
+          last_updated: string | null
+          total_size_bytes: number | null
+          user_id: string | null
+        }
+        Insert: {
+          bucket_name: string
+          file_count?: number | null
+          id?: string
+          last_updated?: string | null
+          total_size_bytes?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          bucket_name?: string
+          file_count?: number | null
+          id?: string
+          last_updated?: string | null
+          total_size_bytes?: number | null
+          user_id?: string | null
         }
         Relationships: []
       }
