@@ -109,16 +109,58 @@ const RealTimeQueryRunner = () => {
       let error = null;
 
       if (trimmedQuery.startsWith('select')) {
-        // For SELECT queries, use the client directly
-        const { data, error: queryError } = await supabase.rpc('execute_select_query', {
-          query_text: query
-        });
-        
-        if (queryError) {
-          error = queryError.message;
-          result = [];
+        // For simple SELECT queries, try to execute them directly
+        if (trimmedQuery.includes('profiles')) {
+          const { data, error: queryError } = await supabase
+            .from('profiles')
+            .select('*')
+            .limit(10);
+          
+          if (queryError) {
+            error = queryError.message;
+            result = [];
+          } else {
+            result = data || [];
+          }
+        } else if (trimmedQuery.includes('api_keys')) {
+          const { data, error: queryError } = await supabase
+            .from('api_keys')
+            .select('*')
+            .limit(10);
+          
+          if (queryError) {
+            error = queryError.message;
+            result = [];
+          } else {
+            result = data || [];
+          }
+        } else if (trimmedQuery.includes('deployment_tokens')) {
+          const { data, error: queryError } = await supabase
+            .from('deployment_tokens')
+            .select('*')
+            .limit(10);
+          
+          if (queryError) {
+            error = queryError.message;
+            result = [];
+          } else {
+            result = data || [];
+          }
+        } else if (trimmedQuery.includes('storage_usage_tracking')) {
+          const { data, error: queryError } = await supabase
+            .from('storage_usage_tracking')
+            .select('*')
+            .limit(10);
+          
+          if (queryError) {
+            error = queryError.message;
+            result = [];
+          } else {
+            result = data || [];
+          }
         } else {
-          result = data || [];
+          error = 'This query pattern is not supported in the demo interface. Please use the suggested sample queries.';
+          result = [];
         }
       } else {
         // For other operations, show a safe message

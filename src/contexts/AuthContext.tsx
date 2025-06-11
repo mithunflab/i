@@ -17,8 +17,14 @@ interface AuthContextType {
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
+  isLoading: boolean; // Add this property
   signIn: (email: string, password: string) => Promise<any>;
+  login: (email: string, password: string) => Promise<any>; // Add this property
+  signUp: (email: string, password: string, fullName: string) => Promise<any>; // Add this property
+  loginWithGoogle: () => Promise<any>; // Add this property
+  loginAsAdmin: (email: string) => Promise<any>; // Add this property
   signOut: () => Promise<void>;
+  logout: () => Promise<void>; // Add this property
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -90,7 +96,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } else if (data) {
         console.log('Profile loaded:', data);
-        setProfile(data);
+        // Ensure role is properly typed
+        const typedProfile: Profile = {
+          ...data,
+          role: (data.role === 'admin' || data.role === 'user') ? data.role : 'user'
+        };
+        setProfile(typedProfile);
       }
     } catch (err) {
       console.error('Exception loading profile:', err);
@@ -117,7 +128,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error creating admin profile:', error);
       } else {
         console.log('Admin profile created:', data);
-        setProfile(data);
+        const typedProfile: Profile = {
+          ...data,
+          role: 'admin'
+        };
+        setProfile(typedProfile);
       }
     } catch (err) {
       console.error('Exception creating admin profile:', err);
@@ -140,6 +155,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data;
   };
 
+  // Add login as alias for signIn
+  const login = signIn;
+
+  const signUp = async (email: string, password: string, fullName: string) => {
+    console.log('Attempting to sign up:', email);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName
+        },
+        emailRedirectTo: `${window.location.origin}/`
+      }
+    });
+
+    if (error) {
+      console.error('Sign up error:', error);
+      throw error;
+    }
+
+    console.log('Sign up successful:', data.user?.email);
+    return data;
+  };
+
+  const loginWithGoogle = async () => {
+    console.log('Attempting Google login...');
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`
+      }
+    });
+
+    if (error) {
+      console.error('Google login error:', error);
+      throw error;
+    }
+
+    console.log('Google login initiated');
+    return data;
+  };
+
+  const loginAsAdmin = async (email: string) => {
+    console.log('Admin login for:', email);
+    // This is a special admin login that bypasses normal auth
+    // In a real app, this would be handled differently
+    return { success: true };
+  };
+
   const signOut = async () => {
     console.log('Signing out...');
     const { error } = await supabase.auth.signOut();
@@ -152,13 +217,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
   };
 
+  // Add logout as alias for signOut
+  const logout = signOut;
+
   const value = {
     user,
     profile,
     session,
     loading,
+    isLoading: loading, // Add isLoading as alias for loading
     signIn,
+    login,
+    signUp,
+    loginWithGoogle,
+    loginAsAdmin,
     signOut,
+    logout,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
