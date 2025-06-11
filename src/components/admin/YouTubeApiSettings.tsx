@@ -20,7 +20,7 @@ const YouTubeApiSettings = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       loadApiKey();
     } else {
       setLoadingData(false);
@@ -28,7 +28,7 @@ const YouTubeApiSettings = () => {
   }, [user]);
 
   const loadApiKey = async () => {
-    if (!user) {
+    if (!user?.id) {
       setLoadingData(false);
       return;
     }
@@ -71,7 +71,7 @@ const YouTubeApiSettings = () => {
       return;
     }
 
-    if (!user) {
+    if (!user?.id) {
       setError('User not authenticated');
       toast({
         title: "Error", 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,7 @@ import RealTimeApiUsage from './RealTimeApiUsage';
 import YouTubeApiSettings from './YouTubeApiSettings';
 import DeploymentSettings from './DeploymentSettings';
 import ConfigurationAnalytics from './ConfigurationAnalytics';
+import UserPortalSwitch from './UserPortalSwitch';
 
 const DeveloperDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -102,6 +104,9 @@ const DeveloperDashboard = () => {
       case 'overview':
         return (
           <div className="space-y-6">
+            {/* User Portal Switch for Admin */}
+            <UserPortalSwitch />
+
             {/* Real-time Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
               {stats.map((stat) => (
