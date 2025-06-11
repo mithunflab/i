@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -35,7 +34,7 @@ const ConfigurationAnalytics = () => {
 
     try {
       const { data, error } = await supabase
-        .from('api_tokens')
+        .from('api_keys')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });

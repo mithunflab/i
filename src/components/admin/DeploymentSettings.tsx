@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Globe, Github, Key, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const DeploymentSettings = () => {
   const [netlifyToken, setNetlifyToken] = useState('');
@@ -38,31 +37,29 @@ const DeploymentSettings = () => {
     try {
       // Load Netlify token
       const { data: netlifyData } = await supabase
-        .from('api_tokens')
-        .select('token_value')
+        .from('api_keys')
+        .select('key_value')
         .eq('user_id', user.id)
         .eq('provider', 'Netlify')
-        .eq('token_type', 'access_token')
         .single();
 
       if (netlifyData) {
-        setNetlifyToken(netlifyData.token_value);
+        setNetlifyToken(netlifyData.key_value);
       }
 
       // Load GitHub settings
       const { data: githubData } = await supabase
-        .from('api_tokens')
-        .select('token_value, description')
+        .from('api_keys')
+        .select('key_value, name')
         .eq('user_id', user.id)
-        .eq('provider', 'GitHub')
-        .eq('token_type', 'oauth');
+        .eq('provider', 'GitHub');
 
       if (githubData && githubData.length >= 2) {
-        const clientIdToken = githubData.find(token => token.description?.includes('client_id'));
-        const clientSecretToken = githubData.find(token => token.description?.includes('client_secret'));
+        const clientIdToken = githubData.find(token => token.name?.includes('client_id') || token.name?.includes('Client ID'));
+        const clientSecretToken = githubData.find(token => token.name?.includes('client_secret') || token.name?.includes('Client Secret'));
         
-        if (clientIdToken) setGithubClientId(clientIdToken.token_value);
-        if (clientSecretToken) setGithubClientSecret(clientSecretToken.token_value);
+        if (clientIdToken) setGithubClientId(clientIdToken.key_value);
+        if (clientSecretToken) setGithubClientSecret(clientSecretToken.key_value);
       }
     } catch (err) {
       console.log('No existing deployment settings found');
@@ -98,95 +95,86 @@ const DeploymentSettings = () => {
     try {
       // Save Netlify token
       const { data: existingNetlify } = await supabase
-        .from('api_tokens')
+        .from('api_keys')
         .select('id')
         .eq('user_id', user.id)
         .eq('provider', 'Netlify')
-        .eq('token_type', 'access_token')
         .single();
 
       if (existingNetlify) {
         await supabase
-          .from('api_tokens')
+          .from('api_keys')
           .update({
-            token_value: netlifyToken,
+            key_value: netlifyToken,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingNetlify.id);
       } else {
         await supabase
-          .from('api_tokens')
+          .from('api_keys')
           .insert({
             user_id: user.id,
             name: 'Netlify Access Token',
-            token_value: netlifyToken,
+            key_value: netlifyToken,
             provider: 'Netlify',
-            token_type: 'access_token',
-            description: 'Netlify deployment access token',
             is_active: true
           });
       }
 
       // Save GitHub Client ID
       const { data: existingGithubId } = await supabase
-        .from('api_tokens')
+        .from('api_keys')
         .select('id')
         .eq('user_id', user.id)
         .eq('provider', 'GitHub')
-        .eq('token_type', 'oauth')
-        .like('description', '%client_id%')
+        .like('name', '%Client ID%')
         .single();
 
       if (existingGithubId) {
         await supabase
-          .from('api_tokens')
+          .from('api_keys')
           .update({
-            token_value: githubClientId,
+            key_value: githubClientId,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingGithubId.id);
       } else {
         await supabase
-          .from('api_tokens')
+          .from('api_keys')
           .insert({
             user_id: user.id,
             name: 'GitHub OAuth Client ID',
-            token_value: githubClientId,
+            key_value: githubClientId,
             provider: 'GitHub',
-            token_type: 'oauth',
-            description: 'GitHub OAuth client_id for deployments',
             is_active: true
           });
       }
 
       // Save GitHub Client Secret
       const { data: existingGithubSecret } = await supabase
-        .from('api_tokens')
+        .from('api_keys')
         .select('id')
         .eq('user_id', user.id)
         .eq('provider', 'GitHub')
-        .eq('token_type', 'oauth')
-        .like('description', '%client_secret%')
+        .like('name', '%Client Secret%')
         .single();
 
       if (existingGithubSecret) {
         await supabase
-          .from('api_tokens')
+          .from('api_keys')
           .update({
-            token_value: githubClientSecret,
+            key_value: githubClientSecret,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingGithubSecret.id);
       } else {
         await supabase
-          .from('api_tokens')
+          .from('api_keys')
           .insert({
             user_id: user.id,
             name: 'GitHub OAuth Client Secret',
-            token_value: githubClientSecret,
+            key_value: githubClientSecret,
             provider: 'GitHub',
-            token_type: 'oauth',
-            description: 'GitHub OAuth client_secret for deployments',
             is_active: true
           });
       }

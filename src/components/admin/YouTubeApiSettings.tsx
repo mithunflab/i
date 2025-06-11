@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,17 +34,16 @@ const YouTubeApiSettings = () => {
     
     try {
       const { data, error } = await supabase
-        .from('api_tokens')
+        .from('api_keys')
         .select('*')
         .eq('user_id', user.id)
         .eq('provider', 'YouTube')
-        .eq('token_type', 'api')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
       if (data) {
-        setApiKey(data.token_value || '');
+        setApiKey(data.key_value || '');
       }
     } catch (err) {
       console.log('No existing YouTube API key found');
@@ -81,19 +79,18 @@ const YouTubeApiSettings = () => {
     try {
       // First, check if a YouTube API key already exists
       const { data: existingKey } = await supabase
-        .from('api_tokens')
+        .from('api_keys')
         .select('id')
         .eq('user_id', user.id)
         .eq('provider', 'YouTube')
-        .eq('token_type', 'api')
         .single();
 
       if (existingKey) {
         // Update existing key
         const { error } = await supabase
-          .from('api_tokens')
+          .from('api_keys')
           .update({
-            token_value: apiKey,
+            key_value: apiKey,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingKey.id);
@@ -117,14 +114,12 @@ const YouTubeApiSettings = () => {
       } else {
         // Insert new key
         const { error } = await supabase
-          .from('api_tokens')
+          .from('api_keys')
           .insert({
             user_id: user.id,
             name: 'YouTube Data API v3',
-            token_value: apiKey,
+            key_value: apiKey,
             provider: 'YouTube',
-            token_type: 'api',
-            description: 'YouTube Data API v3 key for video processing',
             is_active: true
           });
 
