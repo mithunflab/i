@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Plus, Edit, Trash2, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface User {
   id: string;
@@ -31,6 +32,7 @@ const UserManagement = () => {
     role: 'user' as 'user' | 'admin',
     status: 'active' as 'active' | 'inactive'
   });
+  const { toast } = useToast();
 
   useEffect(() => {
     loadUsers();
@@ -45,36 +47,52 @@ const UserManagement = () => {
 
       if (error) {
         console.error('Error loading users:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load users",
+          variant: "destructive"
+        });
         return;
       }
 
-      const formattedUsers = (data || []).map(profile => ({
+      const formattedUsers: User[] = (data || []).map(profile => ({
         id: profile.id,
         name: profile.full_name || 'Unknown',
         email: profile.email || 'No email',
-        role: profile.role || 'user',
-        status: 'active',
+        role: (profile.role === 'admin' ? 'admin' : 'user') as 'user' | 'admin',
+        status: 'active' as 'active' | 'inactive',
         joinDate: new Date(profile.created_at || '').toLocaleDateString(),
-        projects: Math.floor(Math.random() * 10) // Mock project count
+        projects: Math.floor(Math.random() * 10)
       }));
 
       setUsers(formattedUsers);
     } catch (error) {
       console.error('Error in loadUsers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load users",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const addUser = async () => {
-    if (!newUser.name || !newUser.email) return;
+    if (!newUser.name || !newUser.email) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setIsAddingUser(true);
     try {
-      // Create a new user in Supabase auth
       const { data, error } = await supabase.auth.signUp({
         email: newUser.email,
-        password: 'TempPassword123!', // Temporary password
+        password: 'TempPassword123!',
         options: {
           data: {
             full_name: newUser.name,
@@ -85,27 +103,28 @@ const UserManagement = () => {
 
       if (error) {
         console.error('Error creating user:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create user",
+          variant: "destructive"
+        });
         return;
       }
 
-      // Add to our local state
-      const newUserData: User = {
-        id: data.user?.id || Math.random().toString(),
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-        status: newUser.status,
-        joinDate: new Date().toLocaleDateString(),
-        projects: 0
-      };
+      toast({
+        title: "Success",
+        description: "User created successfully",
+      });
 
-      setUsers(prev => [newUserData, ...prev]);
       setNewUser({ name: '', email: '', role: 'user', status: 'active' });
-      
-      // Reload users to get the latest data
       await loadUsers();
     } catch (error) {
       console.error('Error in addUser:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create user",
+        variant: "destructive"
+      });
     } finally {
       setIsAddingUser(false);
     }
