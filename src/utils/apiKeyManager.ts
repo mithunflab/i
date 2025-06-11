@@ -25,7 +25,17 @@ export const apiKeyManager = {
     try {
       console.log('Loading all API keys for user:', userId);
 
-      // Load YouTube keys
+      // Load from general api_keys table first
+      const { data: generalKeys, error: generalError } = await supabase
+        .from('api_keys')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (generalError) {
+        console.error('Error loading general API keys:', generalError);
+      }
+
+      // Load YouTube keys from specific table
       const { data: youtubeKeys, error: youtubeError } = await supabase
         .from('youtube_api_keys')
         .select('*')
@@ -35,7 +45,7 @@ export const apiKeyManager = {
         console.error('Error loading YouTube keys:', youtubeError);
       }
 
-      // Load OpenRouter keys
+      // Load OpenRouter keys from specific table
       const { data: openrouterKeys, error: openrouterError } = await supabase
         .from('openrouter_api_keys')
         .select('*')
@@ -45,7 +55,7 @@ export const apiKeyManager = {
         console.error('Error loading OpenRouter keys:', openrouterError);
       }
 
-      // Load GitHub keys
+      // Load GitHub keys from specific table
       const { data: githubKeys, error: githubError } = await supabase
         .from('github_api_keys')
         .select('*')
@@ -55,7 +65,7 @@ export const apiKeyManager = {
         console.error('Error loading GitHub keys:', githubError);
       }
 
-      // Load Netlify keys
+      // Load Netlify keys from specific table
       const { data: netlifyKeys, error: netlifyError } = await supabase
         .from('netlify_api_keys')
         .select('*')
@@ -65,48 +75,120 @@ export const apiKeyManager = {
         console.error('Error loading Netlify keys:', netlifyError);
       }
 
+      // Process general keys and categorize by provider
+      const generalKeysByProvider = {
+        youtube: [] as ApiKeyWithUsage[],
+        openrouter: [] as ApiKeyWithUsage[],
+        github: [] as ApiKeyWithUsage[],
+        netlify: [] as ApiKeyWithUsage[]
+      };
+
+      if (generalKeys) {
+        generalKeys.forEach(key => {
+          const provider = key.provider?.toLowerCase();
+          if (provider === 'youtube') {
+            generalKeysByProvider.youtube.push({
+              id: key.id,
+              name: key.name,
+              api_key: key.key_value,
+              quota_used: 0,
+              quota_limit: 10000,
+              is_active: key.is_active,
+              last_used_at: key.updated_at,
+              created_at: key.created_at
+            });
+          } else if (provider === 'openrouter') {
+            generalKeysByProvider.openrouter.push({
+              id: key.id,
+              name: key.name,
+              api_key: key.key_value,
+              credits_used: 0,
+              credits_limit: 100,
+              requests_count: 0,
+              is_active: key.is_active,
+              last_used_at: key.updated_at,
+              created_at: key.created_at
+            });
+          } else if (provider === 'github') {
+            generalKeysByProvider.github.push({
+              id: key.id,
+              name: key.name,
+              api_token: key.key_value,
+              rate_limit_used: 0,
+              rate_limit_limit: 5000,
+              is_active: key.is_active,
+              last_used_at: key.updated_at,
+              created_at: key.created_at
+            });
+          } else if (provider === 'netlify') {
+            generalKeysByProvider.netlify.push({
+              id: key.id,
+              name: key.name,
+              api_token: key.key_value,
+              deployments_count: 0,
+              deployments_limit: 300,
+              is_active: key.is_active,
+              last_used_at: key.updated_at,
+              created_at: key.created_at
+            });
+          }
+        });
+      }
+
       const result = {
-        youtube: (youtubeKeys || []).map(key => ({
-          id: key.id,
-          name: key.name,
-          api_key: key.api_key,
-          quota_used: key.quota_used,
-          quota_limit: key.quota_limit,
-          is_active: key.is_active,
-          last_used_at: key.last_used_at,
-          created_at: key.created_at
-        })) as ApiKeyWithUsage[],
-        openrouter: (openrouterKeys || []).map(key => ({
-          id: key.id,
-          name: key.name,
-          api_key: key.api_key,
-          credits_used: key.credits_used,
-          credits_limit: key.credits_limit,
-          requests_count: key.requests_count,
-          is_active: key.is_active,
-          last_used_at: key.last_used_at,
-          created_at: key.created_at
-        })) as ApiKeyWithUsage[],
-        github: (githubKeys || []).map(key => ({
-          id: key.id,
-          name: key.name,
-          api_token: key.api_token,
-          rate_limit_used: key.rate_limit_used,
-          rate_limit_limit: key.rate_limit_limit,
-          is_active: key.is_active,
-          last_used_at: key.last_used_at,
-          created_at: key.created_at
-        })) as ApiKeyWithUsage[],
-        netlify: (netlifyKeys || []).map(key => ({
-          id: key.id,
-          name: key.name,
-          api_token: key.api_token,
-          deployments_count: key.deployments_count,
-          deployments_limit: key.deployments_limit,
-          is_active: key.is_active,
-          last_used_at: key.last_used_at,
-          created_at: key.created_at
-        })) as ApiKeyWithUsage[]
+        youtube: [
+          ...generalKeysByProvider.youtube,
+          ...(youtubeKeys || []).map(key => ({
+            id: key.id,
+            name: key.name,
+            api_key: key.api_key,
+            quota_used: key.quota_used,
+            quota_limit: key.quota_limit,
+            is_active: key.is_active,
+            last_used_at: key.last_used_at,
+            created_at: key.created_at
+          }))
+        ] as ApiKeyWithUsage[],
+        openrouter: [
+          ...generalKeysByProvider.openrouter,
+          ...(openrouterKeys || []).map(key => ({
+            id: key.id,
+            name: key.name,
+            api_key: key.api_key,
+            credits_used: key.credits_used,
+            credits_limit: key.credits_limit,
+            requests_count: key.requests_count,
+            is_active: key.is_active,
+            last_used_at: key.last_used_at,
+            created_at: key.created_at
+          }))
+        ] as ApiKeyWithUsage[],
+        github: [
+          ...generalKeysByProvider.github,
+          ...(githubKeys || []).map(key => ({
+            id: key.id,
+            name: key.name,
+            api_token: key.api_token,
+            rate_limit_used: key.rate_limit_used,
+            rate_limit_limit: key.rate_limit_limit,
+            is_active: key.is_active,
+            last_used_at: key.last_used_at,
+            created_at: key.created_at
+          }))
+        ] as ApiKeyWithUsage[],
+        netlify: [
+          ...generalKeysByProvider.netlify,
+          ...(netlifyKeys || []).map(key => ({
+            id: key.id,
+            name: key.name,
+            api_token: key.api_token,
+            deployments_count: key.deployments_count,
+            deployments_limit: key.deployments_limit,
+            is_active: key.is_active,
+            last_used_at: key.last_used_at,
+            created_at: key.created_at
+          }))
+        ] as ApiKeyWithUsage[]
       };
 
       console.log('All API keys loaded:', result);
@@ -126,8 +208,55 @@ export const apiKeyManager = {
     try {
       console.log(`Getting active key for provider: ${provider}, user: ${userId}`);
       
+      // First check general api_keys table
+      const { data: generalData, error: generalError } = await supabase
+        .from('api_keys')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('provider', provider)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!generalError && generalData && generalData.length > 0) {
+        const key = generalData[0];
+        console.log(`Active key found in general table for ${provider}:`, key);
+        
+        // Map general key to ApiKeyWithUsage format
+        const result: ApiKeyWithUsage = {
+          id: key.id,
+          name: key.name,
+          is_active: key.is_active,
+          created_at: key.created_at,
+          last_used_at: key.updated_at
+        };
+
+        // Add provider-specific fields
+        if (provider.toLowerCase() === 'youtube') {
+          result.api_key = key.key_value;
+          result.quota_used = 0;
+          result.quota_limit = 10000;
+        } else if (provider.toLowerCase() === 'openrouter') {
+          result.api_key = key.key_value;
+          result.credits_used = 0;
+          result.credits_limit = 100;
+          result.requests_count = 0;
+        } else if (provider.toLowerCase() === 'github') {
+          result.api_token = key.key_value;
+          result.rate_limit_used = 0;
+          result.rate_limit_limit = 5000;
+        } else if (provider.toLowerCase() === 'netlify') {
+          result.api_token = key.key_value;
+          result.deployments_count = 0;
+          result.deployments_limit = 300;
+        }
+
+        return result;
+      }
+
+      // Fallback to provider-specific tables
       let tableName: string;
-      switch (provider) {
+      switch (provider.toLowerCase()) {
         case 'youtube':
           tableName = 'youtube_api_keys';
           break;
@@ -141,7 +270,8 @@ export const apiKeyManager = {
           tableName = 'netlify_api_keys';
           break;
         default:
-          throw new Error(`Unknown provider: ${provider}`);
+          console.log(`Unknown provider: ${provider}`);
+          return null;
       }
 
       const { data, error } = await supabase
@@ -227,10 +357,22 @@ export const apiKeyManager = {
     try {
       console.log(`Updating usage for ${provider} key ${keyId}:`, usageData);
       
+      // Try to update in general api_keys table first
+      const { error: generalError } = await supabase
+        .from('api_keys')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', keyId);
+
+      if (!generalError) {
+        console.log(`Successfully updated usage in general table for ${provider} key ${keyId}`);
+        return true;
+      }
+
+      // Fallback to provider-specific tables
       let tableName: string;
       let updateData: any = { last_used_at: new Date().toISOString() };
 
-      switch (provider) {
+      switch (provider.toLowerCase()) {
         case 'youtube':
           tableName = 'youtube_api_keys';
           if (usageData.quota_used !== undefined) {
@@ -259,7 +401,8 @@ export const apiKeyManager = {
           }
           break;
         default:
-          throw new Error(`Unknown provider: ${provider}`);
+          console.log(`Unknown provider: ${provider}`);
+          return false;
       }
 
       const { error } = await supabase
