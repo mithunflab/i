@@ -61,14 +61,19 @@ const LoginForm = () => {
         }
 
         console.log('Attempting admin login for developer portal...');
-        await loginAsAdmin(email, password);
+        const result = await loginAsAdmin(email, password);
+        console.log('Admin login result:', result);
+        
+        // Force redirect after successful admin login
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 1000);
       } else {
         console.log('Attempting regular login...');
         await login(email, password);
       }
       
       console.log('Login successful');
-      // Navigation will be handled by the useEffect above
     } catch (loginError: any) {
       console.error('Login failed:', loginError);
       setError(loginError.message || 'Login failed. Please try again.');

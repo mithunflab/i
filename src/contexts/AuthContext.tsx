@@ -95,6 +95,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userEmail = session?.user?.email;
           if (userEmail && (userEmail === 'kirishmithun2006@gmail.com' || userEmail === 'zenmithun@outlook.com')) {
             await createAdminProfile(userId, userEmail);
+          } else {
+            // Create regular user profile
+            await createUserProfile(userId, userEmail || '');
           }
         }
       } else if (data) {
@@ -139,6 +142,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err) {
       console.error('Exception creating admin profile:', err);
+    }
+  };
+
+  const createUserProfile = async (userId: string, email: string) => {
+    try {
+      console.log('Creating user profile for:', email);
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: email,
+          full_name: email.split('@')[0],
+          role: 'user'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating user profile:', error);
+      } else {
+        console.log('User profile created:', data);
+        const typedProfile: Profile = {
+          ...data,
+          role: 'user'
+        };
+        setProfile(typedProfile);
+      }
+    } catch (err) {
+      console.error('Exception creating user profile:', err);
     }
   };
 
@@ -204,7 +236,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginAsAdmin = async (email: string, password: string) => {
     console.log('Admin login attempt for:', email);
     
-    // Use regular Supabase authentication for admin users
+    // Validate admin credentials first
+    if (email !== 'kirishmithun2006@gmail.com' && email !== 'zenmithun@outlook.com') {
+      throw new Error('Unauthorized: Admin access only');
+    }
+    
+    // Use regular Supabase authentication
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -216,13 +253,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     console.log('Admin login successful:', data.user?.email);
-    
-    // For admin credentials, ensure they get admin role
-    if (email === 'kirishmithun2006@gmail.com' || email === 'zenmithun@outlook.com') {
-      // The profile creation will be handled in the auth state change
-      console.log('Admin user detected, profile will be created with admin role');
-    }
-    
     return data;
   };
 

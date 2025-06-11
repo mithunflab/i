@@ -58,7 +58,6 @@ import RealTimeApiUsage from './RealTimeApiUsage';
 import YouTubeApiSettings from './YouTubeApiSettings';
 import DeploymentSettings from './DeploymentSettings';
 import ConfigurationAnalytics from './ConfigurationAnalytics';
-import UserPortalSwitch from './UserPortalSwitch';
 
 const DeveloperDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -104,9 +103,6 @@ const DeveloperDashboard = () => {
       case 'overview':
         return (
           <div className="space-y-6">
-            {/* User Portal Switch for Admin */}
-            <UserPortalSwitch />
-
             {/* Real-time Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
               {stats.map((stat) => (
@@ -185,6 +181,38 @@ const DeveloperDashboard = () => {
                     <BarChart3 size={20} />
                     <span className="text-xs">Config Analytics</span>
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* System Health Status */}
+            <Card className="bg-white/5 border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-white">System Health</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-gray-700 bg-gray-800/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                      <span className="text-white">API Status</span>
+                    </div>
+                    <span className="text-sm text-green-400">Operational</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-gray-700 bg-gray-800/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                      <span className="text-white">Database</span>
+                    </div>
+                    <span className="text-sm text-green-400">Healthy</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-gray-700 bg-gray-800/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+                      <span className="text-white">Storage</span>
+                    </div>
+                    <span className="text-sm text-yellow-400">Monitoring</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
