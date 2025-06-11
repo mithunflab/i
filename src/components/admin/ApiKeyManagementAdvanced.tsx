@@ -12,7 +12,6 @@ import { Key, Plus, Trash2, Eye, EyeOff, Wifi, Shield, BarChart3, Activity } fro
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { apiKeyManager } from '@/utils/apiKeyManager';
 
 interface ApiKeyData {
   id: string;
@@ -102,9 +101,37 @@ const ApiKeyManagementAdvanced = () => {
 
     try {
       setLoading(true);
-      const allKeys = await apiKeyManager.getAllKeys(user.id);
-      console.log('Loaded all API keys:', allKeys);
-      setApiKeys(allKeys);
+      
+      // Load YouTube keys
+      const { data: youtubeKeys } = await supabase
+        .from('youtube_api_keys')
+        .select('*')
+        .eq('user_id', user.id);
+
+      // Load OpenRouter keys  
+      const { data: openrouterKeys } = await supabase
+        .from('openrouter_api_keys')
+        .select('*')
+        .eq('user_id', user.id);
+
+      // Load GitHub keys
+      const { data: githubKeys } = await supabase
+        .from('github_api_keys')
+        .select('*')
+        .eq('user_id', user.id);
+
+      // Load Netlify keys
+      const { data: netlifyKeys } = await supabase
+        .from('netlify_api_keys')
+        .select('*')
+        .eq('user_id', user.id);
+
+      setApiKeys({
+        youtube: youtubeKeys || [],
+        openrouter: openrouterKeys || [],
+        github: githubKeys || [],
+        netlify: netlifyKeys || []
+      });
     } catch (error) {
       console.error('Error loading API keys:', error);
       toast({
@@ -139,41 +166,38 @@ const ApiKeyManagementAdvanced = () => {
     setSaving(true);
 
     try {
-      let tableName = '';
       let insertData: any = {
         user_id: user.id,
         name: newKey.name,
         is_active: true
       };
 
+      let error;
+
       switch (provider) {
         case 'youtube':
-          tableName = 'youtube_api_keys';
           insertData.api_key = newKey.key_value;
           insertData.quota_limit = newKey.quota_limit;
+          ({ error } = await supabase.from('youtube_api_keys').insert(insertData));
           break;
         case 'openrouter':
-          tableName = 'openrouter_api_keys';
           insertData.api_key = newKey.key_value;
           insertData.credits_limit = newKey.credits_limit;
+          ({ error } = await supabase.from('openrouter_api_keys').insert(insertData));
           break;
         case 'github':
-          tableName = 'github_api_keys';
           insertData.api_token = newKey.key_value;
           insertData.rate_limit_limit = newKey.rate_limit_limit;
+          ({ error } = await supabase.from('github_api_keys').insert(insertData));
           break;
         case 'netlify':
-          tableName = 'netlify_api_keys';
           insertData.api_token = newKey.key_value;
           insertData.deployments_limit = newKey.deployments_limit;
+          ({ error } = await supabase.from('netlify_api_keys').insert(insertData));
           break;
         default:
           throw new Error('Unknown provider');
       }
-
-      const { error } = await supabase
-        .from(tableName)
-        .insert(insertData);
 
       if (error) {
         console.error('Error saving API key:', error);
@@ -211,28 +235,24 @@ const ApiKeyManagementAdvanced = () => {
 
   const deleteApiKey = async (provider: string, keyId: string) => {
     try {
-      let tableName = '';
+      let error;
+
       switch (provider) {
         case 'youtube':
-          tableName = 'youtube_api_keys';
+          ({ error } = await supabase.from('youtube_api_keys').delete().eq('id', keyId));
           break;
         case 'openrouter':
-          tableName = 'openrouter_api_keys';
+          ({ error } = await supabase.from('openrouter_api_keys').delete().eq('id', keyId));
           break;
         case 'github':
-          tableName = 'github_api_keys';
+          ({ error } = await supabase.from('github_api_keys').delete().eq('id', keyId));
           break;
         case 'netlify':
-          tableName = 'netlify_api_keys';
+          ({ error } = await supabase.from('netlify_api_keys').delete().eq('id', keyId));
           break;
         default:
           throw new Error('Unknown provider');
       }
-
-      const { error } = await supabase
-        .from(tableName)
-        .delete()
-        .eq('id', keyId);
 
       if (error) {
         console.error('Error deleting API key:', error);
