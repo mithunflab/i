@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ const LoginForm = () => {
   const [userType, setUserType] = useState('user');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, signUp, loginWithGoogle, loginAsAdmin, user, profile } = useAuth();
+  const { login, signUp, loginWithGoogle, loginAsAdmin, user, profile, isLoading } = useAuth();
 
   // Special admin credentials
   const ADMIN_CREDENTIALS = [
@@ -27,8 +28,11 @@ const LoginForm = () => {
 
   // Redirect if already logged in
   useEffect(() => {
+    // Don't redirect while still loading auth state
+    if (isLoading) return;
+    
     if (user && profile && profile.role) {
-      console.log('User detected in LoginForm, redirecting...');
+      console.log('User detected in LoginForm, redirecting...', profile.role);
       
       if (profile.role === 'admin') {
         navigate('/dashboard', { replace: true });
@@ -36,47 +40,39 @@ const LoginForm = () => {
         navigate('/user-dashboard', { replace: true });
       }
     }
-  }, [user, profile, navigate]);
+  }, [user, profile, navigate, isLoading]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // Check if trying to access developer portal with special credentials
-    if (userType === 'developer') {
-      const isValidAdmin = ADMIN_CREDENTIALS.some(
-        cred => cred.email === email && cred.password === password
-      );
-      
-      if (isValidAdmin) {
-        try {
-          await loginAsAdmin(email);
-          console.log('Admin login successful, navigating to dashboard');
-          navigate('/dashboard', { replace: true });
-          return;
-        } catch (adminError: any) {
-          console.error('Admin login failed:', adminError);
-          setError('Admin login failed. Please try again.');
+    try {
+      // Check if trying to access developer portal with special credentials
+      if (userType === 'developer') {
+        const isValidAdmin = ADMIN_CREDENTIALS.some(
+          cred => cred.email === email && cred.password === password
+        );
+        
+        if (!isValidAdmin) {
+          setError('Access denied. Only authorized developers can access the developer portal.');
           setLoading(false);
           return;
         }
-      } else {
-        setError('Access denied. Only authorized developers can access the developer portal.');
-        setLoading(false);
-        return;
-      }
-    }
 
-    try {
-      console.log('Attempting regular login...');
-      const response = await login(email, password);
-      console.log('Login successful, response:', response);
+        console.log('Attempting admin login...');
+        await loginAsAdmin(email, password);
+      } else {
+        console.log('Attempting regular login...');
+        await login(email, password);
+      }
       
+      console.log('Login successful');
       // Navigation will be handled by the useEffect above
     } catch (loginError: any) {
       console.error('Login failed:', loginError);
-      setError(loginError.message);
+      setError(loginError.message || 'Login failed. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -102,7 +98,7 @@ const LoginForm = () => {
       alert('Please check your email to confirm your account!');
     } catch (signUpError: any) {
       console.error('Signup failed:', signUpError);
-      setError(signUpError.message);
+      setError(signUpError.message || 'Signup failed. Please try again.');
     }
     
     setLoading(false);
@@ -122,10 +118,22 @@ const LoginForm = () => {
       console.log('Google login initiated');
     } catch (googleError: any) {
       console.error('Google login failed:', googleError);
-      setError(googleError.message);
+      setError(googleError.message || 'Google login failed. Please try again.');
       setLoading(false);
     }
   };
+
+  // Show loading while auth is being determined
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black relative">

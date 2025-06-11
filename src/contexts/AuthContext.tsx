@@ -17,14 +17,14 @@ interface AuthContextType {
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
-  isLoading: boolean; // Add this property
+  isLoading: boolean;
   signIn: (email: string, password: string) => Promise<any>;
-  login: (email: string, password: string) => Promise<any>; // Add this property
-  signUp: (email: string, password: string, fullName: string) => Promise<any>; // Add this property
-  loginWithGoogle: () => Promise<any>; // Add this property
-  loginAsAdmin: (email: string) => Promise<any>; // Add this property
+  login: (email: string, password: string) => Promise<any>;
+  signUp: (email: string, password: string, fullName: string) => Promise<any>;
+  loginWithGoogle: () => Promise<any>;
+  loginAsAdmin: (email: string, password: string) => Promise<any>;
   signOut: () => Promise<void>;
-  logout: () => Promise<void>; // Add this property
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,7 +36,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state change:', event, session);
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Use setTimeout to defer the profile loading
+          setTimeout(() => {
+            loadProfile(session.user.id);
+          }, 0);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    // THEN get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('Initial session:', session);
       setSession(session);
@@ -47,22 +66,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
       }
     });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change:', event, session);
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          await loadProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-      }
-    );
 
     return () => subscription.unsubscribe();
   }, []);
@@ -198,11 +201,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data;
   };
 
-  const loginAsAdmin = async (email: string) => {
-    console.log('Admin login for:', email);
-    // This is a special admin login that bypasses normal auth
-    // In a real app, this would be handled differently
-    return { success: true };
+  const loginAsAdmin = async (email: string, password: string) => {
+    console.log('Admin login attempt for:', email);
+    
+    // Use regular Supabase authentication for admin users
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('Admin login error:', error);
+      throw error;
+    }
+
+    console.log('Admin login successful:', data.user?.email);
+    return data;
   };
 
   const signOut = async () => {
@@ -225,7 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     profile,
     session,
     loading,
-    isLoading: loading, // Add isLoading as alias for loading
+    isLoading: loading,
     signIn,
     login,
     signUp,
