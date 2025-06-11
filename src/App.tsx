@@ -43,10 +43,17 @@ const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode,
     return <Navigate to="/login" replace />;
   }
 
-  // If user doesn't have profile yet, redirect to home to let Index handle it
+  // If user doesn't have profile yet, show loading (this should be rare with new setup)
   if (!profile) {
-    console.log('No profile, redirecting to home');
-    return <Navigate to="/" replace />;
+    console.log('No profile, waiting for profile to load...');
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Setting up your account...</p>
+        </div>
+      </div>
+    );
   }
 
   // If specific role is required and user doesn't have it, redirect to appropriate dashboard

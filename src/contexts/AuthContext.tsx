@@ -55,16 +55,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const createDefaultProfile = (user: User): Profile => {
-    console.log('Creating default profile for user:', user.email);
-    return {
-      id: user.id,
-      email: user.email || '',
-      full_name: user.user_metadata?.full_name || null,
-      role: 'user'
-    };
-  };
-
   const loadProfile = async (userId: string): Promise<Profile | null> => {
     try {
       console.log('Loading profile for user:', userId);
@@ -73,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .maybeSingle();
+        .single();
 
       if (error) {
         console.error('Error loading profile:', error);
@@ -85,7 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return data;
       }
 
-      console.log('No profile found, will use default');
+      console.log('No profile found');
       return null;
     } catch (error) {
       console.error('Exception in loadProfile:', error);
@@ -101,22 +91,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (session?.user) {
       setUser(session.user);
       
-      // Try to load profile, but don't block on it
-      const profileData = await loadProfile(session.user.id);
-      
-      if (profileData) {
+      // Load profile with a small delay to ensure database consistency
+      setTimeout(async () => {
+        const profileData = await loadProfile(session.user.id);
         setProfile(profileData);
-      } else {
-        // Use default profile if loading fails
-        const defaultProfile = createDefaultProfile(session.user);
-        setProfile(defaultProfile);
-      }
+        setLoading(false);
+      }, 100);
     } else {
       setUser(null);
       setProfile(null);
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -157,17 +142,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const response = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (response.error) {
+        setLoading(false);
         throw response.error;
       }
 
+      console.log('Login successful:', response.data.user?.email);
       return response;
     } catch (error) {
+      setLoading(false);
       console.error('Login error:', error);
       throw error;
     }
@@ -175,6 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signup = async (email: string, password: string, fullName: string) => {
     try {
+      setLoading(true);
       const response = await supabase.auth.signUp({
         email,
         password,
@@ -187,11 +177,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (response.error) {
+        setLoading(false);
         throw response.error;
       }
 
       return response;
     } catch (error) {
+      setLoading(false);
       console.error('Signup error:', error);
       throw error;
     }
@@ -203,6 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async () => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -211,9 +204,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
+        setLoading(false);
         throw error;
       }
     } catch (error) {
+      setLoading(false);
       console.error('Google login error:', error);
       throw error;
     }
