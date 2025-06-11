@@ -30,20 +30,58 @@ const StorageUsageWidget = () => {
     try {
       console.log('Loading real-time storage data...');
       
-      // Call the Supabase function to get storage usage
-      const { data, error } = await supabase.rpc('get_storage_usage');
-
-      if (error) {
-        console.error('Error loading storage data:', error);
-        // Fallback to mock data if function doesn't exist
+      // Get storage buckets
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      
+      if (bucketsError) {
+        console.error('Error loading buckets:', bucketsError);
+        // Fallback to mock data
         setStorageData([
           { bucket_name: 'avatars', file_count: 45, total_size_bytes: 2097152 },
           { bucket_name: 'documents', file_count: 123, total_size_bytes: 15728640 },
           { bucket_name: 'images', file_count: 78, total_size_bytes: 8388608 }
         ]);
+      } else if (buckets && buckets.length > 0) {
+        // Get storage usage for each bucket
+        const storagePromises = buckets.map(async (bucket) => {
+          try {
+            const { data: files, error } = await supabase.storage.from(bucket.name).list();
+            
+            if (error) {
+              console.error(`Error loading files from bucket ${bucket.name}:`, error);
+              return {
+                bucket_name: bucket.name,
+                file_count: 0,
+                total_size_bytes: 0
+              };
+            }
+            
+            const fileCount = files ? files.length : 0;
+            const totalSize = files ? files.reduce((sum, file) => {
+              return sum + (file.metadata?.size || 0);
+            }, 0) : 0;
+            
+            return {
+              bucket_name: bucket.name,
+              file_count: fileCount,
+              total_size_bytes: totalSize
+            };
+          } catch (error) {
+            console.error(`Error processing bucket ${bucket.name}:`, error);
+            return {
+              bucket_name: bucket.name,
+              file_count: 0,
+              total_size_bytes: 0
+            };
+          }
+        });
+        
+        const storageResults = await Promise.all(storagePromises);
+        console.log('Storage data loaded:', storageResults);
+        setStorageData(storageResults);
       } else {
-        console.log('Storage data loaded:', data);
-        setStorageData(data || []);
+        console.log('No buckets found');
+        setStorageData([]);
       }
     } catch (error) {
       console.error('Error in loadStorageData:', error);
