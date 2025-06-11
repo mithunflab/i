@@ -1,13 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Youtube, Globe, Wand2, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Youtube, Globe, Wand2, AlertCircle, CheckCircle, Loader2, Wifi } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface YouTubeChannelData {
   channelId: string;
@@ -27,7 +28,83 @@ const YouTubeWebsiteBuilder = () => {
   const [generatedWebsite, setGeneratedWebsite] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isConnected, setIsConnected] = useState(true);
+  const [youtubeApiKey, setYoutubeApiKey] = useState('');
   const { user } = useAuth();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    loadYouTubeApiKey();
+    setupRealTimeUpdates();
+  }, []);
+
+  const setupRealTimeUpdates = () => {
+    console.log('Setting up real-time updates for YouTube API key');
+    
+    const channel = supabase
+      .channel('youtube-api-key-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'api_keys',
+          filter: `provider=eq.YouTube`
+        },
+        (payload) => {
+          console.log('Real-time YouTube API key update:', payload);
+          loadYouTubeApiKey();
+          toast({
+            title: "Real-time Update",
+            description: "YouTube API key updated"
+          });
+          setIsConnected(true);
+        }
+      )
+      .subscribe((status) => {
+        console.log('YouTube API real-time subscription status:', status);
+        setIsConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      console.log('Cleaning up YouTube API real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  };
+
+  const loadYouTubeApiKey = async () => {
+    try {
+      console.log('Loading YouTube API key from api_keys table');
+      
+      // Fetch from api_keys table where provider is YouTube
+      const { data: apiKeyData, error } = await supabase
+        .from('api_keys')
+        .select('key_value')
+        .eq('provider', 'YouTube')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error('Error loading YouTube API key:', error);
+        if (error.code !== 'PGRST116') { // Not found error
+          setError('Failed to load YouTube API configuration');
+        }
+        return;
+      }
+
+      if (apiKeyData && apiKeyData.key_value) {
+        setYoutubeApiKey(apiKeyData.key_value);
+        console.log('YouTube API key loaded successfully');
+      } else {
+        console.log('No YouTube API key found');
+      }
+    } catch (err) {
+      console.error('Exception loading YouTube API key:', err);
+      setError('Failed to load YouTube API configuration');
+    }
+  };
 
   const extractChannelId = (url: string) => {
     const patterns = [
@@ -50,26 +127,16 @@ const YouTubeWebsiteBuilder = () => {
       return;
     }
 
+    if (!youtubeApiKey) {
+      setError('YouTube API key not configured. Please contact administrator.');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     setChannelData(null);
 
     try {
-      // Get YouTube API key from database
-      const { data: apiKeyData } = await supabase
-        .from('analytics')
-        .select('event_data')
-        .eq('event_type', 'youtube_api_key')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!apiKeyData || !(apiKeyData.event_data as any)?.api_key) {
-        setError('YouTube API key not configured. Please contact administrator.');
-        return;
-      }
-
-      const apiKey = (apiKeyData.event_data as any).api_key;
       const channelId = extractChannelId(channelUrl);
 
       if (!channelId) {
@@ -79,7 +146,7 @@ const YouTubeWebsiteBuilder = () => {
 
       // Fetch channel data from YouTube API
       const channelResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${apiKey}`
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${youtubeApiKey}`
       );
 
       if (!channelResponse.ok) {
@@ -95,7 +162,7 @@ const YouTubeWebsiteBuilder = () => {
 
       // Fetch recent videos
       const videosResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=10&order=date&type=video&key=${apiKey}`
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=10&order=date&type=video&key=${youtubeApiKey}`
       );
 
       const videosResult = await videosResponse.json();
@@ -223,6 +290,12 @@ const YouTubeWebsiteBuilder = () => {
           <CardTitle className="text-white flex items-center gap-2">
             <Youtube className="h-5 w-5 text-red-500" />
             YouTube Website Builder
+            <div className="ml-auto flex items-center gap-2">
+              <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-400' : 'text-red-400'}`} />
+              <span className="text-xs text-gray-400">
+                {isConnected ? 'Real-time Connected' : 'Disconnected'}
+              </span>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -237,6 +310,15 @@ const YouTubeWebsiteBuilder = () => {
             <Alert className="border-green-500 text-green-400">
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
+
+          {!youtubeApiKey && (
+            <Alert className="border-yellow-500 text-yellow-400">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                YouTube API key not configured. Please contact administrator to set up the API key.
+              </AlertDescription>
             </Alert>
           )}
 
@@ -255,7 +337,7 @@ const YouTubeWebsiteBuilder = () => {
               />
               <Button 
                 onClick={fetchChannelData} 
-                disabled={isLoading}
+                disabled={isLoading || !youtubeApiKey}
                 className="bg-red-600 hover:bg-red-700"
               >
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Fetch'}
