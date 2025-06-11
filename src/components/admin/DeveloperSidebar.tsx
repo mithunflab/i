@@ -1,5 +1,8 @@
 
-import React, { useState } from 'react';
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { 
   Users, 
   Key, 
@@ -12,24 +15,16 @@ import {
   CreditCard,
   Webhook,
   Globe,
-  GitBranch,
   Cloud,
-  Zap,
   Activity,
   FileText,
-  Bell,
-  Download,
-  Upload,
-  Home,
-  Menu,
-  X,
-  ChevronRight,
   Folder,
   HardDrive,
-  Code,
-  Terminal
+  Terminal,
+  Youtube,
+  TrendingUp,
+  PieChart
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 interface DeveloperSidebarProps {
   activeTab: string;
@@ -37,98 +32,76 @@ interface DeveloperSidebarProps {
 }
 
 const DeveloperSidebar = ({ activeTab, setActiveTab }: DeveloperSidebarProps) => {
-  const [isOpen, setIsOpen] = useState(true);
-
   const menuItems = [
-    { id: 'overview', label: 'Overview', icon: Home },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'api', label: 'API Management', icon: Key },
-    { id: 'database', label: 'Database', icon: Database },
-    { id: 'query', label: 'Query Runner', icon: Terminal },
-    { id: 'users', label: 'User Management', icon: Users },
-    { id: 'monitoring', label: 'System Monitor', icon: Activity },
-    { id: 'backups', label: 'Backup Manager', icon: HardDrive },
-    { id: 'audit', label: 'Audit Logs', icon: FileText },
-    { id: 'files', label: 'File Manager', icon: Folder },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'system', label: 'System Settings', icon: Settings },
-    { id: 'email', label: 'Email Config', icon: Mail },
-    { id: 'payments', label: 'Payments', icon: CreditCard },
-    { id: 'webhooks', label: 'Webhooks', icon: Webhook },
-    { id: 'domains', label: 'Domains', icon: Globe },
-    { id: 'deploy', label: 'Deployment', icon: GitBranch },
-    { id: 'notifications', label: 'Notifications', icon: Bell }
+    { id: 'overview', label: 'Overview', icon: BarChart3, category: 'main' },
+    { id: 'users', label: 'User Management', icon: Users, category: 'management' },
+    { id: 'api', label: 'API Keys', icon: Key, category: 'management' },
+    { id: 'database', label: 'Database', icon: Database, category: 'data' },
+    { id: 'query', label: 'Query Runner', icon: Terminal, category: 'data' },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp, category: 'analytics' },
+    { id: 'config-analytics', label: 'Config Analytics', icon: PieChart, category: 'analytics' },
+    { id: 'youtube', label: 'YouTube API', icon: Youtube, category: 'integrations' },
+    { id: 'deployments', label: 'Deployments', icon: Globe, category: 'integrations' },
+    { id: 'monitoring', label: 'Monitoring', icon: Activity, category: 'system' },
+    { id: 'security', label: 'Security', icon: Shield, category: 'system' },
+    { id: 'system', label: 'System Settings', icon: Settings, category: 'system' },
+    { id: 'email', label: 'Email Config', icon: Mail, category: 'configuration' },
+    { id: 'payments', label: 'Payments', icon: CreditCard, category: 'configuration' },
+    { id: 'webhooks', label: 'Webhooks', icon: Webhook, category: 'configuration' },
+    { id: 'domains', label: 'Domains', icon: Server, category: 'configuration' },
+    { id: 'backups', label: 'Backups', icon: HardDrive, category: 'maintenance' },
+    { id: 'audit', label: 'Audit Logs', icon: FileText, category: 'maintenance' },
+    { id: 'files', label: 'File Manager', icon: Folder, category: 'maintenance' }
   ];
 
+  const categories = {
+    main: { label: 'Dashboard', items: menuItems.filter(item => item.category === 'main') },
+    management: { label: 'Management', items: menuItems.filter(item => item.category === 'management') },
+    data: { label: 'Data & Storage', items: menuItems.filter(item => item.category === 'data') },
+    analytics: { label: 'Analytics', items: menuItems.filter(item => item.category === 'analytics') },
+    integrations: { label: 'Integrations', items: menuItems.filter(item => item.category === 'integrations') },
+    system: { label: 'System', items: menuItems.filter(item => item.category === 'system') },
+    configuration: { label: 'Configuration', items: menuItems.filter(item => item.category === 'configuration') },
+    maintenance: { label: 'Maintenance', items: menuItems.filter(item => item.category === 'maintenance') }
+  };
+
   return (
-    <>
-      {/* Overlay for mobile */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-      
-      {/* Sidebar */}
-      <div className={`fixed left-0 top-0 h-full bg-black/95 backdrop-blur-sm border-r border-gray-800 z-50 transition-transform duration-300 ${
-        isOpen ? 'translate-x-0' : '-translate-x-full'
-      } ${isOpen ? 'w-64' : 'w-16'} lg:translate-x-0`}>
-        
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-800">
-          <div className={`flex items-center ${!isOpen && 'justify-center'}`}>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-pink-600">
-              <Code className="text-white h-4 w-4" />
-            </div>
-            {isOpen && <span className="ml-2 text-xl font-bold text-white">DevPortal</span>}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsOpen(!isOpen)}
-            className="text-white hover:bg-white/10"
-          >
-            {isOpen ? <X size={20} /> : <Menu size={20} />}
-          </Button>
-        </div>
-
-        {/* Navigation Menu */}
-        <nav className="p-2 space-y-1 overflow-y-auto h-[calc(100vh-80px)]">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center p-3 rounded-lg text-left transition-all duration-200 group ${
-                activeTab === item.id 
-                  ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-white border border-purple-500/30' 
-                  : 'text-gray-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <item.icon size={20} className={`${!isOpen && 'mx-auto'}`} />
-              {isOpen && (
-                <>
-                  <span className="ml-3 flex-1">{item.label}</span>
-                  <ChevronRight size={16} className={`transition-transform ${
-                    activeTab === item.id ? 'rotate-90' : ''
-                  }`} />
-                </>
-              )}
-            </button>
-          ))}
-        </nav>
+    <div className="fixed left-0 top-0 z-40 h-screen w-64 bg-black/95 border-r border-gray-800 lg:block hidden">
+      <div className="p-6 border-b border-gray-800">
+        <h2 className="text-xl font-bold text-white">Developer Portal</h2>
+        <p className="text-sm text-gray-400">Configuration & Analytics</p>
       </div>
-
-      {/* Mobile toggle button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setIsOpen(true)}
-        className="fixed top-4 left-4 z-30 lg:hidden text-white bg-black/50 backdrop-blur-sm hover:bg-white/10"
-      >
-        <Menu size={20} />
-      </Button>
-    </>
+      
+      <ScrollArea className="h-[calc(100vh-100px)]">
+        <div className="p-4 space-y-6">
+          {Object.entries(categories).map(([key, category]) => (
+            <div key={key}>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                {category.label}
+              </h3>
+              <div className="space-y-1">
+                {category.items.map((item) => (
+                  <Button
+                    key={item.id}
+                    variant={activeTab === item.id ? "secondary" : "ghost"}
+                    className={`w-full justify-start text-left ${
+                      activeTab === item.id 
+                        ? 'bg-purple-600/20 text-purple-300 border-purple-500/30' 
+                        : 'text-gray-300 hover:text-white hover:bg-white/5'
+                    }`}
+                    onClick={() => setActiveTab(item.id)}
+                  >
+                    <item.icon size={16} className="mr-3" />
+                    {item.label}
+                  </Button>
+                ))}
+              </div>
+              {key !== 'maintenance' && <Separator className="mt-4 bg-gray-800" />}
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
   );
 };
 

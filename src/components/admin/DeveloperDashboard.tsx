@@ -55,6 +55,7 @@ import DatabaseQueryRunner from './DatabaseQueryRunner';
 import RealTimeApiUsage from './RealTimeApiUsage';
 import YouTubeApiSettings from './YouTubeApiSettings';
 import DeploymentSettings from './DeploymentSettings';
+import ConfigurationAnalytics from './ConfigurationAnalytics';
 
 const DeveloperDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -129,7 +130,7 @@ const DeveloperDashboard = () => {
                 <CardTitle className="text-white">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                   <Button 
                     variant="outline" 
                     className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
@@ -165,6 +166,14 @@ const DeveloperDashboard = () => {
                   <Button 
                     variant="outline" 
                     className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
+                    onClick={() => setActiveTab('config-analytics')}
+                  >
+                    <BarChart3 size={20} />
+                    <span className="text-xs">Config Analytics</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
                     onClick={() => setActiveTab('monitoring')}
                   >
                     <Activity size={20} />
@@ -185,6 +194,8 @@ const DeveloperDashboard = () => {
         return <DatabaseQueryRunner />;
       case 'analytics':
         return <DeveloperAnalytics />;
+      case 'config-analytics':
+        return <ConfigurationAnalytics />;
       case 'security':
         return <SecuritySettings />;
       case 'system':
