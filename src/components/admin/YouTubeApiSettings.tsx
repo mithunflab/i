@@ -18,15 +18,17 @@ const YouTubeApiSettings = () => {
 
   useEffect(() => {
     loadApiKey();
-  }, []);
+  }, [user]);
 
   const loadApiKey = async () => {
+    if (!user) return;
+    
     try {
       const { data, error } = await supabase
         .from('analytics')
         .select('event_data')
         .eq('event_type', 'youtube_api_key')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -45,6 +47,11 @@ const YouTubeApiSettings = () => {
       return;
     }
 
+    if (!user) {
+      setError('User not authenticated');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
@@ -52,7 +59,7 @@ const YouTubeApiSettings = () => {
       const { error } = await supabase
         .from('analytics')
         .insert({
-          user_id: user?.id,
+          user_id: user.id,
           event_type: 'youtube_api_key',
           event_data: {
             api_key: apiKey,
@@ -61,12 +68,14 @@ const YouTubeApiSettings = () => {
         });
 
       if (error) {
-        setError('Failed to save API key');
+        console.error('Supabase error:', error);
+        setError(`Failed to save API key: ${error.message}`);
       } else {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       }
     } catch (err) {
+      console.error('Save error:', err);
       setError('Failed to save API key');
     } finally {
       setIsLoading(false);

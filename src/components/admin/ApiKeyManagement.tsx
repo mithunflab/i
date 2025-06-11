@@ -108,24 +108,33 @@ const ApiKeyManagement = () => {
   useEffect(() => {
     if (user) {
       fetchApiKeys();
+    } else {
+      setLoading(false);
     }
   }, [user]);
 
   const fetchApiKeys = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('api_keys')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching API keys:', error);
-        return;
+        setApiKeys([]); // Set empty array instead of staying in loading state
+      } else {
+        setApiKeys(data || []);
       }
-
-      setApiKeys(data || []);
     } catch (error) {
       console.error('Error in fetchApiKeys:', error);
+      setApiKeys([]); // Set empty array instead of staying in loading state
     } finally {
       setLoading(false);
     }
@@ -271,11 +280,11 @@ const ApiKeyManagement = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <Card className="bolt-card">
+        <Card className="bg-white/5 border-gray-800">
           <CardContent className="p-6">
             <div className="flex items-center justify-center">
               <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="ml-2">Loading API keys...</span>
+              <span className="ml-2 text-white">Loading API keys...</span>
             </div>
           </CardContent>
         </Card>
@@ -285,34 +294,34 @@ const ApiKeyManagement = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="bolt-card">
+      <Card className="bg-white/5 border-gray-800">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 bolt-text-gradient">
+          <CardTitle className="flex items-center gap-2 text-white">
             <Key size={20} />
             API Key Management
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="manage" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="manage">Manage Keys</TabsTrigger>
-              <TabsTrigger value="add">Add New</TabsTrigger>
-              <TabsTrigger value="openrouter">OpenRouter</TabsTrigger>
-              <TabsTrigger value="models">Available Models</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 bg-gray-800">
+              <TabsTrigger value="manage" className="text-white">Manage Keys</TabsTrigger>
+              <TabsTrigger value="add" className="text-white">Add New</TabsTrigger>
+              <TabsTrigger value="openrouter" className="text-white">OpenRouter</TabsTrigger>
+              <TabsTrigger value="models" className="text-white">Available Models</TabsTrigger>
             </TabsList>
 
             <TabsContent value="manage" className="space-y-4">
               <div className="space-y-4">
                 {apiKeys.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center py-8 text-gray-400">
                     No API keys found. Add your first API key to get started.
                   </div>
                 ) : (
                   apiKeys.map((apiKey) => (
-                    <div key={apiKey.id} className="flex items-center justify-between p-4 border border-border/50 rounded-lg bg-card/30">
+                    <div key={apiKey.id} className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800/30">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold mobile-text">{apiKey.name}</h3>
+                          <h3 className="font-semibold text-white">{apiKey.name}</h3>
                           <Badge variant={apiKey.is_active ? "default" : "secondary"}>
                             {apiKey.is_active ? "Active" : "Inactive"}
                           </Badge>
@@ -322,17 +331,18 @@ const ApiKeyManagement = () => {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground mb-1">
+                        <p className="text-xs text-gray-400 mb-1">
                           Provider: {apiKey.provider} {apiKey.model && `| Model: ${apiKey.model}`}
                         </p>
                         <div className="flex items-center gap-2">
-                          <code className="text-xs bg-muted px-2 py-1 rounded">
+                          <code className="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">
                             {showKeys[apiKey.id] ? apiKey.key_value : '••••••••••••••••••••'}
                           </code>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => toggleKeyVisibility(apiKey.id)}
+                            className="text-gray-400 hover:text-white"
                           >
                             {showKeys[apiKey.id] ? <EyeOff size={14} /> : <Eye size={14} />}
                           </Button>
@@ -340,6 +350,7 @@ const ApiKeyManagement = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => copyToClipboard(apiKey.key_value, apiKey.id)}
+                            className="text-gray-400 hover:text-white"
                           >
                             {copiedKey === apiKey.id ? <Check size={14} /> : <Copy size={14} />}
                           </Button>
@@ -350,6 +361,7 @@ const ApiKeyManagement = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => toggleApiKey(apiKey.id, apiKey.is_active)}
+                          className="border-gray-600 text-white hover:bg-white/10"
                         >
                           {apiKey.is_active ? "Disable" : "Enable"}
                         </Button>
@@ -370,18 +382,18 @@ const ApiKeyManagement = () => {
             <TabsContent value="add" className="space-y-4">
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium">API Key Name</label>
+                  <label className="text-sm font-medium text-white">API Key Name</label>
                   <Input
                     placeholder="e.g., OpenRouter Production Key"
                     value={newApiKey.name}
                     onChange={(e) => setNewApiKey({ ...newApiKey, name: e.target.value })}
-                    className="bolt-input mt-1"
+                    className="bg-gray-800 border-gray-600 text-white mt-1"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Provider</label>
+                  <label className="text-sm font-medium text-white">Provider</label>
                   <Select value={newApiKey.provider} onValueChange={(value) => setNewApiKey({ ...newApiKey, provider: value })}>
-                    <SelectTrigger className="bolt-input mt-1">
+                    <SelectTrigger className="bg-gray-800 border-gray-600 text-white mt-1">
                       <SelectValue placeholder="Select provider" />
                     </SelectTrigger>
                     <SelectContent>
@@ -393,26 +405,26 @@ const ApiKeyManagement = () => {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Model (Optional)</label>
+                  <label className="text-sm font-medium text-white">Model (Optional)</label>
                   <Input
                     placeholder="e.g., gpt-4, claude-3-opus"
                     value={newApiKey.model}
                     onChange={(e) => setNewApiKey({ ...newApiKey, model: e.target.value })}
-                    className="bolt-input mt-1"
+                    className="bg-gray-800 border-gray-600 text-white mt-1"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">API Key</label>
+                  <label className="text-sm font-medium text-white">API Key</label>
                   <Input
                     type="password"
                     placeholder="Enter your API key"
                     value={newApiKey.key_value}
                     onChange={(e) => setNewApiKey({ ...newApiKey, key_value: e.target.value })}
-                    className="bolt-input mt-1"
+                    className="bg-gray-800 border-gray-600 text-white mt-1"
                   />
                 </div>
-                <Button onClick={addApiKey} className="bolt-button">
-                  <Plus size={16} />
+                <Button onClick={addApiKey} className="bg-purple-600 hover:bg-purple-700">
+                  <Plus size={16} className="mr-2" />
                   Add API Key
                 </Button>
               </div>
@@ -421,81 +433,19 @@ const ApiKeyManagement = () => {
             <TabsContent value="openrouter" className="space-y-4">
               <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg">
                 <h3 className="font-semibold text-orange-400 mb-2">🚀 OpenRouter Integration</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-gray-300">
                   Add multiple OpenRouter API keys for load balancing and high availability. 
                   The system will automatically rotate between active keys.
                 </p>
               </div>
-              
-              <div className="grid gap-4 md:grid-cols-2">
-                {getAvailableModels().map((model) => (
-                  <div key={model.model} className="p-4 border border-border/50 rounded-lg bg-card/30">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold mobile-text flex items-center gap-2">
-                        {model.icon} {model.name}
-                      </h3>
-                      <Badge variant={model.plan === 'free' ? 'secondary' : model.plan === 'pro' ? 'default' : 'destructive'}>
-                        {model.plan === 'free' ? '🆓 Free' : model.plan === 'pro' ? '⭐ Pro' : '👑 Pro+'}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Model: {model.model}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => testOpenRouterModel(model.model)}
-                      disabled={testingModel === model.model}
-                      className="w-full"
-                    >
-                      {testingModel === model.model ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                          Testing...
-                        </>
-                      ) : (
-                        <>
-                          <Zap size={14} className="mr-2" />
-                          Test Model
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ))}
-              </div>
             </TabsContent>
 
             <TabsContent value="models" className="space-y-4">
-              <div className="space-y-4">
-                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                  <h3 className="font-semibold text-blue-400 mb-2">📊 Your Plan: {getUserPlan().toUpperCase()}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Available models based on your subscription plan. Upgrade for access to premium models.
-                  </p>
-                </div>
-
-                <div className="grid gap-4">
-                  {['free', 'pro', 'pro_plus'].map((planTier) => (
-                    <div key={planTier} className="space-y-3">
-                      <h4 className="font-semibold flex items-center gap-2">
-                        {planTier === 'free' && <><span className="text-gray-400">🆓</span> Free Plan</>}
-                        {planTier === 'pro' && <><Star className="text-yellow-400" size={16} /> Pro Plan</>}
-                        {planTier === 'pro_plus' && <><Crown className="text-purple-400" size={16} /> Pro+ Plan</>}
-                      </h4>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {openRouterModels
-                          .filter(model => model.plan === planTier)
-                          .map((model) => (
-                            <div key={model.model} className="p-3 border border-border/30 rounded bg-card/20">
-                              <p className="font-medium text-sm">{model.icon} {model.name}</p>
-                              <p className="text-xs text-muted-foreground">{model.model}</p>
-                            </div>
-                          ))
-                        }
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <h3 className="font-semibold text-blue-400 mb-2">📊 Available Models</h3>
+                <p className="text-sm text-gray-300">
+                  Models available based on your API keys and subscription plans.
+                </p>
               </div>
             </TabsContent>
           </Tabs>
@@ -506,3 +456,5 @@ const ApiKeyManagement = () => {
 };
 
 export default ApiKeyManagement;
+
+</edits_to_apply>

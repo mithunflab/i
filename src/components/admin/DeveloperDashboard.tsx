@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,11 +31,13 @@ import {
   Clock,
   AlertCircle,
   Terminal,
-  Youtube
+  Youtube,
+  CheckCircle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import DeveloperSidebar from './DeveloperSidebar';
 import UserManagement from './UserManagement';
+import ProjectApproval from './ProjectApproval';
 import ApiKeyManagement from './ApiKeyManagement';
 import DatabaseManagement from './DatabaseManagement';
 import DeveloperAnalytics from './DeveloperAnalytics';
@@ -134,6 +135,14 @@ const DeveloperDashboard = () => {
                   <Button 
                     variant="outline" 
                     className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
+                    onClick={() => setActiveTab('projects')}
+                  >
+                    <CheckCircle size={20} />
+                    <span className="text-xs">Project Approval</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
                     onClick={() => setActiveTab('api')}
                   >
                     <Key size={20} />
@@ -171,14 +180,6 @@ const DeveloperDashboard = () => {
                     <BarChart3 size={20} />
                     <span className="text-xs">Config Analytics</span>
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
-                    onClick={() => setActiveTab('monitoring')}
-                  >
-                    <Activity size={20} />
-                    <span className="text-xs">Monitoring</span>
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -186,6 +187,8 @@ const DeveloperDashboard = () => {
         );
       case 'users':
         return <UserManagement />;
+      case 'projects':
+        return <ProjectApproval />;
       case 'api':
         return <ApiKeyManagement />;
       case 'database':
