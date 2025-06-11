@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Lock, User, Chrome, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, Chrome, AlertCircle, Code, Users } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const LoginForm = () => {
@@ -12,6 +12,7 @@ const LoginForm = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [activeTab, setActiveTab] = useState('login');
+  const [userType, setUserType] = useState('user'); // 'user' or 'developer'
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login, signUp, loginWithGoogle } = useAuth();
@@ -70,11 +71,41 @@ const LoginForm = () => {
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-pink-600">
               <span className="text-2xl">⚡</span>
             </div>
-            AI Developer Portal
+            AI Website Builder
           </CardTitle>
-          <p className="text-gray-400">Access your AI development dashboard</p>
+          <p className="text-gray-400">Create websites with AI assistance</p>
         </CardHeader>
         <CardContent>
+          {/* User Type Selection */}
+          <div className="mb-6">
+            <div className="grid grid-cols-2 gap-2 p-1 bg-gray-800 rounded-lg">
+              <Button
+                variant={userType === 'user' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setUserType('user')}
+                className="flex items-center gap-2"
+              >
+                <Users size={16} />
+                User
+              </Button>
+              <Button
+                variant={userType === 'developer' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setUserType('developer')}
+                className="flex items-center gap-2"
+              >
+                <Code size={16} />
+                Developer
+              </Button>
+            </div>
+            <p className="text-xs text-gray-400 mt-2 text-center">
+              {userType === 'user' 
+                ? 'Create websites from YouTube channels'
+                : 'Access developer dashboard and analytics'
+              }
+            </p>
+          </div>
+
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -120,7 +151,7 @@ const LoginForm = () => {
                 </div>
                 <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white" disabled={loading}>
                   <User className="mr-2 h-4 w-4" />
-                  {loading ? 'Signing in...' : 'Access Portal'}
+                  {loading ? 'Signing in...' : `Access ${userType === 'user' ? 'Website Builder' : 'Developer Portal'}`}
                 </Button>
               </form>
             </TabsContent>
@@ -170,7 +201,7 @@ const LoginForm = () => {
                 </div>
                 <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white" disabled={loading}>
                   <User className="mr-2 h-4 w-4" />
-                  {loading ? 'Creating account...' : 'Create Developer Account'}
+                  {loading ? 'Creating account...' : `Create ${userType === 'user' ? 'User' : 'Developer'} Account`}
                 </Button>
               </form>
             </TabsContent>
@@ -204,3 +235,5 @@ const LoginForm = () => {
 };
 
 export default LoginForm;
+
+}

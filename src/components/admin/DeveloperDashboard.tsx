@@ -31,7 +31,8 @@ import {
   DollarSign,
   Clock,
   AlertCircle,
-  Terminal
+  Terminal,
+  Youtube
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import DeveloperSidebar from './DeveloperSidebar';
@@ -52,6 +53,8 @@ import FileManager from './FileManager';
 import ApiUsageAnalytics from './ApiUsageAnalytics';
 import DatabaseQueryRunner from './DatabaseQueryRunner';
 import RealTimeApiUsage from './RealTimeApiUsage';
+import YouTubeApiSettings from './YouTubeApiSettings';
+import DeploymentSettings from './DeploymentSettings';
 
 const DeveloperDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -126,7 +129,7 @@ const DeveloperDashboard = () => {
                 <CardTitle className="text-white">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   <Button 
                     variant="outline" 
                     className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
@@ -146,10 +149,18 @@ const DeveloperDashboard = () => {
                   <Button 
                     variant="outline" 
                     className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
-                    onClick={() => setActiveTab('query')}
+                    onClick={() => setActiveTab('youtube')}
                   >
-                    <Terminal size={20} />
-                    <span className="text-xs">Query Runner</span>
+                    <Youtube size={20} className="text-red-500" />
+                    <span className="text-xs">YouTube API</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="h-20 flex-col gap-2 bg-white/5 border-gray-600 text-white hover:bg-white/10"
+                    onClick={() => setActiveTab('deployments')}
+                  >
+                    <Globe size={20} />
+                    <span className="text-xs">Deployments</span>
                   </Button>
                   <Button 
                     variant="outline" 
@@ -194,6 +205,10 @@ const DeveloperDashboard = () => {
         return <AuditLogs />;
       case 'files':
         return <FileManager />;
+      case 'youtube':
+        return <YouTubeApiSettings />;
+      case 'deployments':
+        return <DeploymentSettings />;
       default:
         return <div className="text-white">Feature under development...</div>;
     }
@@ -237,4 +252,3 @@ const DeveloperDashboard = () => {
 };
 
 export default DeveloperDashboard;
-

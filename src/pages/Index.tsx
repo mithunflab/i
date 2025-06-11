@@ -1,17 +1,18 @@
 
 import { useAuth } from "../contexts/AuthContext";
-import AdminDashboard from "../components/admin/AdminDashboard";
+import DeveloperDashboard from "../components/admin/DeveloperDashboard";
 import UserDashboard from "../components/user/UserDashboard";
 import LoginForm from "../components/LoginForm";
 
 const Index = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   if (!user) {
     return <LoginForm />;
   }
 
-  return user.role === 'admin' ? <AdminDashboard /> : <UserDashboard />;
+  // Check user role - if admin/developer show developer dashboard, otherwise show user dashboard
+  return profile?.role === 'admin' ? <DeveloperDashboard /> : <UserDashboard />;
 };
 
 export default Index;
