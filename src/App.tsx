@@ -32,61 +32,63 @@ const AppContent = () => {
     );
   }
 
-  // Show login form for non-authenticated users
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/features" element={<Features />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/login" element={<LoginForm />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    );
-  }
-
-  // For authenticated users, redirect based on role
   return (
     <Routes>
+      {/* Public routes */}
+      <Route path="/home" element={<Home />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/features" element={<Features />} />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/login" element={<LoginForm />} />
+      
+      {/* Root route logic */}
       <Route 
         path="/" 
         element={
-          profile?.role === 'admin' ? (
+          !user ? (
+            <Home />
+          ) : profile?.role === 'admin' ? (
             <Navigate to="/dashboard" replace />
           ) : (
             <Navigate to="/user-dashboard" replace />
           )
         } 
       />
+      
+      {/* Protected routes */}
       <Route 
         path="/dashboard" 
         element={
-          profile?.role === 'admin' ? (
+          user && profile?.role === 'admin' ? (
             <DeveloperDashboard />
           ) : (
-            <Navigate to="/user-dashboard" replace />
+            <Navigate to="/login" replace />
           )
         } 
       />
       <Route 
         path="/user-dashboard" 
         element={
-          profile?.role === 'user' ? (
+          user && profile?.role === 'user' ? (
             <UserDashboard />
           ) : (
-            <Navigate to="/dashboard" replace />
+            <Navigate to="/login" replace />
           )
         } 
       />
-      <Route path="/workspace" element={<Workspace />} />
-      <Route path="/home" element={<Home />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/features" element={<Features />} />
-      <Route path="/pricing" element={<Pricing />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route 
+        path="/workspace" 
+        element={
+          user ? (
+            <Workspace />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } 
+      />
+      
+      {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
