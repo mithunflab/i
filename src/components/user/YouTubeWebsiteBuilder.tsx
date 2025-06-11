@@ -145,7 +145,7 @@ const YouTubeWebsiteBuilder = () => {
         }
         
         // Otherwise, we need to convert username/handle to channel ID
-        const apiKey = await apiKeyManager.getNextAvailableKey('youtube', user?.id || '');
+        const apiKey = await apiKeyManager.getActiveKey('youtube', user?.id || '');
         if (!apiKey) {
           throw new Error('No YouTube API keys available');
         }
@@ -161,7 +161,7 @@ const YouTubeWebsiteBuilder = () => {
             const searchResult = await searchResponse.json();
             
             // Track successful usage
-            await apiKeyManager.updateKeyUsage('youtube', apiKey.id, {
+            await apiKeyManager.updateUsage('youtube', apiKey.id, {
               quota_used: (apiKey.quota_used || 0) + 1
             });
             await apiKeyManager.trackUsage('youtube', apiKey.id, user?.id || '', 'search', 0, 0, responseTime, true);
@@ -211,7 +211,7 @@ const YouTubeWebsiteBuilder = () => {
       console.log('Fetching channel data for ID:', channelId);
 
       // Get the best available API key
-      const apiKey = await apiKeyManager.getNextAvailableKey('youtube', user?.id || '');
+      const apiKey = await apiKeyManager.getActiveKey('youtube', user?.id || '');
       if (!apiKey) {
         setError('No YouTube API keys available');
         return;
@@ -245,14 +245,14 @@ const YouTubeWebsiteBuilder = () => {
       }
 
       // Track successful channel fetch
-      await apiKeyManager.updateKeyUsage('youtube', apiKey.id, {
+      await apiKeyManager.updateUsage('youtube', apiKey.id, {
         quota_used: (apiKey.quota_used || 0) + 1
       });
       await apiKeyManager.trackUsage('youtube', apiKey.id, user?.id || '', 'channels', 0, 0, channelResponseTime, true);
 
       // Fetch recent videos with another API key if needed
       console.log('Fetching recent videos for channel:', channelId);
-      const videoApiKey = await apiKeyManager.getNextAvailableKey('youtube', user?.id || '');
+      const videoApiKey = await apiKeyManager.getActiveKey('youtube', user?.id || '');
       if (!videoApiKey) {
         console.warn('No API key available for fetching videos, continuing with channel data only');
       }
@@ -270,7 +270,7 @@ const YouTubeWebsiteBuilder = () => {
           videos = videosResult.items || [];
           
           // Track successful video fetch
-          await apiKeyManager.updateKeyUsage('youtube', videoApiKey.id, {
+          await apiKeyManager.updateUsage('youtube', videoApiKey.id, {
             quota_used: (videoApiKey.quota_used || 0) + 1
           });
           await apiKeyManager.trackUsage('youtube', videoApiKey.id, user?.id || '', 'search', 0, 0, videoResponseTime, true);
