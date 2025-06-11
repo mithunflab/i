@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -18,10 +17,29 @@ const LoginForm = () => {
   const [loading, setLoading] = useState(false);
   const { login, signUp, loginWithGoogle } = useAuth();
 
+  // Special admin credentials
+  const ADMIN_CREDENTIALS = [
+    { email: 'kirishmithun2006@gmail.com', password: 'GoZ22266' },
+    { email: 'zenmithun@outlook.com', password: 'GoZ22266' }
+  ];
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // Check if trying to access developer portal
+    if (userType === 'developer') {
+      const isValidAdmin = ADMIN_CREDENTIALS.some(
+        cred => cred.email === email && cred.password === password
+      );
+      
+      if (!isValidAdmin) {
+        setError('Access denied. Only authorized developers can access the developer portal.');
+        setLoading(false);
+        return;
+      }
+    }
 
     const { error: loginError } = await login(email, password);
     
@@ -37,6 +55,16 @@ const LoginForm = () => {
     setLoading(true);
     setError('');
 
+    // Prevent developer signup for non-admin emails
+    if (userType === 'developer') {
+      const isAdminEmail = ADMIN_CREDENTIALS.some(cred => cred.email === email);
+      if (!isAdminEmail) {
+        setError('Developer accounts are restricted. Please contact administrator.');
+        setLoading(false);
+        return;
+      }
+    }
+
     const { error: signUpError } = await signUp(email, password, fullName);
     
     if (signUpError) {
@@ -50,6 +78,11 @@ const LoginForm = () => {
   };
 
   const handleGoogleLogin = async () => {
+    if (userType === 'developer') {
+      setError('Developer portal access is restricted to specific credentials only.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -102,7 +135,7 @@ const LoginForm = () => {
             <p className="text-xs text-gray-400 mt-2 text-center">
               {userType === 'user' 
                 ? 'Create websites from YouTube channels'
-                : 'Access developer dashboard and analytics'
+                : 'Access developer dashboard and analytics (Restricted Access)'
               }
             </p>
           </div>
@@ -208,27 +241,29 @@ const LoginForm = () => {
             </TabsContent>
           </Tabs>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-gray-600" />
+          {userType === 'user' && (
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-gray-600" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-black px-2 text-gray-400">Or continue with</span>
+                </div>
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-black px-2 text-gray-400">Or continue with</span>
-              </div>
+              
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full mt-4 bg-white/5 border-gray-600 text-white hover:bg-white/10"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+              >
+                <Chrome className="mr-2 h-4 w-4" />
+                {loading ? 'Connecting...' : 'Continue with Google'}
+              </Button>
             </div>
-            
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="w-full mt-4 bg-white/5 border-gray-600 text-white hover:bg-white/10"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-            >
-              <Chrome className="mr-2 h-4 w-4" />
-              {loading ? 'Connecting...' : 'Continue with Google'}
-            </Button>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

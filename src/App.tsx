@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoginForm from "./components/LoginForm";
-import AdminDashboard from "./components/admin/AdminDashboard";
+import DeveloperDashboard from "./components/admin/DeveloperDashboard";
 import UserDashboard from "./components/user/UserDashboard";
 import Workspace from "./components/workspace/Workspace";
 import Home from "./pages/Home";
@@ -46,14 +47,13 @@ const AppContent = () => {
     );
   }
 
-  // For authenticated users, show dashboard routes (renamed to Developer Portal)
+  // For authenticated users, show dashboard based on role
   return (
     <Routes>
       <Route 
         path="/" 
         element={
-          // Always show DeveloperDashboard for authenticated users (no separate admin/user distinction)
-          <AdminDashboard />
+          profile?.role === 'admin' ? <DeveloperDashboard /> : <UserDashboard />
         } 
       />
       <Route path="/workspace" element={<Workspace />} />

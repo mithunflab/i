@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
@@ -33,34 +34,79 @@ export const useAuth = () => {
   return context;
 };
 
+// Special admin credentials
+const ADMIN_CREDENTIALS = [
+  'kirishmithun2006@gmail.com',
+  'zenmithun@outlook.com'
+];
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const createOrUpdateProfile = async (user: User) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return;
-      }
-
-      // Ensure role is properly typed
-      const profileData: Profile = {
-        ...data,
-        role: (data.role === 'admin' ? 'admin' : 'user') as 'admin' | 'user'
+      // Check if user is admin based on email
+      const isAdmin = ADMIN_CREDENTIALS.includes(user.email || '');
+      
+      const profileData = {
+        id: user.id,
+        email: user.email || '',
+        full_name: user.user_metadata?.full_name || '',
+        avatar_url: user.user_metadata?.avatar_url || null,
+        role: isAdmin ? 'admin' as const : 'user' as const,
+        updated_at: new Date().toISOString()
       };
 
-      setProfile(profileData);
+      // First try to get existing profile
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (existingProfile) {
+        // Update existing profile
+        const { data, error } = await supabase
+          .from('profiles')
+          .update(profileData)
+          .eq('id', user.id)
+          .select()
+          .single();
+
+        if (!error && data) {
+          setProfile(data as Profile);
+        }
+      } else {
+        // Create new profile
+        const { data, error } = await supabase
+          .from('profiles')
+          .insert({
+            ...profileData,
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          setProfile(data as Profile);
+        }
+      }
     } catch (error) {
-      console.error('Error in fetchProfile:', error);
+      console.error('Error creating/updating profile:', error);
+      // Create a minimal profile if database operations fail
+      const isAdmin = ADMIN_CREDENTIALS.includes(user.email || '');
+      setProfile({
+        id: user.id,
+        email: user.email || '',
+        full_name: user.user_metadata?.full_name || '',
+        avatar_url: user.user_metadata?.avatar_url || null,
+        role: isAdmin ? 'admin' : 'user',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
     }
   };
 
@@ -73,10 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Defer profile fetching to avoid blocking auth state update
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
+          await createOrUpdateProfile(session.user);
         } else {
           setProfile(null);
         }
@@ -91,9 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        setTimeout(() => {
-          fetchProfile(session.user.id);
-        }, 0);
+        createOrUpdateProfile(session.user);
       }
       
       setIsLoading(false);

@@ -11,7 +11,7 @@ const Index = () => {
     return <LoginForm />;
   }
 
-  // Check user role - if admin/developer show developer dashboard, otherwise show user dashboard
+  // Show dashboard based on user role
   return profile?.role === 'admin' ? <DeveloperDashboard /> : <UserDashboard />;
 };
 
