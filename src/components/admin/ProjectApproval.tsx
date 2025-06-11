@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,7 +48,7 @@ const ProjectApproval = () => {
         .from('projects')
         .select(`
           *,
-          profiles!projects_user_id_fkey (
+          profiles(
             full_name,
             email
           )
