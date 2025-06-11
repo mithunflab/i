@@ -164,6 +164,12 @@ export const apiKeyManager = {
 
       const rawKey = data[0];
       
+      // Validate that we have the required properties
+      if (!rawKey || typeof rawKey !== 'object' || !rawKey.id || !rawKey.name) {
+        console.error(`Invalid key data for ${provider}:`, rawKey);
+        return null;
+      }
+      
       // Map the raw data to our ApiKeyWithUsage interface
       const result: ApiKeyWithUsage = {
         id: rawKey.id,
