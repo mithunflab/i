@@ -164,30 +164,33 @@ export const apiKeyManager = {
 
       const rawKey = data[0];
       
-      // Validate that we have the required properties
-      if (!rawKey || typeof rawKey !== 'object' || !rawKey.id || !rawKey.name) {
+      // Validate that we have the required properties and assert non-null
+      if (!rawKey || typeof rawKey !== 'object' || !('id' in rawKey) || !('name' in rawKey) || !rawKey.id || !rawKey.name) {
         console.error(`Invalid key data for ${provider}:`, rawKey);
         return null;
       }
       
+      // Type assertion to help TypeScript understand the object structure
+      const validatedKey = rawKey as Record<string, any>;
+      
       // Map the raw data to our ApiKeyWithUsage interface
       const result: ApiKeyWithUsage = {
-        id: rawKey.id,
-        name: rawKey.name,
-        is_active: rawKey.is_active,
-        created_at: rawKey.created_at,
-        last_used_at: rawKey.last_used_at,
-        ...(rawKey.api_key && { api_key: rawKey.api_key }),
-        ...(rawKey.api_token && { api_token: rawKey.api_token }),
-        ...(rawKey.quota_used !== undefined && { quota_used: rawKey.quota_used }),
-        ...(rawKey.quota_limit !== undefined && { quota_limit: rawKey.quota_limit }),
-        ...(rawKey.credits_used !== undefined && { credits_used: rawKey.credits_used }),
-        ...(rawKey.credits_limit !== undefined && { credits_limit: rawKey.credits_limit }),
-        ...(rawKey.rate_limit_used !== undefined && { rate_limit_used: rawKey.rate_limit_used }),
-        ...(rawKey.rate_limit_limit !== undefined && { rate_limit_limit: rawKey.rate_limit_limit }),
-        ...(rawKey.deployments_count !== undefined && { deployments_count: rawKey.deployments_count }),
-        ...(rawKey.deployments_limit !== undefined && { deployments_limit: rawKey.deployments_limit }),
-        ...(rawKey.requests_count !== undefined && { requests_count: rawKey.requests_count })
+        id: validatedKey.id,
+        name: validatedKey.name,
+        is_active: validatedKey.is_active,
+        created_at: validatedKey.created_at,
+        last_used_at: validatedKey.last_used_at,
+        ...(validatedKey.api_key && { api_key: validatedKey.api_key }),
+        ...(validatedKey.api_token && { api_token: validatedKey.api_token }),
+        ...(validatedKey.quota_used !== undefined && { quota_used: validatedKey.quota_used }),
+        ...(validatedKey.quota_limit !== undefined && { quota_limit: validatedKey.quota_limit }),
+        ...(validatedKey.credits_used !== undefined && { credits_used: validatedKey.credits_used }),
+        ...(validatedKey.credits_limit !== undefined && { credits_limit: validatedKey.credits_limit }),
+        ...(validatedKey.rate_limit_used !== undefined && { rate_limit_used: validatedKey.rate_limit_used }),
+        ...(validatedKey.rate_limit_limit !== undefined && { rate_limit_limit: validatedKey.rate_limit_limit }),
+        ...(validatedKey.deployments_count !== undefined && { deployments_count: validatedKey.deployments_count }),
+        ...(validatedKey.deployments_limit !== undefined && { deployments_limit: validatedKey.deployments_limit }),
+        ...(validatedKey.requests_count !== undefined && { requests_count: validatedKey.requests_count })
       };
 
       console.log(`Active key for ${provider}:`, result);
