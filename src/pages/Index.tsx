@@ -21,30 +21,17 @@ const Index = () => {
   }
 
   // If user is authenticated and has a profile, redirect to appropriate dashboard
-  if (user && profile) {
+  if (user && profile && profile.role) {
     console.log('Redirecting authenticated user with role:', profile.role);
     if (profile.role === 'admin') {
       return <Navigate to="/dashboard" replace />;
-    } else {
+    } else if (profile.role === 'user') {
       return <Navigate to="/user-dashboard" replace />;
     }
   }
 
-  // If user is authenticated but no profile (shouldn't happen with new setup), show loading
-  if (user && !profile) {
-    console.log('User authenticated but no profile, waiting...');
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Setting up your account...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If no user, show the home page
-  console.log('No user, showing home page');
+  // If no user or no profile, show the home page
+  console.log('No authenticated user with profile, showing home page');
   return <Home />;
 };
 

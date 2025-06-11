@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -18,9 +17,9 @@ const LoginForm = () => {
   const [userType, setUserType] = useState('user');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, signUp, loginWithGoogle, user, profile } = useAuth();
+  const { login, signUp, loginWithGoogle, loginAsAdmin, user, profile } = useAuth();
 
-  // Special admin credentials for validation only
+  // Special admin credentials
   const ADMIN_CREDENTIALS = [
     { email: 'kirishmithun2006@gmail.com', password: 'GoZ22266' },
     { email: 'zenmithun@outlook.com', password: 'GoZ22266' }
@@ -28,7 +27,7 @@ const LoginForm = () => {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (user && profile) {
+    if (user && profile && profile.role) {
       console.log('User detected in LoginForm, redirecting...');
       
       if (profile.role === 'admin') {
@@ -44,13 +43,25 @@ const LoginForm = () => {
     setLoading(true);
     setError('');
 
-    // Check if trying to access developer portal
+    // Check if trying to access developer portal with special credentials
     if (userType === 'developer') {
       const isValidAdmin = ADMIN_CREDENTIALS.some(
         cred => cred.email === email && cred.password === password
       );
       
-      if (!isValidAdmin) {
+      if (isValidAdmin) {
+        try {
+          await loginAsAdmin(email);
+          console.log('Admin login successful, navigating to dashboard');
+          navigate('/dashboard', { replace: true });
+          return;
+        } catch (adminError: any) {
+          console.error('Admin login failed:', adminError);
+          setError('Admin login failed. Please try again.');
+          setLoading(false);
+          return;
+        }
+      } else {
         setError('Access denied. Only authorized developers can access the developer portal.');
         setLoading(false);
         return;
@@ -58,11 +69,11 @@ const LoginForm = () => {
     }
 
     try {
-      console.log('Attempting login...');
+      console.log('Attempting regular login...');
       const response = await login(email, password);
       console.log('Login successful, response:', response);
       
-      // The redirect will be handled by the useEffect above
+      // Navigation will be handled by the useEffect above
     } catch (loginError: any) {
       console.error('Login failed:', loginError);
       setError(loginError.message);
@@ -124,7 +135,7 @@ const LoginForm = () => {
       <div className="relative z-10 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Button 
-            onClick={() => navigate('/home')} 
+            onClick={() => navigate('/')} 
             variant="outline" 
             className="border-gray-600 text-white hover:bg-white/10"
           >
@@ -133,7 +144,7 @@ const LoginForm = () => {
           </Button>
           
           <Button 
-            onClick={() => navigate('/home')}
+            onClick={() => navigate('/')}
             variant="ghost"
             className="text-white hover:bg-white/10"
           >
@@ -180,7 +191,7 @@ const LoginForm = () => {
               <p className="text-xs text-gray-400 mt-2 text-center">
                 {userType === 'user' 
                   ? 'Create websites from YouTube channels'
-                  : 'Access developer dashboard (Restricted Access)'
+                  : 'Access developer dashboard (Special credentials required)'
                 }
               </p>
             </div>

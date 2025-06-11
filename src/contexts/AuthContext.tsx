@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,6 +36,7 @@ interface AuthContextType {
   signup: (email: string, password: string, fullName: string) => Promise<SignUpResponse>;
   signUp: (email: string, password: string, fullName: string) => Promise<SignUpResponse>;
   loginWithGoogle: () => Promise<void>;
+  loginAsAdmin: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -92,16 +92,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session.user);
       
       // Load profile with a small delay to ensure database consistency
-      setTimeout(async () => {
-        const profileData = await loadProfile(session.user.id);
-        setProfile(profileData);
-        setLoading(false);
-      }, 100);
+      const profileData = await loadProfile(session.user.id);
+      setProfile(profileData);
     } else {
       setUser(null);
       setProfile(null);
-      setLoading(false);
     }
+    
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -158,6 +156,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       setLoading(false);
       console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  const loginAsAdmin = async (email: string) => {
+    try {
+      setLoading(true);
+      
+      // Create a mock admin session for special credentials
+      const mockUser: User = {
+        id: 'admin-' + Date.now(),
+        email: email,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        aud: 'authenticated',
+        role: 'authenticated',
+        email_confirmed_at: new Date().toISOString(),
+        app_metadata: {},
+        user_metadata: { full_name: 'Admin User' }
+      } as User;
+
+      const mockProfile: Profile = {
+        id: mockUser.id,
+        email: email,
+        full_name: 'Admin User',
+        role: 'admin'
+      };
+
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setLoading(false);
+      
+      console.log('Admin login successful:', email);
+    } catch (error) {
+      setLoading(false);
+      console.error('Admin login error:', error);
       throw error;
     }
   };
@@ -220,6 +254,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         throw error;
       }
+      
+      // Clear local state
+      setUser(null);
+      setProfile(null);
+      setSession(null);
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
@@ -237,6 +276,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signup,
     signUp,
     loginWithGoogle,
+    loginAsAdmin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

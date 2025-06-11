@@ -43,7 +43,7 @@ const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode,
     return <Navigate to="/login" replace />;
   }
 
-  // If user doesn't have profile yet, show loading (this should be rare with new setup)
+  // If user doesn't have profile yet, show loading
   if (!profile) {
     console.log('No profile, waiting for profile to load...');
     return (
