@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Plus, Edit, Trash2, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface User {
   id: string;
@@ -40,6 +40,21 @@ const UserManagement = () => {
 
   const loadUsers = async () => {
     try {
+      console.log('Loading users from profiles table...');
+      
+      // Check if user is authenticated
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        console.error('User not authenticated');
+        toast({
+          title: "Error",
+          description: "You must be logged in to view users",
+          variant: "destructive"
+        });
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -49,30 +64,31 @@ const UserManagement = () => {
         console.error('Error loading users:', error);
         toast({
           title: "Error",
-          description: "Failed to load users",
+          description: `Failed to load users: ${error.message}`,
           variant: "destructive"
         });
-        return;
+        setUsers([]);
+      } else {
+        console.log('Users loaded successfully:', data?.length || 0, 'users');
+        const formattedUsers: User[] = (data || []).map(profile => ({
+          id: profile.id,
+          name: profile.full_name || 'Unknown User',
+          email: profile.email || 'No email',
+          role: (profile.role === 'admin' ? 'admin' : 'user') as 'user' | 'admin',
+          status: 'active' as 'active' | 'inactive',
+          joinDate: new Date(profile.created_at || '').toLocaleDateString(),
+          projects: Math.floor(Math.random() * 10)
+        }));
+        setUsers(formattedUsers);
       }
-
-      const formattedUsers: User[] = (data || []).map(profile => ({
-        id: profile.id,
-        name: profile.full_name || 'Unknown',
-        email: profile.email || 'No email',
-        role: (profile.role === 'admin' ? 'admin' : 'user') as 'user' | 'admin',
-        status: 'active' as 'active' | 'inactive',
-        joinDate: new Date(profile.created_at || '').toLocaleDateString(),
-        projects: Math.floor(Math.random() * 10)
-      }));
-
-      setUsers(formattedUsers);
     } catch (error) {
-      console.error('Error in loadUsers:', error);
+      console.error('Exception in loadUsers:', error);
       toast({
         title: "Error",
         description: "Failed to load users",
         variant: "destructive"
       });
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -90,6 +106,8 @@ const UserManagement = () => {
 
     setIsAddingUser(true);
     try {
+      console.log('Creating new user:', newUser.email);
+      
       const { data, error } = await supabase.auth.signUp({
         email: newUser.email,
         password: 'TempPassword123!',
@@ -105,12 +123,13 @@ const UserManagement = () => {
         console.error('Error creating user:', error);
         toast({
           title: "Error",
-          description: "Failed to create user",
+          description: `Failed to create user: ${error.message}`,
           variant: "destructive"
         });
         return;
       }
 
+      console.log('User created successfully:', data.user?.email);
       toast({
         title: "Success",
         description: "User created successfully",
@@ -119,7 +138,7 @@ const UserManagement = () => {
       setNewUser({ name: '', email: '', role: 'user', status: 'active' });
       await loadUsers();
     } catch (error) {
-      console.error('Error in addUser:', error);
+      console.error('Exception in addUser:', error);
       toast({
         title: "Error",
         description: "Failed to create user",
@@ -221,7 +240,7 @@ const UserManagement = () => {
         <div className="space-y-4">
           {filteredUsers.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
-              No users found
+              {users.length === 0 ? 'No users found in the system' : 'No users match your search'}
             </div>
           ) : (
             filteredUsers.map((user) => (

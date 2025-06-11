@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,20 +34,27 @@ const YouTubeApiSettings = () => {
     }
     
     try {
+      console.log('Loading YouTube API key for user:', user.id);
       const { data, error } = await supabase
         .from('api_keys')
         .select('*')
         .eq('user_id', user.id)
         .eq('provider', 'YouTube')
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (data) {
-        setApiKey(data.key_value || '');
+      if (error) {
+        console.error('Error loading YouTube API key:', error);
+        setError(`Failed to load API key: ${error.message}`);
+      } else if (data && data.length > 0) {
+        setApiKey(data[0].key_value || '');
+        console.log('YouTube API key loaded successfully');
+      } else {
+        console.log('No existing YouTube API key found');
       }
     } catch (err) {
-      console.log('No existing YouTube API key found');
+      console.error('Exception loading YouTube API key:', err);
+      setError('Failed to load API key');
     } finally {
       setLoadingData(false);
     }
@@ -77,15 +85,28 @@ const YouTubeApiSettings = () => {
     setError('');
 
     try {
-      // First, check if a YouTube API key already exists
-      const { data: existingKey } = await supabase
+      console.log('Saving YouTube API key for user:', user.id);
+      
+      // Check if a YouTube API key already exists
+      const { data: existingKey, error: selectError } = await supabase
         .from('api_keys')
         .select('id')
         .eq('user_id', user.id)
         .eq('provider', 'YouTube')
-        .single();
+        .limit(1);
 
-      if (existingKey) {
+      if (selectError) {
+        console.error('Error checking existing key:', selectError);
+        setError(`Failed to check existing key: ${selectError.message}`);
+        toast({
+          title: "Error",
+          description: `Failed to check existing key: ${selectError.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (existingKey && existingKey.length > 0) {
         // Update existing key
         const { error } = await supabase
           .from('api_keys')
@@ -93,10 +114,10 @@ const YouTubeApiSettings = () => {
             key_value: apiKey,
             updated_at: new Date().toISOString()
           })
-          .eq('id', existingKey.id);
+          .eq('id', existingKey[0].id);
 
         if (error) {
-          console.error('Supabase error:', error);
+          console.error('Error updating YouTube API key:', error);
           setError(`Failed to update API key: ${error.message}`);
           toast({
             title: "Error",
@@ -110,6 +131,7 @@ const YouTubeApiSettings = () => {
             description: "YouTube API key updated successfully"
           });
           setTimeout(() => setSaved(false), 3000);
+          console.log('YouTube API key updated successfully');
         }
       } else {
         // Insert new key
@@ -124,7 +146,7 @@ const YouTubeApiSettings = () => {
           });
 
         if (error) {
-          console.error('Supabase error:', error);
+          console.error('Error inserting YouTube API key:', error);
           setError(`Failed to save API key: ${error.message}`);
           toast({
             title: "Error",
@@ -138,10 +160,11 @@ const YouTubeApiSettings = () => {
             description: "YouTube API key saved successfully"
           });
           setTimeout(() => setSaved(false), 3000);
+          console.log('YouTube API key saved successfully');
         }
       }
     } catch (err) {
-      console.error('Save error:', err);
+      console.error('Exception saving YouTube API key:', err);
       setError('Failed to save API key');
       toast({
         title: "Error",
