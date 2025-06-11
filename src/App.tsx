@@ -19,51 +19,51 @@ import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
-const AppContent = () => {
-  // Protected Route component moved inside AuthProvider context
-  const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode, requiredRole?: string }) => {
-    const { user, profile, isLoading } = useAuth();
+// Protected Route component that uses AuthContext
+const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode, requiredRole?: string }) => {
+  const { user, profile, isLoading } = useAuth();
 
-    console.log('ProtectedRoute - user:', user?.email, 'profile:', profile?.role, 'requiredRole:', requiredRole, 'loading:', isLoading);
+  console.log('ProtectedRoute - user:', user?.email, 'profile:', profile?.role, 'requiredRole:', requiredRole, 'loading:', isLoading);
 
-    // Show loading while authentication state is being determined
-    if (isLoading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-black">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-400">Loading...</p>
-          </div>
+  // Show loading while authentication state is being determined
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
         </div>
-      );
+      </div>
+    );
+  }
+
+  // If not authenticated, redirect to login
+  if (!user) {
+    console.log('No user, redirecting to login');
+    return <Navigate to="/login" replace />;
+  }
+
+  // If user doesn't have profile yet, redirect to home to let Index handle it
+  if (!profile) {
+    console.log('No profile, redirecting to home');
+    return <Navigate to="/" replace />;
+  }
+
+  // If specific role is required and user doesn't have it, redirect to appropriate dashboard
+  if (requiredRole && profile.role !== requiredRole) {
+    console.log('Role mismatch, redirecting based on actual role');
+    if (profile.role === 'admin') {
+      return <Navigate to="/dashboard" replace />;
+    } else {
+      return <Navigate to="/user-dashboard" replace />;
     }
+  }
 
-    // If not authenticated, redirect to login
-    if (!user) {
-      console.log('No user, redirecting to login');
-      return <Navigate to="/login" replace />;
-    }
+  // All checks passed, render the protected content
+  return <>{children}</>;
+};
 
-    // If user doesn't have profile yet, redirect to home to let Index handle it
-    if (!profile) {
-      console.log('No profile, redirecting to home');
-      return <Navigate to="/" replace />;
-    }
-
-    // If specific role is required and user doesn't have it, redirect to appropriate dashboard
-    if (requiredRole && profile.role !== requiredRole) {
-      console.log('Role mismatch, redirecting based on actual role');
-      if (profile.role === 'admin') {
-        return <Navigate to="/dashboard" replace />;
-      } else {
-        return <Navigate to="/user-dashboard" replace />;
-      }
-    }
-
-    // All checks passed, render the protected content
-    return <>{children}</>;
-  };
-
+const AppContent = () => {
   return (
     <Routes>
       {/* Public routes */}
