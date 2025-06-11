@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ApiKeyWithUsage {
@@ -164,19 +163,18 @@ export const apiKeyManager = {
 
       const rawKey = data[0];
       
-      // First check if rawKey exists and is an object
-      if (!rawKey || typeof rawKey !== 'object') {
+      // Comprehensive validation and type assertion
+      if (!rawKey || 
+          typeof rawKey !== 'object' || 
+          !('id' in rawKey) || 
+          !('name' in rawKey) || 
+          !rawKey.id || 
+          !rawKey.name) {
         console.error(`Invalid key data for ${provider}:`, rawKey);
         return null;
       }
       
-      // Then check for required properties
-      if (!('id' in rawKey) || !('name' in rawKey) || !rawKey.id || !rawKey.name) {
-        console.error(`Missing required properties for ${provider} key:`, rawKey);
-        return null;
-      }
-      
-      // Type assertion to help TypeScript understand the object structure
+      // Type assertion after validation - now TypeScript knows rawKey is not null
       const validatedKey = rawKey as Record<string, any>;
       
       // Map the raw data to our ApiKeyWithUsage interface
