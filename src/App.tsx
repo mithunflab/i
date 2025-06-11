@@ -23,6 +23,9 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode, requiredRole?: string }) => {
   const { user, profile, isLoading } = useAuth();
 
+  console.log('ProtectedRoute - user:', user?.email, 'profile:', profile?.role, 'requiredRole:', requiredRole, 'loading:', isLoading);
+
+  // Show loading while authentication state is being determined
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
@@ -34,19 +37,29 @@ const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode,
     );
   }
 
+  // If not authenticated, redirect to login
   if (!user) {
+    console.log('No user, redirecting to login');
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && profile?.role !== requiredRole) {
-    // Redirect to appropriate dashboard based on actual role
-    if (profile?.role === 'admin') {
+  // If user doesn't have profile yet, redirect to home
+  if (!profile) {
+    console.log('No profile, redirecting to home');
+    return <Navigate to="/" replace />;
+  }
+
+  // If specific role is required and user doesn't have it, redirect to appropriate dashboard
+  if (requiredRole && profile.role !== requiredRole) {
+    console.log('Role mismatch, redirecting based on actual role');
+    if (profile.role === 'admin') {
       return <Navigate to="/dashboard" replace />;
     } else {
       return <Navigate to="/user-dashboard" replace />;
     }
   }
 
+  // All checks passed, render the protected content
   return <>{children}</>;
 };
 
@@ -61,7 +74,7 @@ const AppContent = () => {
       <Route path="/contact" element={<Contact />} />
       <Route path="/login" element={<LoginForm />} />
       
-      {/* Root route */}
+      {/* Root route - handles authentication logic */}
       <Route path="/" element={<Index />} />
       
       {/* Protected routes */}

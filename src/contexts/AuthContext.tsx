@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
 
 interface Profile {
   id: string;
@@ -39,7 +38,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   const loadProfile = async (userId: string) => {
     try {
@@ -72,26 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Load profile data
       const profileData = await loadProfile(session.user.id);
       setProfile(profileData);
-      
-      // Only redirect on successful login, not on initial load
-      if (event === 'SIGNED_IN') {
-        const currentPath = window.location.pathname;
-        if (currentPath === '/' || currentPath === '/login') {
-          if (profileData?.role === 'admin') {
-            navigate('/dashboard');
-          } else {
-            navigate('/user-dashboard');
-          }
-        }
-      }
     } else {
       setUser(null);
       setProfile(null);
-      
-      // Only redirect to login if user was signed out, not on initial load
-      if (event === 'SIGNED_OUT') {
-        navigate('/');
-      }
     }
     
     setLoading(false);
@@ -132,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription?.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     try {

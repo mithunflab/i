@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,13 +18,25 @@ const LoginForm = () => {
   const [userType, setUserType] = useState('user');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, signUp, loginWithGoogle } = useAuth();
+  const { login, signUp, loginWithGoogle, user, profile } = useAuth();
 
   // Special admin credentials for validation only
   const ADMIN_CREDENTIALS = [
     { email: 'kirishmithun2006@gmail.com', password: 'GoZ22266' },
     { email: 'zenmithun@outlook.com', password: 'GoZ22266' }
   ];
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user && profile) {
+      console.log('User already logged in, redirecting...');
+      if (profile.role === 'admin') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/user-dashboard', { replace: true });
+      }
+    }
+  }, [user, profile, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +58,10 @@ const LoginForm = () => {
 
     try {
       await login(email, password);
-      // Navigation will be handled by AuthContext
+      console.log('Login successful');
+      // Navigation will be handled by useEffect hook watching user/profile state
     } catch (loginError: any) {
+      console.error('Login failed:', loginError);
       setError(loginError.message);
     }
     
@@ -74,6 +88,7 @@ const LoginForm = () => {
       setError('');
       alert('Please check your email to confirm your account!');
     } catch (signUpError: any) {
+      console.error('Signup failed:', signUpError);
       setError(signUpError.message);
     }
     
@@ -91,8 +106,10 @@ const LoginForm = () => {
 
     try {
       await loginWithGoogle();
-      // Navigation will be handled by AuthContext
+      console.log('Google login initiated');
+      // Navigation will be handled by useEffect hook watching user/profile state
     } catch (googleError: any) {
+      console.error('Google login failed:', googleError);
       setError(googleError.message);
     }
     
