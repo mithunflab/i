@@ -56,8 +56,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = async (userId: string) => {
+  const loadProfile = async (userId: string): Promise<Profile | null> => {
     try {
+      console.log('Loading profile for user:', userId);
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -66,9 +68,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error loading profile:', error);
+        
+        // If profile doesn't exist, create a default one
+        if (error.code === 'PGRST116') {
+          console.log('Profile not found, creating default profile');
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              email: user?.email || '',
+              full_name: user?.user_metadata?.full_name || null,
+              role: 'user'
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            return null;
+          }
+          
+          console.log('Created new profile:', newProfile);
+          return newProfile;
+        }
+        
         return null;
       }
 
+      console.log('Profile loaded successfully:', data);
       return data;
     } catch (error) {
       console.error('Error in loadProfile:', error);
@@ -84,9 +111,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (session?.user) {
       setUser(session.user);
       
-      // Load profile data
+      // Load profile data with better error handling
       const profileData = await loadProfile(session.user.id);
       setProfile(profileData);
+      
+      // If profile loading failed but user exists, create a default profile
+      if (!profileData) {
+        console.log('Creating fallback profile for user');
+        const fallbackProfile: Profile = {
+          id: session.user.id,
+          email: session.user.email || '',
+          full_name: session.user.user_metadata?.full_name || null,
+          role: 'user'
+        };
+        setProfile(fallbackProfile);
+      }
     } else {
       setUser(null);
       setProfile(null);
@@ -126,11 +165,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Get initial session
     getInitialSession();
 
+    // Set up real-time subscription for profile changes
+    const profileSubscription = supabase
+      .channel('profile-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'profiles',
+          filter: user ? `id=eq.${user.id}` : undefined
+        }, 
+        (payload) => {
+          console.log('Profile changed:', payload);
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            setProfile(payload.new as Profile);
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       mounted = false;
       subscription?.unsubscribe();
+      profileSubscription?.unsubscribe();
     };
-  }, []);
+  }, [user?.id]);
 
   const login = async (email: string, password: string) => {
     try {

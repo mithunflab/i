@@ -1,6 +1,7 @@
 
 import { useAuth } from "../contexts/AuthContext";
 import { Navigate } from "react-router-dom";
+import { useEffect } from "react";
 import Home from "./Home";
 
 const Index = () => {
@@ -30,10 +31,23 @@ const Index = () => {
     }
   }
 
-  // If user is authenticated but no profile yet, stay on home but logged in
+  // If user is authenticated but profile is still loading or failed to load, 
+  // give it a moment then redirect to user dashboard as default
   if (user && !profile) {
-    console.log('User authenticated but no profile yet');
-    return <Home />;
+    console.log('User authenticated, profile not loaded yet, redirecting to user dashboard');
+    // Use a small delay to allow profile loading to complete
+    setTimeout(() => {
+      window.location.href = '/user-dashboard';
+    }, 1000);
+    
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Setting up your account...</p>
+        </div>
+      </div>
+    );
   }
 
   // If no user, show the home page

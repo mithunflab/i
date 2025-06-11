@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -26,11 +25,13 @@ const LoginForm = () => {
     { email: 'zenmithun@outlook.com', password: 'GoZ22266' }
   ];
 
-  // Redirect if already logged in
+  // Redirect if already logged in with more aggressive checking
   useEffect(() => {
-    if (user && profile) {
-      console.log('User already logged in, redirecting...');
-      if (profile.role === 'admin') {
+    if (user) {
+      console.log('User detected in LoginForm, redirecting...');
+      
+      // Immediate redirect based on user type or default to user dashboard
+      if (profile?.role === 'admin') {
         navigate('/dashboard', { replace: true });
       } else {
         navigate('/user-dashboard', { replace: true });
@@ -57,15 +58,26 @@ const LoginForm = () => {
     }
 
     try {
-      await login(email, password);
-      console.log('Login successful');
-      // Navigation will be handled by useEffect hook watching user/profile state
+      console.log('Attempting login...');
+      const response = await login(email, password);
+      console.log('Login successful, response:', response);
+      
+      // Force immediate redirect on successful login
+      if (response.data.user) {
+        console.log('Login successful, forcing redirect...');
+        
+        // Use window.location for immediate redirect
+        if (userType === 'developer') {
+          window.location.href = '/dashboard';
+        } else {
+          window.location.href = '/user-dashboard';
+        }
+      }
     } catch (loginError: any) {
       console.error('Login failed:', loginError);
       setError(loginError.message);
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -107,13 +119,11 @@ const LoginForm = () => {
     try {
       await loginWithGoogle();
       console.log('Google login initiated');
-      // Navigation will be handled by useEffect hook watching user/profile state
     } catch (googleError: any) {
       console.error('Google login failed:', googleError);
       setError(googleError.message);
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (
