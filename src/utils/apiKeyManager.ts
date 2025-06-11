@@ -66,10 +66,47 @@ export const apiKeyManager = {
       }
 
       const result = {
-        youtube: (youtubeKeys || []) as ApiKeyWithUsage[],
-        openrouter: (openrouterKeys || []) as ApiKeyWithUsage[],
-        github: (githubKeys || []) as ApiKeyWithUsage[],
-        netlify: (netlifyKeys || []) as ApiKeyWithUsage[]
+        youtube: (youtubeKeys || []).map(key => ({
+          id: key.id,
+          name: key.name,
+          api_key: key.api_key,
+          quota_used: key.quota_used,
+          quota_limit: key.quota_limit,
+          is_active: key.is_active,
+          last_used_at: key.last_used_at,
+          created_at: key.created_at
+        })) as ApiKeyWithUsage[],
+        openrouter: (openrouterKeys || []).map(key => ({
+          id: key.id,
+          name: key.name,
+          api_key: key.api_key,
+          credits_used: key.credits_used,
+          credits_limit: key.credits_limit,
+          requests_count: key.requests_count,
+          is_active: key.is_active,
+          last_used_at: key.last_used_at,
+          created_at: key.created_at
+        })) as ApiKeyWithUsage[],
+        github: (githubKeys || []).map(key => ({
+          id: key.id,
+          name: key.name,
+          api_token: key.api_token,
+          rate_limit_used: key.rate_limit_used,
+          rate_limit_limit: key.rate_limit_limit,
+          is_active: key.is_active,
+          last_used_at: key.last_used_at,
+          created_at: key.created_at
+        })) as ApiKeyWithUsage[],
+        netlify: (netlifyKeys || []).map(key => ({
+          id: key.id,
+          name: key.name,
+          api_token: key.api_token,
+          deployments_count: key.deployments_count,
+          deployments_limit: key.deployments_limit,
+          is_active: key.is_active,
+          last_used_at: key.last_used_at,
+          created_at: key.created_at
+        })) as ApiKeyWithUsage[]
       };
 
       console.log('All API keys loaded:', result);
@@ -120,7 +157,33 @@ export const apiKeyManager = {
         return null;
       }
 
-      const result = data && data.length > 0 ? data[0] as ApiKeyWithUsage : null;
+      if (!data || data.length === 0) {
+        console.log(`No active key found for ${provider}`);
+        return null;
+      }
+
+      const rawKey = data[0];
+      
+      // Map the raw data to our ApiKeyWithUsage interface
+      const result: ApiKeyWithUsage = {
+        id: rawKey.id,
+        name: rawKey.name,
+        is_active: rawKey.is_active,
+        created_at: rawKey.created_at,
+        last_used_at: rawKey.last_used_at,
+        ...(rawKey.api_key && { api_key: rawKey.api_key }),
+        ...(rawKey.api_token && { api_token: rawKey.api_token }),
+        ...(rawKey.quota_used !== undefined && { quota_used: rawKey.quota_used }),
+        ...(rawKey.quota_limit !== undefined && { quota_limit: rawKey.quota_limit }),
+        ...(rawKey.credits_used !== undefined && { credits_used: rawKey.credits_used }),
+        ...(rawKey.credits_limit !== undefined && { credits_limit: rawKey.credits_limit }),
+        ...(rawKey.rate_limit_used !== undefined && { rate_limit_used: rawKey.rate_limit_used }),
+        ...(rawKey.rate_limit_limit !== undefined && { rate_limit_limit: rawKey.rate_limit_limit }),
+        ...(rawKey.deployments_count !== undefined && { deployments_count: rawKey.deployments_count }),
+        ...(rawKey.deployments_limit !== undefined && { deployments_limit: rawKey.deployments_limit }),
+        ...(rawKey.requests_count !== undefined && { requests_count: rawKey.requests_count })
+      };
+
       console.log(`Active key for ${provider}:`, result);
       return result;
     } catch (error) {
