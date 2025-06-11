@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Key, Plus, Trash2, Eye, EyeOff, Wifi, Shield } from 'lucide-react';
+import { Key, Plus, Trash2, Eye, EyeOff, Wifi, Shield, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -26,6 +25,7 @@ const SecureApiKeyManagement = () => {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
   const [newKey, setNewKey] = useState({
     name: '',
@@ -126,6 +126,183 @@ const SecureApiKeyManagement = () => {
     }
   };
 
+  const syncToProviderTables = async () => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User not authenticated",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSyncing(true);
+
+    try {
+      console.log('Syncing API keys to provider-specific tables...');
+      
+      // Get all general API keys for this user
+      const { data: generalKeys, error: generalError } = await supabase
+        .from('api_keys')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (generalError) {
+        console.error('Error loading general API keys:', generalError);
+        toast({
+          title: "Error",
+          description: `Failed to load API keys: ${generalError.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!generalKeys || generalKeys.length === 0) {
+        toast({
+          title: "Info",
+          description: "No API keys found to sync",
+        });
+        return;
+      }
+
+      let syncCount = 0;
+
+      for (const key of generalKeys) {
+        const provider = key.provider?.toLowerCase();
+        
+        if (provider === 'youtube') {
+          // Check if key already exists in YouTube table
+          const { data: existingYoutube } = await supabase
+            .from('youtube_api_keys')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('api_key', key.key_value)
+            .single();
+
+          if (!existingYoutube) {
+            const { error: youtubeError } = await supabase
+              .from('youtube_api_keys')
+              .insert({
+                user_id: user.id,
+                name: key.name,
+                api_key: key.key_value,
+                quota_used: 0,
+                quota_limit: 10000,
+                is_active: key.is_active
+              });
+
+            if (!youtubeError) {
+              syncCount++;
+              console.log('Synced YouTube key:', key.name);
+            } else {
+              console.error('Error syncing YouTube key:', youtubeError);
+            }
+          }
+        } else if (provider === 'openrouter') {
+          // Check if key already exists in OpenRouter table
+          const { data: existingOpenRouter } = await supabase
+            .from('openrouter_api_keys')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('api_key', key.key_value)
+            .single();
+
+          if (!existingOpenRouter) {
+            const { error: openrouterError } = await supabase
+              .from('openrouter_api_keys')
+              .insert({
+                user_id: user.id,
+                name: key.name,
+                api_key: key.key_value,
+                credits_used: 0,
+                credits_limit: 100,
+                requests_count: 0,
+                is_active: key.is_active
+              });
+
+            if (!openrouterError) {
+              syncCount++;
+              console.log('Synced OpenRouter key:', key.name);
+            } else {
+              console.error('Error syncing OpenRouter key:', openrouterError);
+            }
+          }
+        } else if (provider === 'github') {
+          // Check if key already exists in GitHub table
+          const { data: existingGithub } = await supabase
+            .from('github_api_keys')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('api_token', key.key_value)
+            .single();
+
+          if (!existingGithub) {
+            const { error: githubError } = await supabase
+              .from('github_api_keys')
+              .insert({
+                user_id: user.id,
+                name: key.name,
+                api_token: key.key_value,
+                rate_limit_used: 0,
+                rate_limit_limit: 5000,
+                is_active: key.is_active
+              });
+
+            if (!githubError) {
+              syncCount++;
+              console.log('Synced GitHub key:', key.name);
+            } else {
+              console.error('Error syncing GitHub key:', githubError);
+            }
+          }
+        } else if (provider === 'netlify') {
+          // Check if key already exists in Netlify table
+          const { data: existingNetlify } = await supabase
+            .from('netlify_api_keys')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('api_token', key.key_value)
+            .single();
+
+          if (!existingNetlify) {
+            const { error: netlifyError } = await supabase
+              .from('netlify_api_keys')
+              .insert({
+                user_id: user.id,
+                name: key.name,
+                api_token: key.key_value,
+                deployments_count: 0,
+                deployments_limit: 300,
+                is_active: key.is_active
+              });
+
+            if (!netlifyError) {
+              syncCount++;
+              console.log('Synced Netlify key:', key.name);
+            } else {
+              console.error('Error syncing Netlify key:', netlifyError);
+            }
+          }
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: `Synced ${syncCount} API keys to provider-specific tables`
+      });
+
+    } catch (error) {
+      console.error('Error syncing to provider tables:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sync API keys",
+        variant: "destructive"
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const saveApiKey = async () => {
     if (!newKey.name || !newKey.provider || !newKey.key_value) {
       toast({
@@ -173,6 +350,11 @@ const SecureApiKeyManagement = () => {
         });
         setNewKey({ name: '', provider: '', key_value: '', model: '' });
         loadApiKeys();
+        
+        // Auto-sync to provider tables
+        setTimeout(() => {
+          syncToProviderTables();
+        }, 1000);
       }
     } catch (err) {
       console.error('Exception saving API key:', err);
@@ -266,6 +448,26 @@ const SecureApiKeyManagement = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Sync Button */}
+          <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-blue-400 mb-2">🔄 Sync API Keys</h3>
+                <p className="text-sm text-gray-300">
+                  Sync your API keys from the general table to provider-specific tables for better integration.
+                </p>
+              </div>
+              <Button 
+                onClick={syncToProviderTables}
+                disabled={syncing}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Syncing...' : 'Sync Now'}
+              </Button>
+            </div>
+          </div>
+
           {/* Add New API Key */}
           <div className="space-y-4 p-4 bg-gray-800/30 rounded-lg border border-gray-700">
             <h3 className="text-lg font-semibold text-white">Add New API Key</h3>
