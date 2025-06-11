@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,24 +31,45 @@ const YouTubeWebsiteBuilder = () => {
   const [youtubeApiKey, setYoutubeApiKey] = useState('');
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Use ref to track channel subscription
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     loadYouTubeApiKey();
     setupRealTimeUpdates();
-  }, []);
+    
+    // Cleanup function
+    return () => {
+      cleanupRealTimeUpdates();
+    };
+  }, [user?.id]);
+
+  const cleanupRealTimeUpdates = () => {
+    if (channelRef.current) {
+      console.log('Cleaning up YouTube API real-time subscription');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+  };
 
   const setupRealTimeUpdates = () => {
+    // Clean up any existing subscription first
+    cleanupRealTimeUpdates();
+    
+    if (!user?.id) return;
+    
     console.log('Setting up real-time updates for YouTube API key');
     
-    const channel = supabase
-      .channel('youtube-api-key-updates')
+    channelRef.current = supabase
+      .channel(`youtube-api-key-updates-${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'api_keys',
-          filter: `provider=eq.YouTube`
+          filter: `provider=eq.YouTube AND user_id=eq.${user.id}`
         },
         (payload) => {
           console.log('Real-time YouTube API key update:', payload);
@@ -65,40 +85,37 @@ const YouTubeWebsiteBuilder = () => {
         console.log('YouTube API real-time subscription status:', status);
         setIsConnected(status === 'SUBSCRIBED');
       });
-
-    return () => {
-      console.log('Cleaning up YouTube API real-time subscription');
-      supabase.removeChannel(channel);
-    };
   };
 
   const loadYouTubeApiKey = async () => {
+    if (!user?.id) return;
+    
     try {
       console.log('Loading YouTube API key from api_keys table');
       
-      // Fetch from api_keys table where provider is YouTube
       const { data: apiKeyData, error } = await supabase
         .from('api_keys')
         .select('key_value')
         .eq('provider', 'YouTube')
+        .eq('user_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
       if (error) {
         console.error('Error loading YouTube API key:', error);
-        if (error.code !== 'PGRST116') { // Not found error
+        if (error.code !== 'PGRST116') {
           setError('Failed to load YouTube API configuration');
         }
         return;
       }
 
-      if (apiKeyData && apiKeyData.key_value) {
-        setYoutubeApiKey(apiKeyData.key_value);
+      if (apiKeyData && apiKeyData.length > 0 && apiKeyData[0].key_value) {
+        setYoutubeApiKey(apiKeyData[0].key_value);
         console.log('YouTube API key loaded successfully');
       } else {
         console.log('No YouTube API key found');
+        setYoutubeApiKey('');
       }
     } catch (err) {
       console.error('Exception loading YouTube API key:', err);
@@ -259,18 +276,20 @@ const YouTubeWebsiteBuilder = () => {
       setGeneratedWebsite(websiteCode);
       
       // Save generated website to database
-      await supabase
-        .from('analytics')
-        .insert({
-          user_id: user?.id,
-          event_type: 'generated_website',
-          event_data: {
-            channel_name: channelData.channelName,
-            channel_id: channelData.channelId,
-            website_code: websiteCode,
-            created_at: new Date().toISOString()
-          }
-        });
+      if (user?.id) {
+        await supabase
+          .from('analytics')
+          .insert({
+            user_id: user.id,
+            event_type: 'generated_website',
+            event_data: {
+              channel_name: channelData.channelName,
+              channel_id: channelData.channelId,
+              website_code: websiteCode,
+              created_at: new Date().toISOString()
+            }
+          });
+      }
 
       setSuccess('Website generated successfully!');
       setTimeout(() => setSuccess(''), 3000);

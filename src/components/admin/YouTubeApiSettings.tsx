@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +18,9 @@ const YouTubeApiSettings = () => {
   const [isConnected, setIsConnected] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Use ref to track channel subscription
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -27,25 +29,43 @@ const YouTubeApiSettings = () => {
     } else {
       setLoadingData(false);
     }
-  }, [user]);
+    
+    // Cleanup function
+    return () => {
+      cleanupRealTimeUpdates();
+    };
+  }, [user?.id]);
+
+  const cleanupRealTimeUpdates = () => {
+    if (channelRef.current) {
+      console.log('Cleaning up YouTube API real-time subscription');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+  };
 
   const setupRealTimeUpdates = () => {
+    // Clean up any existing subscription first
+    cleanupRealTimeUpdates();
+    
+    if (!user?.id) return;
+    
     console.log('Setting up real-time updates for YouTube API settings');
     
-    const channel = supabase
-      .channel('youtube-api-settings')
+    channelRef.current = supabase
+      .channel(`youtube-api-settings-${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'api_keys',
-          filter: `provider=eq.YouTube`
+          filter: `provider=eq.YouTube AND user_id=eq.${user.id}`
         },
         (payload) => {
           console.log('Real-time update for YouTube API key:', payload);
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            if (payload.new.user_id === user?.id) {
+            if (payload.new && payload.new.user_id === user?.id) {
               setApiKey(payload.new.key_value || '');
               toast({
                 title: "Real-time Update",
@@ -60,11 +80,6 @@ const YouTubeApiSettings = () => {
         console.log('Real-time subscription status:', status);
         setIsConnected(status === 'SUBSCRIBED');
       });
-
-    return () => {
-      console.log('Cleaning up YouTube API real-time subscription');
-      supabase.removeChannel(channel);
-    };
   };
 
   const loadApiKey = async () => {
