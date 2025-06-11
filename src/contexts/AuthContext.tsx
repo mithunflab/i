@@ -1,53 +1,27 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Profile {
   id: string;
   email: string;
-  full_name: string | null;
-  role: string | null;
+  full_name: string;
+  role: 'admin' | 'user';
+  created_at: string;
+  updated_at: string;
 }
-
-type LoginResponse = {
-  data: {
-    user: User | null;
-    session: Session | null;
-  };
-  error: AuthError | null;
-};
-
-type SignUpResponse = {
-  data: {
-    user: User | null;
-    session: Session | null;
-  };
-  error: AuthError | null;
-};
 
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<LoginResponse>;
-  logout: () => Promise<void>;
-  signup: (email: string, password: string, fullName: string) => Promise<SignUpResponse>;
-  signUp: (email: string, password: string, fullName: string) => Promise<SignUpResponse>;
-  loginWithGoogle: () => Promise<void>;
-  loginAsAdmin: (email: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<any>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -55,10 +29,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = async (userId: string): Promise<Profile | null> => {
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session);
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state change:', event, session);
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await loadProfile(session.user.id);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadProfile = async (userId: string) => {
     try {
       console.log('Loading profile for user:', userId);
       
+      // Validate that userId is a proper UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(userId)) {
+        console.error('Invalid UUID format:', userId);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -67,202 +81,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error loading profile:', error);
-        return null;
+        // If profile doesn't exist, create one for admin emails
+        if (error.code === 'PGRST116') {
+          const userEmail = session?.user?.email;
+          if (userEmail && (userEmail === 'kirishmithun2006@gmail.com' || userEmail === 'zenmithun@outlook.com')) {
+            await createAdminProfile(userId, userEmail);
+          }
+        }
+      } else if (data) {
+        console.log('Profile loaded:', data);
+        setProfile(data);
       }
-
-      if (data) {
-        console.log('Profile loaded successfully:', data);
-        return data;
-      }
-
-      console.log('No profile found');
-      return null;
-    } catch (error) {
-      console.error('Exception in loadProfile:', error);
-      return null;
+    } catch (err) {
+      console.error('Exception loading profile:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAuthStateChange = async (event: string, session: Session | null) => {
-    console.log('Auth state change:', event, session?.user?.email);
-    
-    setSession(session);
-    
-    if (session?.user) {
-      setUser(session.user);
-      
-      // Load profile with a small delay to ensure database consistency
-      const profileData = await loadProfile(session.user.id);
-      setProfile(profileData);
-    } else {
-      setUser(null);
-      setProfile(null);
+  const createAdminProfile = async (userId: string, email: string) => {
+    try {
+      console.log('Creating admin profile for:', email);
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: email,
+          full_name: email.split('@')[0],
+          role: 'admin'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating admin profile:', error);
+      } else {
+        console.log('Admin profile created:', data);
+        setProfile(data);
+      }
+    } catch (err) {
+      console.error('Exception creating admin profile:', err);
     }
-    
-    setLoading(false);
   };
 
-  useEffect(() => {
-    let mounted = true;
-
-    const getInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          if (mounted) setLoading(false);
-          return;
-        }
-
-        if (mounted) {
-          await handleAuthStateChange('INITIAL_SESSION', session);
-        }
-      } catch (error) {
-        console.error('Error in getInitialSession:', error);
-        if (mounted) setLoading(false);
-      }
-    };
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (mounted) {
-        await handleAuthStateChange(event, session);
-      }
+  const signIn = async (email: string, password: string) => {
+    console.log('Attempting to sign in:', email);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
-    getInitialSession();
-
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      const response = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (response.error) {
-        setLoading(false);
-        throw response.error;
-      }
-
-      console.log('Login successful:', response.data.user?.email);
-      return response;
-    } catch (error) {
-      setLoading(false);
-      console.error('Login error:', error);
+    if (error) {
+      console.error('Sign in error:', error);
       throw error;
     }
+
+    console.log('Sign in successful:', data.user?.email);
+    return data;
   };
 
-  const loginAsAdmin = async (email: string) => {
-    try {
-      setLoading(true);
-      
-      // Create a mock admin session for special credentials
-      const mockUser: User = {
-        id: 'admin-' + Date.now(),
-        email: email,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        aud: 'authenticated',
-        role: 'authenticated',
-        email_confirmed_at: new Date().toISOString(),
-        app_metadata: {},
-        user_metadata: { full_name: 'Admin User' }
-      } as User;
-
-      const mockProfile: Profile = {
-        id: mockUser.id,
-        email: email,
-        full_name: 'Admin User',
-        role: 'admin'
-      };
-
-      setUser(mockUser);
-      setProfile(mockProfile);
-      setLoading(false);
-      
-      console.log('Admin login successful:', email);
-    } catch (error) {
-      setLoading(false);
-      console.error('Admin login error:', error);
+  const signOut = async () => {
+    console.log('Signing out...');
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out error:', error);
       throw error;
     }
-  };
-
-  const signup = async (email: string, password: string, fullName: string) => {
-    try {
-      setLoading(true);
-      const response = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-          emailRedirectTo: `${window.location.origin}/`
-        },
-      });
-
-      if (response.error) {
-        setLoading(false);
-        throw response.error;
-      }
-
-      return response;
-    } catch (error) {
-      setLoading(false);
-      console.error('Signup error:', error);
-      throw error;
-    }
-  };
-
-  const signUp = async (email: string, password: string, fullName: string) => {
-    return signup(email, password, fullName);
-  };
-
-  const loginWithGoogle = async () => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/`
-        }
-      });
-
-      if (error) {
-        setLoading(false);
-        throw error;
-      }
-    } catch (error) {
-      setLoading(false);
-      console.error('Google login error:', error);
-      throw error;
-    }
-  };
-
-  const logout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw error;
-      }
-      
-      // Clear local state
-      setUser(null);
-      setProfile(null);
-      setSession(null);
-    } catch (error) {
-      console.error('Logout error:', error);
-      throw error;
-    }
+    setUser(null);
+    setProfile(null);
+    setSession(null);
   };
 
   const value = {
@@ -270,14 +157,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     profile,
     session,
     loading,
-    isLoading: loading,
-    login,
-    logout,
-    signup,
-    signUp,
-    loginWithGoogle,
-    loginAsAdmin,
+    signIn,
+    signOut,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

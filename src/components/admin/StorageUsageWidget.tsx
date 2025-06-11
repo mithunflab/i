@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { HardDrive, Database, FileText, Image, Video, Music, Archive } from 'lucide-react';
+import { HardDrive, Database, FileText, Image, Video, Music, Archive, Wifi, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface StorageUsage {
   bucket_name: string;
@@ -14,28 +16,87 @@ interface StorageUsage {
 const StorageUsageWidget = () => {
   const [storageData, setStorageData] = useState<StorageUsage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isConnected, setIsConnected] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     loadStorageData();
+    setupRealTimeUpdates();
     
-    // Set up real-time subscription for storage updates
+    // Set up periodic refresh every 30 seconds
     const interval = setInterval(() => {
       loadStorageData();
-    }, 30000); // Update every 30 seconds
+    }, 30000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [user]);
+
+  const setupRealTimeUpdates = () => {
+    console.log('Setting up real-time updates for storage usage');
+    
+    const channel = supabase
+      .channel('storage-usage-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'storage_usage_tracking'
+        },
+        (payload) => {
+          console.log('Real-time storage update:', payload);
+          loadStorageData();
+          setLastUpdated(new Date());
+          toast({
+            title: "Real-time Update",
+            description: "Storage usage updated in real-time"
+          });
+          setIsConnected(true);
+        }
+      )
+      .subscribe((status) => {
+        console.log('Storage real-time subscription status:', status);
+        setIsConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      console.log('Cleaning up storage real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  };
 
   const loadStorageData = async () => {
     try {
       console.log('Loading real-time storage data...');
       
-      // Get storage buckets
+      // First try to get data from storage_usage_tracking table
+      const { data: trackingData, error: trackingError } = await supabase
+        .from('storage_usage_tracking')
+        .select('*')
+        .order('last_updated', { ascending: false });
+
+      if (!trackingError && trackingData && trackingData.length > 0) {
+        console.log('Using tracking data:', trackingData);
+        const formattedData = trackingData.map(item => ({
+          bucket_name: item.bucket_name,
+          file_count: item.file_count || 0,
+          total_size_bytes: item.total_size_bytes || 0
+        }));
+        setStorageData(formattedData);
+        setLoading(false);
+        return;
+      }
+
+      // Fallback to direct bucket inspection
       const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
       
       if (bucketsError) {
         console.error('Error loading buckets:', bucketsError);
-        // Fallback to mock data
+        // Fallback to demo data
         setStorageData([
           { bucket_name: 'avatars', file_count: 45, total_size_bytes: 2097152 },
           { bucket_name: 'documents', file_count: 123, total_size_bytes: 15728640 },
@@ -60,6 +121,21 @@ const StorageUsageWidget = () => {
             const totalSize = files ? files.reduce((sum, file) => {
               return sum + (file.metadata?.size || 0);
             }, 0) : 0;
+
+            // Update tracking table
+            if (user?.id) {
+              await supabase
+                .from('storage_usage_tracking')
+                .upsert({
+                  user_id: user.id,
+                  bucket_name: bucket.name,
+                  file_count: fileCount,
+                  total_size_bytes: totalSize,
+                  last_updated: new Date().toISOString()
+                }, {
+                  onConflict: 'user_id,bucket_name'
+                });
+            }
             
             return {
               bucket_name: bucket.name,
@@ -92,6 +168,7 @@ const StorageUsageWidget = () => {
       ]);
     } finally {
       setLoading(false);
+      setLastUpdated(new Date());
     }
   };
 
@@ -175,6 +252,16 @@ const StorageUsageWidget = () => {
           <CardTitle className="text-white flex items-center gap-2">
             <Database size={20} />
             Supabase Storage Buckets (Real-time)
+            <div className="ml-auto flex items-center gap-2">
+              <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-400' : 'text-red-400'}`} />
+              <RefreshCw 
+                className="h-4 w-4 text-gray-400 cursor-pointer hover:text-white transition-colors" 
+                onClick={loadStorageData}
+              />
+              <span className="text-xs text-gray-400">
+                Updated: {lastUpdated.toLocaleTimeString()}
+              </span>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>

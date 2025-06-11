@@ -13,10 +13,12 @@ import {
   AlertCircle,
   Trash2,
   Plus,
-  HardDrive
+  HardDrive,
+  Terminal
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import StorageUsageWidget from './StorageUsageWidget';
+import RealTimeQueryRunner from './RealTimeQueryRunner';
 
 const BackupManagement = () => {
   const [autoBackup, setAutoBackup] = useState(true);
@@ -89,6 +91,19 @@ const BackupManagement = () => {
         </CardHeader>
         <CardContent>
           <StorageUsageWidget />
+        </CardContent>
+      </Card>
+
+      {/* Real-time Database Query Runner */}
+      <Card className="bg-white/5 border-gray-800 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Terminal size={20} className="text-green-400" />
+            Real-time Database Query Runner
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RealTimeQueryRunner />
         </CardContent>
       </Card>
 

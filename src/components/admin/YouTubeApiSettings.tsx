@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Youtube, Key, Save, AlertCircle, CheckCircle } from 'lucide-react';
+import { Youtube, Key, Save, AlertCircle, CheckCircle, Wifi } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -16,19 +16,68 @@ const YouTubeApiSettings = () => {
   const [loadingData, setLoadingData] = useState(true);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [isConnected, setIsConnected] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     if (user?.id) {
       loadApiKey();
+      setupRealTimeUpdates();
     } else {
       setLoadingData(false);
     }
   }, [user]);
 
+  const setupRealTimeUpdates = () => {
+    console.log('Setting up real-time updates for YouTube API settings');
+    
+    const channel = supabase
+      .channel('youtube-api-settings')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'api_keys',
+          filter: `provider=eq.YouTube`
+        },
+        (payload) => {
+          console.log('Real-time update for YouTube API key:', payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            if (payload.new.user_id === user?.id) {
+              setApiKey(payload.new.key_value || '');
+              toast({
+                title: "Real-time Update",
+                description: "YouTube API key updated in real-time"
+              });
+            }
+          }
+          setIsConnected(true);
+        }
+      )
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+        setIsConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      console.log('Cleaning up YouTube API real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  };
+
   const loadApiKey = async () => {
     if (!user?.id) {
+      setLoadingData(false);
+      return;
+    }
+    
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(user.id)) {
+      console.error('Invalid user ID format:', user.id);
+      setError('Invalid user session. Please sign out and sign in again.');
       setLoadingData(false);
       return;
     }
@@ -76,6 +125,18 @@ const YouTubeApiSettings = () => {
       toast({
         title: "Error", 
         description: "User not authenticated",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(user.id)) {
+      setError('Invalid user session. Please sign out and sign in again.');
+      toast({
+        title: "Error",
+        description: "Invalid user session. Please sign out and sign in again.",
         variant: "destructive"
       });
       return;
@@ -196,6 +257,12 @@ const YouTubeApiSettings = () => {
           <CardTitle className="text-white flex items-center gap-2">
             <Youtube className="h-5 w-5 text-red-500" />
             YouTube API Configuration
+            <div className="ml-auto flex items-center gap-2">
+              <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-400' : 'text-red-400'}`} />
+              <span className="text-xs text-gray-400">
+                {isConnected ? 'Real-time Connected' : 'Disconnected'}
+              </span>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
