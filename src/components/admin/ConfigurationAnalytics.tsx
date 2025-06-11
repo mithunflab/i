@@ -18,34 +18,42 @@ const ConfigurationAnalytics = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    loadAnalyticsData();
-    
-    // Set up real-time updates
-    const interval = setInterval(loadAnalyticsData, 30000); // Update every 30 seconds
-    
-    return () => clearInterval(interval);
+    if (user) {
+      loadAnalyticsData();
+      const interval = setInterval(loadAnalyticsData, 30000);
+      return () => clearInterval(interval);
+    } else {
+      setIsLoading(false);
+    }
   }, [user]);
 
   const loadAnalyticsData = async () => {
-    if (!user) return;
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
-        .from('analytics')
+        .from('api_tokens')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error loading analytics:', error);
+        setIsLoading(false);
         return;
       }
 
-      const deploymentCount = data?.filter(item => item.event_type === 'deployment_settings').length || 0;
-      const youtubeCount = data?.filter(item => item.event_type === 'youtube_api_key').length || 0;
+      const deploymentCount = data?.filter(item => 
+        item.provider === 'Netlify' || item.provider === 'GitHub'
+      ).length || 0;
+      
+      const youtubeCount = data?.filter(item => item.provider === 'YouTube').length || 0;
       
       const recentActivity = data?.slice(0, 10).map(item => ({
-        type: item.event_type,
+        type: item.provider,
         timestamp: new Date(item.created_at || '').toLocaleDateString(),
         count: 1
       })) || [];
@@ -84,14 +92,14 @@ const ConfigurationAnalytics = () => {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-400">Loading analytics...</p>
+      <Card className="bg-white/5 border-gray-800">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-2 text-white">Loading analytics...</span>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -228,7 +236,7 @@ const ConfigurationAnalytics = () => {
               </h3>
               <div className="bg-gray-800/50 rounded-lg p-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Netlify Configurations</span>
+                  <span className="text-gray-300">Netlify & GitHub Configurations</span>
                   <span className="text-white font-semibold">{configData.deploymentSettings}</span>
                 </div>
                 <div className="mt-2 bg-gray-700 rounded-full h-2">

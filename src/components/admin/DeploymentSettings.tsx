@@ -8,45 +8,87 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Globe, Github, Key, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 
 const DeploymentSettings = () => {
   const [netlifyToken, setNetlifyToken] = useState('');
   const [githubClientId, setGithubClientId] = useState('');
   const [githubClientSecret, setGithubClientSecret] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (user) {
+      loadSettings();
+    } else {
+      setLoadingData(false);
+    }
+  }, [user]);
 
   const loadSettings = async () => {
+    if (!user) {
+      setLoadingData(false);
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
-        .from('analytics')
-        .select('event_data')
-        .eq('event_type', 'deployment_settings')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
+      // Load Netlify token
+      const { data: netlifyData } = await supabase
+        .from('api_tokens')
+        .select('token_value')
+        .eq('user_id', user.id)
+        .eq('provider', 'Netlify')
+        .eq('token_type', 'access_token')
         .single();
 
-      if (data && data.event_data) {
-        const settings = data.event_data as any;
-        setNetlifyToken(settings.netlify_token || '');
-        setGithubClientId(settings.github_client_id || '');
-        setGithubClientSecret(settings.github_client_secret || '');
+      if (netlifyData) {
+        setNetlifyToken(netlifyData.token_value);
+      }
+
+      // Load GitHub settings
+      const { data: githubData } = await supabase
+        .from('api_tokens')
+        .select('token_value, description')
+        .eq('user_id', user.id)
+        .eq('provider', 'GitHub')
+        .eq('token_type', 'oauth');
+
+      if (githubData && githubData.length >= 2) {
+        const clientIdToken = githubData.find(token => token.description?.includes('client_id'));
+        const clientSecretToken = githubData.find(token => token.description?.includes('client_secret'));
+        
+        if (clientIdToken) setGithubClientId(clientIdToken.token_value);
+        if (clientSecretToken) setGithubClientSecret(clientSecretToken.token_value);
       }
     } catch (err) {
       console.log('No existing deployment settings found');
+    } finally {
+      setLoadingData(false);
     }
   };
 
   const saveSettings = async () => {
     if (!netlifyToken.trim() || !githubClientId.trim() || !githubClientSecret.trim()) {
       setError('Please fill in all fields');
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!user) {
+      setError('User not authenticated');
+      toast({
+        title: "Error",
+        description: "User not authenticated", 
+        variant: "destructive"
+      });
       return;
     }
 
@@ -54,31 +96,132 @@ const DeploymentSettings = () => {
     setError('');
 
     try {
-      const { error } = await supabase
-        .from('analytics')
-        .insert({
-          user_id: user?.id,
-          event_type: 'deployment_settings',
-          event_data: {
-            netlify_token: netlifyToken,
-            github_client_id: githubClientId,
-            github_client_secret: githubClientSecret,
-            updated_at: new Date().toISOString()
-          }
-        });
+      // Save Netlify token
+      const { data: existingNetlify } = await supabase
+        .from('api_tokens')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('provider', 'Netlify')
+        .eq('token_type', 'access_token')
+        .single();
 
-      if (error) {
-        setError('Failed to save deployment settings');
+      if (existingNetlify) {
+        await supabase
+          .from('api_tokens')
+          .update({
+            token_value: netlifyToken,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingNetlify.id);
       } else {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        await supabase
+          .from('api_tokens')
+          .insert({
+            user_id: user.id,
+            name: 'Netlify Access Token',
+            token_value: netlifyToken,
+            provider: 'Netlify',
+            token_type: 'access_token',
+            description: 'Netlify deployment access token',
+            is_active: true
+          });
       }
+
+      // Save GitHub Client ID
+      const { data: existingGithubId } = await supabase
+        .from('api_tokens')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('provider', 'GitHub')
+        .eq('token_type', 'oauth')
+        .like('description', '%client_id%')
+        .single();
+
+      if (existingGithubId) {
+        await supabase
+          .from('api_tokens')
+          .update({
+            token_value: githubClientId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingGithubId.id);
+      } else {
+        await supabase
+          .from('api_tokens')
+          .insert({
+            user_id: user.id,
+            name: 'GitHub OAuth Client ID',
+            token_value: githubClientId,
+            provider: 'GitHub',
+            token_type: 'oauth',
+            description: 'GitHub OAuth client_id for deployments',
+            is_active: true
+          });
+      }
+
+      // Save GitHub Client Secret
+      const { data: existingGithubSecret } = await supabase
+        .from('api_tokens')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('provider', 'GitHub')
+        .eq('token_type', 'oauth')
+        .like('description', '%client_secret%')
+        .single();
+
+      if (existingGithubSecret) {
+        await supabase
+          .from('api_tokens')
+          .update({
+            token_value: githubClientSecret,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingGithubSecret.id);
+      } else {
+        await supabase
+          .from('api_tokens')
+          .insert({
+            user_id: user.id,
+            name: 'GitHub OAuth Client Secret',
+            token_value: githubClientSecret,
+            provider: 'GitHub',
+            token_type: 'oauth',
+            description: 'GitHub OAuth client_secret for deployments',
+            is_active: true
+          });
+      }
+
+      setSaved(true);
+      toast({
+        title: "Success",
+        description: "Deployment settings saved successfully"
+      });
+      setTimeout(() => setSaved(false), 3000);
     } catch (err) {
+      console.error('Save error:', err);
       setError('Failed to save deployment settings');
+      toast({
+        title: "Error",
+        description: "Failed to save deployment settings",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (loadingData) {
+    return (
+      <Card className="bg-white/5 border-gray-800">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-2 text-white">Loading deployment settings...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

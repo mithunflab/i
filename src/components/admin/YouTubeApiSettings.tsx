@@ -8,47 +8,70 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Youtube, Key, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 
 const YouTubeApiSettings = () => {
   const [apiKey, setApiKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
-    loadApiKey();
+    if (user) {
+      loadApiKey();
+    } else {
+      setLoadingData(false);
+    }
   }, [user]);
 
   const loadApiKey = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoadingData(false);
+      return;
+    }
     
     try {
       const { data, error } = await supabase
-        .from('analytics')
-        .select('event_data')
-        .eq('event_type', 'youtube_api_key')
+        .from('api_tokens')
+        .select('*')
         .eq('user_id', user.id)
+        .eq('provider', 'YouTube')
+        .eq('token_type', 'api')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (data && data.event_data) {
-        setApiKey((data.event_data as any).api_key || '');
+      if (data) {
+        setApiKey(data.token_value || '');
       }
     } catch (err) {
-      console.log('No existing API key found');
+      console.log('No existing YouTube API key found');
+    } finally {
+      setLoadingData(false);
     }
   };
 
   const saveApiKey = async () => {
     if (!apiKey.trim()) {
       setError('Please enter a valid YouTube API key');
+      toast({
+        title: "Error",
+        description: "Please enter a valid YouTube API key",
+        variant: "destructive"
+      });
       return;
     }
 
     if (!user) {
       setError('User not authenticated');
+      toast({
+        title: "Error", 
+        description: "User not authenticated",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -56,31 +79,97 @@ const YouTubeApiSettings = () => {
     setError('');
 
     try {
-      const { error } = await supabase
-        .from('analytics')
-        .insert({
-          user_id: user.id,
-          event_type: 'youtube_api_key',
-          event_data: {
-            api_key: apiKey,
-            updated_at: new Date().toISOString()
-          }
-        });
+      // First, check if a YouTube API key already exists
+      const { data: existingKey } = await supabase
+        .from('api_tokens')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('provider', 'YouTube')
+        .eq('token_type', 'api')
+        .single();
 
-      if (error) {
-        console.error('Supabase error:', error);
-        setError(`Failed to save API key: ${error.message}`);
+      if (existingKey) {
+        // Update existing key
+        const { error } = await supabase
+          .from('api_tokens')
+          .update({
+            token_value: apiKey,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingKey.id);
+
+        if (error) {
+          console.error('Supabase error:', error);
+          setError(`Failed to update API key: ${error.message}`);
+          toast({
+            title: "Error",
+            description: `Failed to update API key: ${error.message}`,
+            variant: "destructive"
+          });
+        } else {
+          setSaved(true);
+          toast({
+            title: "Success",
+            description: "YouTube API key updated successfully"
+          });
+          setTimeout(() => setSaved(false), 3000);
+        }
       } else {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        // Insert new key
+        const { error } = await supabase
+          .from('api_tokens')
+          .insert({
+            user_id: user.id,
+            name: 'YouTube Data API v3',
+            token_value: apiKey,
+            provider: 'YouTube',
+            token_type: 'api',
+            description: 'YouTube Data API v3 key for video processing',
+            is_active: true
+          });
+
+        if (error) {
+          console.error('Supabase error:', error);
+          setError(`Failed to save API key: ${error.message}`);
+          toast({
+            title: "Error",
+            description: `Failed to save API key: ${error.message}`,
+            variant: "destructive"
+          });
+        } else {
+          setSaved(true);
+          toast({
+            title: "Success",
+            description: "YouTube API key saved successfully"
+          });
+          setTimeout(() => setSaved(false), 3000);
+        }
       }
     } catch (err) {
       console.error('Save error:', err);
       setError('Failed to save API key');
+      toast({
+        title: "Error",
+        description: "Failed to save API key",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (loadingData) {
+    return (
+      <Card className="bg-white/5 border-gray-800">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-2 text-white">Loading YouTube API settings...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
