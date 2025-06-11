@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -159,42 +160,42 @@ const LoginForm = () => {
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Full Name</label>
+                  <label className="text-sm font-medium text-white">Full Name</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                       type="text"
                       placeholder="Your full name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="bolt-input pl-10"
+                      className="pl-10 bg-gray-800 border-gray-600 text-white"
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
+                  <label className="text-sm font-medium text-white">Email</label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                       type="email"
                       placeholder="your@email.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="bolt-input pl-10"
+                      className="pl-10 bg-gray-800 border-gray-600 text-white"
                       required
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Password</label>
+                  <label className="text-sm font-medium text-white">Password</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                       type="password"
                       placeholder="Create a password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="bolt-input pl-10"
+                      className="pl-10 bg-gray-800 border-gray-600 text-white"
                       required
                     />
                   </div>
@@ -235,5 +236,3 @@ const LoginForm = () => {
 };
 
 export default LoginForm;
-
-}

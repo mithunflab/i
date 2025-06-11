@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Youtube, Globe, Wand2, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } = '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface YouTubeChannelData {
   channelId: string;
