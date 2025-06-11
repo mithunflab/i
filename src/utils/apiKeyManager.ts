@@ -164,9 +164,15 @@ export const apiKeyManager = {
 
       const rawKey = data[0];
       
-      // Validate that we have the required properties and assert non-null
-      if (!rawKey || typeof rawKey !== 'object' || !('id' in rawKey) || !('name' in rawKey) || !rawKey.id || !rawKey.name) {
+      // First check if rawKey exists and is an object
+      if (!rawKey || typeof rawKey !== 'object') {
         console.error(`Invalid key data for ${provider}:`, rawKey);
+        return null;
+      }
+      
+      // Then check for required properties
+      if (!('id' in rawKey) || !('name' in rawKey) || !rawKey.id || !rawKey.name) {
+        console.error(`Missing required properties for ${provider} key:`, rawKey);
         return null;
       }
       
