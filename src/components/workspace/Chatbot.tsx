@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Sparkles, Wand2, Palette, Database, Shield } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Wand2, Palette, Database, Shield, Youtube, Users, Smartphone } from 'lucide-react';
 
 interface Message {
   id: string;

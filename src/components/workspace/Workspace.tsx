@@ -10,12 +10,14 @@ import CodePreview from './CodePreview';
 import ElementSelector from './ElementSelector';
 import PreviewFrame from './PreviewFrame';
 
+type PreviewMode = 'mobile' | 'tablet' | 'desktop';
+
 const Workspace = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState('preview');
   const [deviceType, setDeviceType] = useState('desktop');
-  const [previewMode, setPreviewMode] = useState('desktop');
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('desktop');
   const [isElementSelectorActive, setIsElementSelectorActive] = useState(false);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
