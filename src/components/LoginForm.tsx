@@ -43,9 +43,9 @@ const LoginForm = () => {
       }
     }
 
-    const { error: loginError } = await login(email, password);
-    
-    if (loginError) {
+    try {
+      await login(email, password);
+    } catch (loginError: any) {
       setError(loginError.message);
     }
     
@@ -67,13 +67,12 @@ const LoginForm = () => {
       }
     }
 
-    const { error: signUpError } = await signUp(email, password, fullName);
-    
-    if (signUpError) {
-      setError(signUpError.message);
-    } else {
+    try {
+      await signUp(email, password, fullName);
       setError('');
       alert('Please check your email to confirm your account!');
+    } catch (signUpError: any) {
+      setError(signUpError.message);
     }
     
     setLoading(false);
@@ -88,9 +87,9 @@ const LoginForm = () => {
     setLoading(true);
     setError('');
 
-    const { error: googleError } = await loginWithGoogle();
-    
-    if (googleError) {
+    try {
+      await loginWithGoogle();
+    } catch (googleError: any) {
       setError(googleError.message);
     }
     
