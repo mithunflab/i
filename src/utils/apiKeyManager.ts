@@ -164,45 +164,45 @@ export const apiKeyManager = {
 
       const rawKey = data[0];
       
-      // Validate that we have valid data
+      // Validate that we have valid data - check for null/undefined first
       if (!rawKey || typeof rawKey !== 'object') {
         console.error(`Invalid key data for ${provider}:`, rawKey);
         return null;
       }
 
+      // Now we know rawKey is not null, so we can safely check its properties
+      const keyData = rawKey as Record<string, any>;
+      
       // Check required properties exist
-      if (!('id' in rawKey) || !('name' in rawKey) || !('is_active' in rawKey) || !('created_at' in rawKey)) {
-        console.error(`Missing required properties for ${provider} key:`, rawKey);
+      if (!('id' in keyData) || !('name' in keyData) || !('is_active' in keyData) || !('created_at' in keyData)) {
+        console.error(`Missing required properties for ${provider} key:`, keyData);
         return null;
       }
-
-      // Type assertion after validation - TypeScript now knows rawKey is valid
-      const validKey = rawKey as Record<string, any>;
       
       // Validate required string properties are not empty
-      if (!validKey.id || !validKey.name) {
-        console.error(`Empty required properties for ${provider} key:`, validKey);
+      if (!keyData.id || !keyData.name) {
+        console.error(`Empty required properties for ${provider} key:`, keyData);
         return null;
       }
       
       // Map the raw data to our ApiKeyWithUsage interface
       const result: ApiKeyWithUsage = {
-        id: validKey.id,
-        name: validKey.name,
-        is_active: validKey.is_active,
-        created_at: validKey.created_at,
-        last_used_at: validKey.last_used_at,
-        ...(validKey.api_key && { api_key: validKey.api_key }),
-        ...(validKey.api_token && { api_token: validKey.api_token }),
-        ...(validKey.quota_used !== undefined && { quota_used: validKey.quota_used }),
-        ...(validKey.quota_limit !== undefined && { quota_limit: validKey.quota_limit }),
-        ...(validKey.credits_used !== undefined && { credits_used: validKey.credits_used }),
-        ...(validKey.credits_limit !== undefined && { credits_limit: validKey.credits_limit }),
-        ...(validKey.rate_limit_used !== undefined && { rate_limit_used: validKey.rate_limit_used }),
-        ...(validKey.rate_limit_limit !== undefined && { rate_limit_limit: validKey.rate_limit_limit }),
-        ...(validKey.deployments_count !== undefined && { deployments_count: validKey.deployments_count }),
-        ...(validKey.deployments_limit !== undefined && { deployments_limit: validKey.deployments_limit }),
-        ...(validKey.requests_count !== undefined && { requests_count: validKey.requests_count })
+        id: keyData.id,
+        name: keyData.name,
+        is_active: keyData.is_active,
+        created_at: keyData.created_at,
+        last_used_at: keyData.last_used_at,
+        ...(keyData.api_key && { api_key: keyData.api_key }),
+        ...(keyData.api_token && { api_token: keyData.api_token }),
+        ...(keyData.quota_used !== undefined && { quota_used: keyData.quota_used }),
+        ...(keyData.quota_limit !== undefined && { quota_limit: keyData.quota_limit }),
+        ...(keyData.credits_used !== undefined && { credits_used: keyData.credits_used }),
+        ...(keyData.credits_limit !== undefined && { credits_limit: keyData.credits_limit }),
+        ...(keyData.rate_limit_used !== undefined && { rate_limit_used: keyData.rate_limit_used }),
+        ...(keyData.rate_limit_limit !== undefined && { rate_limit_limit: keyData.rate_limit_limit }),
+        ...(keyData.deployments_count !== undefined && { deployments_count: keyData.deployments_count }),
+        ...(keyData.deployments_limit !== undefined && { deployments_limit: keyData.deployments_limit }),
+        ...(keyData.requests_count !== undefined && { requests_count: keyData.requests_count })
       };
 
       console.log(`Active key for ${provider}:`, result);
