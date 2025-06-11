@@ -51,6 +51,7 @@ import AuditLogs from './AuditLogs';
 import FileManager from './FileManager';
 import ApiUsageAnalytics from './ApiUsageAnalytics';
 import DatabaseQueryRunner from './DatabaseQueryRunner';
+import RealTimeApiUsage from './RealTimeApiUsage';
 
 const DeveloperDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -116,8 +117,8 @@ const DeveloperDashboard = () => {
               ))}
             </div>
 
-            {/* API Usage Analytics */}
-            <ApiUsageAnalytics />
+            {/* Real-time API Usage Analytics */}
+            <RealTimeApiUsage />
 
             {/* Quick Actions */}
             <Card className="bg-white/5 border-gray-800">
@@ -236,3 +237,4 @@ const DeveloperDashboard = () => {
 };
 
 export default DeveloperDashboard;
+
