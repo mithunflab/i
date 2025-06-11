@@ -54,11 +54,11 @@ const ServiceStatusIndicators = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'api_keys',
+          table: 'youtube_api_keys',
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Real-time service status update:', payload);
+          console.log('Real-time YouTube API key update:', payload);
           checkServiceStatus();
         }
       )
@@ -67,11 +67,37 @@ const ServiceStatusIndicators = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'deployment_tokens',
+          table: 'openrouter_api_keys',
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Real-time deployment tokens update:', payload);
+          console.log('Real-time OpenRouter API key update:', payload);
+          checkServiceStatus();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'github_api_keys',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Real-time GitHub API key update:', payload);
+          checkServiceStatus();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'netlify_api_keys',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Real-time Netlify API key update:', payload);
           checkServiceStatus();
         }
       )
@@ -86,52 +112,49 @@ const ServiceStatusIndicators = () => {
     try {
       console.log('Checking service status for user:', user.id);
 
-      // Check API keys
-      const { data: apiKeys, error: apiKeysError } = await supabase
-        .from('api_keys')
-        .select('provider, is_active')
+      // Check YouTube API keys
+      const { data: youtubeKeys, error: youtubeError } = await supabase
+        .from('youtube_api_keys')
+        .select('*')
         .eq('user_id', user.id)
         .eq('is_active', true);
 
-      if (apiKeysError) {
-        console.error('Error fetching API keys:', apiKeysError);
-      }
-
-      // Check deployment tokens
-      const { data: deploymentTokens, error: deploymentTokensError } = await supabase
-        .from('deployment_tokens')
-        .select('provider, is_active')
+      // Check OpenRouter API keys
+      const { data: openrouterKeys, error: openrouterError } = await supabase
+        .from('openrouter_api_keys')
+        .select('*')
         .eq('user_id', user.id)
         .eq('is_active', true);
 
-      if (deploymentTokensError) {
-        console.error('Error fetching deployment tokens:', deploymentTokensError);
-      }
+      // Check GitHub API keys
+      const { data: githubKeys, error: githubError } = await supabase
+        .from('github_api_keys')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
 
-      console.log('API Keys found:', apiKeys);
-      console.log('Deployment tokens found:', deploymentTokens);
+      // Check Netlify API keys
+      const { data: netlifyKeys, error: netlifyError } = await supabase
+        .from('netlify_api_keys')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
 
-      const allTokens = [...(apiKeys || []), ...(deploymentTokens || [])];
-      console.log('All tokens:', allTokens);
+      if (youtubeError) console.error('Error fetching YouTube keys:', youtubeError);
+      if (openrouterError) console.error('Error fetching OpenRouter keys:', openrouterError);
+      if (githubError) console.error('Error fetching GitHub keys:', githubError);
+      if (netlifyError) console.error('Error fetching Netlify keys:', netlifyError);
+
+      console.log('YouTube Keys:', youtubeKeys);
+      console.log('OpenRouter Keys:', openrouterKeys);
+      console.log('GitHub Keys:', githubKeys);
+      console.log('Netlify Keys:', netlifyKeys);
 
       const newStatus = {
-        youtube: allTokens.some(token => 
-          token.provider === 'YouTube' || 
-          token.provider === 'youtube' ||
-          token.provider === 'YouTube Data API v3'
-        ),
-        openrouter: allTokens.some(token => 
-          token.provider === 'OpenRouter' || 
-          token.provider === 'openrouter'
-        ),
-        netlify: allTokens.some(token => 
-          token.provider === 'Netlify' || 
-          token.provider === 'netlify'
-        ),
-        github: allTokens.some(token => 
-          token.provider === 'GitHub' || 
-          token.provider === 'github'
-        )
+        youtube: (youtubeKeys && youtubeKeys.length > 0),
+        openrouter: (openrouterKeys && openrouterKeys.length > 0),
+        github: (githubKeys && githubKeys.length > 0),
+        netlify: (netlifyKeys && netlifyKeys.length > 0)
       };
 
       console.log('Service status updated:', newStatus);

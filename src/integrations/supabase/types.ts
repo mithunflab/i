@@ -170,6 +170,48 @@ export type Database = {
           },
         ]
       }
+      api_usage_tracking: {
+        Row: {
+          api_key_id: string
+          cost_usd: number | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          provider: string
+          request_type: string
+          response_time_ms: number | null
+          success: boolean | null
+          tokens_used: number | null
+          user_id: string
+        }
+        Insert: {
+          api_key_id: string
+          cost_usd?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          provider: string
+          request_type: string
+          response_time_ms?: number | null
+          success?: boolean | null
+          tokens_used?: number | null
+          user_id: string
+        }
+        Update: {
+          api_key_id?: string
+          cost_usd?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          provider?: string
+          request_type?: string
+          response_time_ms?: number | null
+          success?: boolean | null
+          tokens_used?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -445,6 +487,45 @@ export type Database = {
         }
         Relationships: []
       }
+      github_api_keys: {
+        Row: {
+          api_token: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          name: string
+          rate_limit_limit: number | null
+          rate_limit_used: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_token: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name: string
+          rate_limit_limit?: number | null
+          rate_limit_used?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_token?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name?: string
+          rate_limit_limit?: number | null
+          rate_limit_used?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       model_pricing: {
         Row: {
           created_at: string | null
@@ -478,6 +559,87 @@ export type Database = {
           plan_tier?: string | null
           provider?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      netlify_api_keys: {
+        Row: {
+          api_token: string
+          created_at: string | null
+          deployments_count: number | null
+          deployments_limit: number | null
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_token: string
+          created_at?: string | null
+          deployments_count?: number | null
+          deployments_limit?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_token?: string
+          created_at?: string | null
+          deployments_count?: number | null
+          deployments_limit?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      openrouter_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string | null
+          credits_limit: number | null
+          credits_used: number | null
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          name: string
+          requests_count: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string | null
+          credits_limit?: number | null
+          credits_used?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name: string
+          requests_count?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string | null
+          credits_limit?: number | null
+          credits_used?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name?: string
+          requests_count?: number | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -713,6 +875,45 @@ export type Database = {
           updated_at?: string | null
           url?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      youtube_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          name: string
+          quota_limit: number | null
+          quota_used: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name: string
+          quota_limit?: number | null
+          quota_used?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name?: string
+          quota_limit?: number | null
+          quota_used?: number | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }

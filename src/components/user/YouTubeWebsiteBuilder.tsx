@@ -8,6 +8,7 @@ import { Youtube, Globe, Wand2, AlertCircle, CheckCircle, Loader2, Wifi } from '
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiKeyManager } from '@/utils/apiKeyManager';
 
 interface YouTubeChannelData {
   channelId: string;
@@ -28,7 +29,7 @@ const YouTubeWebsiteBuilder = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isConnected, setIsConnected] = useState(true);
-  const [youtubeApiKey, setYoutubeApiKey] = useState('');
+  const [youtubeApiKeys, setYoutubeApiKeys] = useState<any[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -37,7 +38,7 @@ const YouTubeWebsiteBuilder = () => {
 
   useEffect(() => {
     if (user?.id) {
-      loadYouTubeApiKey();
+      loadYouTubeApiKeys();
       setupRealTimeUpdates();
     }
     
@@ -60,32 +61,26 @@ const YouTubeWebsiteBuilder = () => {
     
     if (!user?.id) return;
     
-    console.log('Setting up real-time updates for YouTube API key');
+    console.log('Setting up real-time updates for YouTube API keys');
     
     channelRef.current = supabase
-      .channel(`youtube-api-key-updates-${user.id}`)
+      .channel(`youtube-api-keys-updates-${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'api_keys',
+          table: 'youtube_api_keys',
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
           console.log('Real-time YouTube API key update:', payload);
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            if (payload.new && payload.new.user_id === user?.id && 
-                (payload.new.provider === 'YouTube' || payload.new.provider === 'YouTube Data API v3')) {
-              setYoutubeApiKey(payload.new.key_value || '');
-              setError('');
-              toast({
-                title: "Real-time Update",
-                description: "YouTube API key updated"
-              });
-            }
-          }
-          setIsConnected(true);
+          loadYouTubeApiKeys();
+          setError('');
+          toast({
+            title: "Real-time Update",
+            description: "YouTube API keys updated"
+          });
         }
       )
       .subscribe((status) => {
@@ -94,40 +89,38 @@ const YouTubeWebsiteBuilder = () => {
       });
   };
 
-  const loadYouTubeApiKey = async () => {
+  const loadYouTubeApiKeys = async () => {
     if (!user?.id) return;
     
     try {
-      console.log('Loading YouTube API key from api_keys table for user:', user.id);
+      console.log('Loading YouTube API keys from youtube_api_keys table for user:', user.id);
       
-      const { data: apiKeyData, error } = await supabase
-        .from('api_keys')
-        .select('key_value, is_active, provider')
+      const { data: apiKeysData, error } = await supabase
+        .from('youtube_api_keys')
+        .select('*')
         .eq('user_id', user.id)
         .eq('is_active', true)
-        .in('provider', ['YouTube', 'YouTube Data API v3'])
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading YouTube API key:', error);
+        console.error('Error loading YouTube API keys:', error);
         setError('Failed to load YouTube API configuration');
         return;
       }
 
-      console.log('YouTube API key data:', apiKeyData);
+      console.log('YouTube API keys data:', apiKeysData);
 
-      if (apiKeyData && apiKeyData.length > 0 && apiKeyData[0].key_value) {
-        setYoutubeApiKey(apiKeyData[0].key_value);
+      if (apiKeysData && apiKeysData.length > 0) {
+        setYoutubeApiKeys(apiKeysData);
         setError('');
-        console.log('YouTube API key loaded successfully');
+        console.log('YouTube API keys loaded successfully:', apiKeysData.length);
       } else {
-        console.log('No active YouTube API key found');
-        setYoutubeApiKey('');
-        setError('YouTube API key not configured. Please contact administrator.');
+        console.log('No active YouTube API keys found');
+        setYoutubeApiKeys([]);
+        setError('YouTube API keys not configured. Please add API keys in the admin panel.');
       }
     } catch (err) {
-      console.error('Exception loading YouTube API key:', err);
+      console.error('Exception loading YouTube API keys:', err);
       setError('Failed to load YouTube API configuration');
     }
   };
@@ -152,19 +145,37 @@ const YouTubeWebsiteBuilder = () => {
         }
         
         // Otherwise, we need to convert username/handle to channel ID
+        const apiKey = await apiKeyManager.getNextAvailableKey('youtube', user?.id || '');
+        if (!apiKey) {
+          throw new Error('No YouTube API keys available');
+        }
+
         try {
+          const startTime = Date.now();
           const searchResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${identifier}&type=channel&maxResults=1&key=${youtubeApiKey}`
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${identifier}&type=channel&maxResults=1&key=${apiKey.api_key}`
           );
+          const responseTime = Date.now() - startTime;
           
           if (searchResponse.ok) {
             const searchResult = await searchResponse.json();
+            
+            // Track successful usage
+            await apiKeyManager.updateKeyUsage('youtube', apiKey.id, {
+              quota_used: (apiKey.quota_used || 0) + 1
+            });
+            await apiKeyManager.trackUsage('youtube', apiKey.id, user?.id || '', 'search', 0, 0, responseTime, true);
+            
             if (searchResult.items && searchResult.items.length > 0) {
               return searchResult.items[0].snippet.channelId;
             }
+          } else {
+            // Track failed usage
+            await apiKeyManager.trackUsage('youtube', apiKey.id, user?.id || '', 'search', 0, 0, responseTime, false, `HTTP ${searchResponse.status}`);
           }
         } catch (err) {
           console.log('Could not resolve channel ID from username/handle:', err);
+          await apiKeyManager.trackUsage('youtube', apiKey.id, user?.id || '', 'search', 0, 0, 0, false, err instanceof Error ? err.message : 'Unknown error');
         }
         
         return identifier; // Fallback to original identifier
@@ -179,8 +190,8 @@ const YouTubeWebsiteBuilder = () => {
       return;
     }
 
-    if (!youtubeApiKey) {
-      setError('YouTube API key not configured. Please contact administrator.');
+    if (youtubeApiKeys.length === 0) {
+      setError('YouTube API keys not configured. Please add API keys in the admin panel.');
       return;
     }
 
@@ -199,34 +210,73 @@ const YouTubeWebsiteBuilder = () => {
 
       console.log('Fetching channel data for ID:', channelId);
 
+      // Get the best available API key
+      const apiKey = await apiKeyManager.getNextAvailableKey('youtube', user?.id || '');
+      if (!apiKey) {
+        setError('No YouTube API keys available');
+        return;
+      }
+
+      console.log(`Using YouTube API key: ${apiKey.name}`);
+
       // Fetch channel data from YouTube API
+      const startTime = Date.now();
       const channelResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${youtubeApiKey}`
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${apiKey.api_key}`
       );
+      const channelResponseTime = Date.now() - startTime;
 
       if (!channelResponse.ok) {
         const errorData = await channelResponse.json();
         console.error('YouTube API Error:', errorData);
+        
+        // Track failed usage
+        await apiKeyManager.trackUsage('youtube', apiKey.id, user?.id || '', 'channels', 0, 0, channelResponseTime, false, `HTTP ${channelResponse.status}: ${errorData.error?.message || 'Failed to fetch channel data'}`);
+        
         throw new Error(`YouTube API Error: ${errorData.error?.message || 'Failed to fetch channel data'}`);
       }
 
       const channelResult = await channelResponse.json();
 
       if (!channelResult.items || channelResult.items.length === 0) {
+        await apiKeyManager.trackUsage('youtube', apiKey.id, user?.id || '', 'channels', 0, 0, channelResponseTime, false, 'Channel not found or private');
         setError('Channel not found or private');
         return;
       }
 
-      // Fetch recent videos
+      // Track successful channel fetch
+      await apiKeyManager.updateKeyUsage('youtube', apiKey.id, {
+        quota_used: (apiKey.quota_used || 0) + 1
+      });
+      await apiKeyManager.trackUsage('youtube', apiKey.id, user?.id || '', 'channels', 0, 0, channelResponseTime, true);
+
+      // Fetch recent videos with another API key if needed
       console.log('Fetching recent videos for channel:', channelId);
-      const videosResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=10&order=date&type=video&key=${youtubeApiKey}`
-      );
+      const videoApiKey = await apiKeyManager.getNextAvailableKey('youtube', user?.id || '');
+      if (!videoApiKey) {
+        console.warn('No API key available for fetching videos, continuing with channel data only');
+      }
 
       let videos = [];
-      if (videosResponse.ok) {
-        const videosResult = await videosResponse.json();
-        videos = videosResult.items || [];
+      if (videoApiKey) {
+        const videoStartTime = Date.now();
+        const videosResponse = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=10&order=date&type=video&key=${videoApiKey.api_key}`
+        );
+        const videoResponseTime = Date.now() - videoStartTime;
+
+        if (videosResponse.ok) {
+          const videosResult = await videosResponse.json();
+          videos = videosResult.items || [];
+          
+          // Track successful video fetch
+          await apiKeyManager.updateKeyUsage('youtube', videoApiKey.id, {
+            quota_used: (videoApiKey.quota_used || 0) + 1
+          });
+          await apiKeyManager.trackUsage('youtube', videoApiKey.id, user?.id || '', 'search', 0, 0, videoResponseTime, true);
+        } else {
+          await apiKeyManager.trackUsage('youtube', videoApiKey.id, user?.id || '', 'search', 0, 0, videoResponseTime, false, `HTTP ${videosResponse.status}`);
+        }
       }
 
       const channel = channelResult.items[0];
@@ -364,6 +414,9 @@ const YouTubeWebsiteBuilder = () => {
               <span className="text-xs text-gray-400">
                 {isConnected ? 'Real-time Connected' : 'Disconnected'}
               </span>
+              <span className="text-xs text-blue-400">
+                {youtubeApiKeys.length} API Key{youtubeApiKeys.length !== 1 ? 's' : ''} Available
+              </span>
             </div>
           </CardTitle>
         </CardHeader>
@@ -397,7 +450,7 @@ const YouTubeWebsiteBuilder = () => {
               />
               <Button 
                 onClick={fetchChannelData} 
-                disabled={isLoading || !youtubeApiKey}
+                disabled={isLoading || youtubeApiKeys.length === 0}
                 className="bg-red-600 hover:bg-red-700"
               >
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Fetch'}
