@@ -26,6 +26,9 @@ const LoginForm = () => {
     { email: 'zenmithun@outlook.com', password: 'GoZ22266' }
   ];
 
+  // Admin emails for validation
+  const ADMIN_EMAILS = ['kirishmithun2006@gmail.com', 'zenmithun@outlook.com'];
+
   // Redirect if already logged in
   useEffect(() => {
     // Don't redirect while still loading auth state
@@ -33,6 +36,13 @@ const LoginForm = () => {
     
     if (user && profile && profile.role) {
       console.log('User detected in LoginForm, redirecting...', profile.role);
+      
+      // Force admin redirect for special emails
+      if (user.email && ADMIN_EMAILS.includes(user.email)) {
+        console.log('Admin email detected, forcing redirect to dashboard');
+        navigate('/dashboard', { replace: true });
+        return;
+      }
       
       if (profile.role === 'admin') {
         navigate('/dashboard', { replace: true });
@@ -71,6 +81,14 @@ const LoginForm = () => {
       } else {
         console.log('Attempting regular login...');
         await login(email, password);
+        
+        // Check if this is an admin email logging in as regular user
+        if (ADMIN_EMAILS.includes(email)) {
+          console.log('Admin email detected in regular login, will redirect to dashboard');
+          setTimeout(() => {
+            navigate('/dashboard', { replace: true });
+          }, 1000);
+        }
       }
       
       console.log('Login successful');

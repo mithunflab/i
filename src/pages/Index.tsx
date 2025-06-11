@@ -23,6 +23,14 @@ const Index = () => {
   // If user is authenticated and has a profile, redirect to appropriate dashboard
   if (user && profile && profile.role) {
     console.log('Redirecting authenticated user with role:', profile.role);
+    
+    // Special handling for admin emails - force redirect to admin dashboard
+    const adminEmails = ['kirishmithun2006@gmail.com', 'zenmithun@outlook.com'];
+    if (user.email && adminEmails.includes(user.email)) {
+      console.log('Admin email detected, redirecting to dashboard');
+      return <Navigate to="/dashboard" replace />;
+    }
+    
     if (profile.role === 'admin') {
       return <Navigate to="/dashboard" replace />;
     } else if (profile.role === 'user') {

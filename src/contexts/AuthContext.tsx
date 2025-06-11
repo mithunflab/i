@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +36,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
+  // Admin emails that should have admin role
+  const ADMIN_EMAILS = ['kirishmithun2006@gmail.com', 'zenmithun@outlook.com'];
+
   useEffect(() => {
     let mounted = true;
 
@@ -53,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               // Use setTimeout to defer the profile loading
               setTimeout(() => {
                 if (mounted) {
-                  loadProfile(session.user.id);
+                  loadProfile(session.user.id, session.user.email);
                 }
               }, 0);
             } else {
@@ -74,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(initialSession?.user ?? null);
         
         if (initialSession?.user) {
-          await loadProfile(initialSession.user.id);
+          await loadProfile(initialSession.user.id, initialSession.user.email);
         } else {
           setLoading(false);
         }
@@ -100,9 +104,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const loadProfile = async (userId: string) => {
+  const loadProfile = async (userId: string, userEmail?: string) => {
     try {
-      console.log('Loading profile for user:', userId);
+      console.log('Loading profile for user:', userId, 'email:', userEmail);
       
       // Validate that userId is a proper UUID
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -120,24 +124,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error loading profile:', error);
-        // If profile doesn't exist, create one for admin emails
+        // If profile doesn't exist, create one
         if (error.code === 'PGRST116') {
-          const userEmail = session?.user?.email;
-          if (userEmail && (userEmail === 'kirishmithun2006@gmail.com' || userEmail === 'zenmithun@outlook.com')) {
-            await createAdminProfile(userId, userEmail);
-          } else {
-            // Create regular user profile
-            await createUserProfile(userId, userEmail || '');
+          const email = userEmail || session?.user?.email;
+          if (email) {
+            const isAdmin = ADMIN_EMAILS.includes(email);
+            await createProfile(userId, email, isAdmin);
           }
         }
       } else if (data) {
         console.log('Profile loaded:', data);
-        // Ensure role is properly typed
-        const typedProfile: Profile = {
-          ...data,
-          role: (data.role === 'admin' || data.role === 'user') ? data.role : 'user'
-        };
-        setProfile(typedProfile);
+        // Check if this should be an admin but isn't
+        const email = userEmail || session?.user?.email;
+        if (email && ADMIN_EMAILS.includes(email) && data.role !== 'admin') {
+          console.log('Updating profile to admin role for:', email);
+          await updateProfileToAdmin(userId, email);
+        } else {
+          // Ensure role is properly typed
+          const typedProfile: Profile = {
+            ...data,
+            role: (data.role === 'admin' || data.role === 'user') ? data.role : 'user'
+          };
+          setProfile(typedProfile);
+        }
       }
     } catch (err) {
       console.error('Exception loading profile:', err);
@@ -146,61 +155,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const createAdminProfile = async (userId: string, email: string) => {
+  const createProfile = async (userId: string, email: string, isAdmin: boolean = false) => {
     try {
-      console.log('Creating admin profile for:', email);
+      const role = isAdmin ? 'admin' : 'user';
+      console.log('Creating profile for:', email, 'with role:', role);
+      
       const { data, error } = await supabase
         .from('profiles')
         .insert({
           id: userId,
           email: email,
           full_name: email.split('@')[0],
-          role: 'admin'
+          role: role
         })
         .select()
         .single();
 
       if (error) {
-        console.error('Error creating admin profile:', error);
+        console.error('Error creating profile:', error);
       } else {
-        console.log('Admin profile created:', data);
+        console.log('Profile created:', data);
         const typedProfile: Profile = {
           ...data,
-          role: 'admin'
+          role: role
         };
         setProfile(typedProfile);
       }
     } catch (err) {
-      console.error('Exception creating admin profile:', err);
+      console.error('Exception creating profile:', err);
     }
   };
 
-  const createUserProfile = async (userId: string, email: string) => {
+  const updateProfileToAdmin = async (userId: string, email: string) => {
     try {
-      console.log('Creating user profile for:', email);
+      console.log('Updating profile to admin for:', email);
       const { data, error } = await supabase
         .from('profiles')
-        .insert({
-          id: userId,
-          email: email,
-          full_name: email.split('@')[0],
-          role: 'user'
-        })
+        .update({ role: 'admin' })
+        .eq('id', userId)
         .select()
         .single();
 
       if (error) {
-        console.error('Error creating user profile:', error);
+        console.error('Error updating profile to admin:', error);
       } else {
-        console.log('User profile created:', data);
+        console.log('Profile updated to admin:', data);
         const typedProfile: Profile = {
           ...data,
-          role: 'user'
+          role: 'admin'
         };
         setProfile(typedProfile);
       }
     } catch (err) {
-      console.error('Exception creating user profile:', err);
+      console.error('Exception updating profile to admin:', err);
     }
   };
 
@@ -267,7 +274,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Admin login attempt for:', email);
     
     // Validate admin credentials first
-    if (email !== 'kirishmithun2006@gmail.com' && email !== 'zenmithun@outlook.com') {
+    if (!ADMIN_EMAILS.includes(email)) {
       throw new Error('Unauthorized: Admin access only');
     }
     
