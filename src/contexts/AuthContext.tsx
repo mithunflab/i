@@ -15,9 +15,12 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  isLoading: boolean; // Added missing property
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  signup: (email: string, password: string, fullName: string) => Promise<void>;
+  signup: (email: string, password: string, fullName: string) => Promise<void>; // Fixed return type
+  signUp: (email: string, password: string, fullName: string) => Promise<void>; // Added missing method
+  loginWithGoogle: () => Promise<void>; // Added missing method
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -71,9 +74,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const currentPath = window.location.pathname;
           if (currentPath === '/' || currentPath === '/login') {
             if (profileData?.role === 'admin') {
-              navigate('/admin');
-            } else {
               navigate('/dashboard');
+            } else {
+              navigate('/user-dashboard');
             }
           }
         }
@@ -98,9 +101,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // Redirect after successful login
           if (profileData?.role === 'admin') {
-            navigate('/admin');
-          } else {
             navigate('/dashboard');
+          } else {
+            navigate('/user-dashboard');
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -151,9 +154,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      return data;
+      // Don't return anything, just handle success
     } catch (error) {
       console.error('Signup error:', error);
+      throw error;
+    }
+  };
+
+  const signUp = async (email: string, password: string, fullName: string) => {
+    return signup(email, password, fullName);
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error('Google login error:', error);
       throw error;
     }
   };
@@ -174,9 +199,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     profile,
     loading,
+    isLoading: loading, // Added alias
     login,
     logout,
     signup,
+    signUp, // Added missing method
+    loginWithGoogle, // Added missing method
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,35 +78,52 @@ const ProjectApproval = () => {
         return;
       }
 
-      // Load verification requests with project and user info
+      // Load verification requests separately with user and project info
       const { data: verificationsData, error: verificationsError } = await supabase
         .from('project_verification_requests')
-        .select(`
-          *,
-          projects!inner(name),
-          profiles!inner(full_name, email)
-        `)
+        .select('*')
         .order('requested_at', { ascending: false });
 
       if (verificationsError) {
         console.error('Error loading verification requests:', verificationsError);
       }
 
-      // Get user profiles for projects
-      const userIds = projectsData?.map(project => project.user_id) || [];
+      // Get user profiles for both projects and verification requests
+      const allUserIds = [
+        ...(projectsData?.map(project => project.user_id) || []),
+        ...(verificationsData?.map(req => req.user_id) || [])
+      ];
+      const uniqueUserIds = [...new Set(allUserIds)];
+
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, full_name, email')
-        .in('id', userIds);
+        .in('id', uniqueUserIds);
 
       if (profilesError) {
         console.error('Error loading profiles:', profilesError);
       }
 
-      // Create profiles map
+      // Get project names for verification requests
+      const projectIds = verificationsData?.map(req => req.project_id) || [];
+      const { data: projectNames, error: projectNamesError } = await supabase
+        .from('projects')
+        .select('id, name')
+        .in('id', projectIds);
+
+      if (projectNamesError) {
+        console.error('Error loading project names:', projectNamesError);
+      }
+
+      // Create lookup maps
       const profilesMap = new Map();
       profilesData?.forEach(profile => {
         profilesMap.set(profile.id, profile);
+      });
+
+      const projectNamesMap = new Map();
+      projectNames?.forEach(project => {
+        projectNamesMap.set(project.id, project);
       });
 
       // Format projects data
@@ -127,18 +143,22 @@ const ProjectApproval = () => {
       });
 
       // Format verification requests
-      const formattedVerifications: VerificationRequest[] = (verificationsData || []).map(req => ({
-        id: req.id,
-        project_id: req.project_id,
-        project_name: req.projects?.name || 'Unknown Project',
-        user_id: req.user_id,
-        user_name: req.profiles?.full_name || 'Unknown User',
-        user_email: req.profiles?.email || 'No email',
-        status: req.status,
-        request_message: req.request_message || 'No message provided',
-        requested_at: req.requested_at,
-        admin_notes: req.admin_notes
-      }));
+      const formattedVerifications: VerificationRequest[] = (verificationsData || []).map(req => {
+        const profile = profilesMap.get(req.user_id);
+        const project = projectNamesMap.get(req.project_id);
+        return {
+          id: req.id,
+          project_id: req.project_id,
+          project_name: project?.name || 'Unknown Project',
+          user_id: req.user_id,
+          user_name: profile?.full_name || 'Unknown User',
+          user_email: profile?.email || 'No email',
+          status: req.status as 'pending' | 'approved' | 'rejected',
+          request_message: req.request_message || 'No message provided',
+          requested_at: req.requested_at,
+          admin_notes: req.admin_notes
+        };
+      });
 
       setProjects(formattedProjects);
       setVerificationRequests(formattedVerifications);

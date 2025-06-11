@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,7 +47,11 @@ const DeploymentSettings = () => {
         return;
       }
 
-      const tokens = data || [];
+      const tokens = (data || []).map(token => ({
+        ...token,
+        provider: token.provider as 'github' | 'netlify' // Type assertion for proper typing
+      }));
+      
       setGithubTokens(tokens.filter(token => token.provider === 'github'));
       setNetlifyTokens(tokens.filter(token => token.provider === 'netlify'));
     } catch (error) {

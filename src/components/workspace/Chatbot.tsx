@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Sparkles, Wand2, Palette, Database, Shield, Youtube, Users, Smartphone } from 'lucide-react';
+import { Send, Bot, User, Youtube, Users, Smartphone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -64,7 +63,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 
           type: msg.message_type as 'user' | 'bot',
           content: msg.content,
           timestamp: new Date(msg.created_at),
-          feature: msg.metadata?.feature
+          feature: typeof msg.metadata === 'object' && msg.metadata !== null && 'feature' in msg.metadata 
+            ? (msg.metadata as any).feature 
+            : undefined
         }));
         setMessages(loadedMessages);
       }
