@@ -152,7 +152,7 @@ export const apiKeyManager = {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error(`Error loading active ${provider} key:`, error);
         return null;
       }
