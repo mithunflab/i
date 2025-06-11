@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ const DeploymentSettings = () => {
   const [netlifyToken, setNetlifyToken] = useState('');
   const [githubClientId, setGithubClientId] = useState('');
   const [githubClientSecret, setGithubClientSecret] = useState('');
+  const [githubAccessToken, setGithubAccessToken] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -35,31 +37,27 @@ const DeploymentSettings = () => {
     }
 
     try {
-      // Load Netlify token
-      const { data: netlifyData } = await supabase
+      // Load all deployment-related tokens
+      const { data: tokensData } = await supabase
         .from('api_keys')
-        .select('key_value')
+        .select('key_value, name, provider')
         .eq('user_id', user.id)
-        .eq('provider', 'Netlify')
-        .single();
+        .in('provider', ['Netlify', 'GitHub']);
 
-      if (netlifyData) {
-        setNetlifyToken(netlifyData.key_value);
-      }
-
-      // Load GitHub settings
-      const { data: githubData } = await supabase
-        .from('api_keys')
-        .select('key_value, name')
-        .eq('user_id', user.id)
-        .eq('provider', 'GitHub');
-
-      if (githubData && githubData.length >= 2) {
-        const clientIdToken = githubData.find(token => token.name?.includes('client_id') || token.name?.includes('Client ID'));
-        const clientSecretToken = githubData.find(token => token.name?.includes('client_secret') || token.name?.includes('Client Secret'));
-        
-        if (clientIdToken) setGithubClientId(clientIdToken.key_value);
-        if (clientSecretToken) setGithubClientSecret(clientSecretToken.key_value);
+      if (tokensData && tokensData.length > 0) {
+        tokensData.forEach(token => {
+          if (token.provider === 'Netlify') {
+            setNetlifyToken(token.key_value);
+          } else if (token.provider === 'GitHub') {
+            if (token.name?.includes('Client ID') || token.name?.includes('client_id')) {
+              setGithubClientId(token.key_value);
+            } else if (token.name?.includes('Client Secret') || token.name?.includes('client_secret')) {
+              setGithubClientSecret(token.key_value);
+            } else if (token.name?.includes('Access Token') || token.name?.includes('access_token')) {
+              setGithubAccessToken(token.key_value);
+            }
+          }
+        });
       }
     } catch (err) {
       console.log('No existing deployment settings found');
@@ -69,11 +67,11 @@ const DeploymentSettings = () => {
   };
 
   const saveSettings = async () => {
-    if (!netlifyToken.trim() || !githubClientId.trim() || !githubClientSecret.trim()) {
-      setError('Please fill in all fields');
+    if (!netlifyToken.trim() && !githubClientId.trim() && !githubClientSecret.trim() && !githubAccessToken.trim()) {
+      setError('Please fill in at least one field');
       toast({
         title: "Error",
-        description: "Please fill in all fields",
+        description: "Please fill in at least one field",
         variant: "destructive"
       });
       return;
@@ -93,90 +91,127 @@ const DeploymentSettings = () => {
     setError('');
 
     try {
-      // Save Netlify token
-      const { data: existingNetlify } = await supabase
-        .from('api_keys')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('provider', 'Netlify')
-        .single();
+      // Save Netlify token if provided
+      if (netlifyToken.trim()) {
+        const { data: existingNetlify } = await supabase
+          .from('api_keys')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('provider', 'Netlify')
+          .single();
 
-      if (existingNetlify) {
-        await supabase
-          .from('api_keys')
-          .update({
-            key_value: netlifyToken,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingNetlify.id);
-      } else {
-        await supabase
-          .from('api_keys')
-          .insert({
-            user_id: user.id,
-            name: 'Netlify Access Token',
-            key_value: netlifyToken,
-            provider: 'Netlify',
-            is_active: true
-          });
+        if (existingNetlify) {
+          await supabase
+            .from('api_keys')
+            .update({
+              key_value: netlifyToken,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingNetlify.id);
+        } else {
+          await supabase
+            .from('api_keys')
+            .insert({
+              user_id: user.id,
+              name: 'Netlify Access Token',
+              key_value: netlifyToken,
+              provider: 'Netlify',
+              is_active: true
+            });
+        }
       }
 
-      // Save GitHub Client ID
-      const { data: existingGithubId } = await supabase
-        .from('api_keys')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('provider', 'GitHub')
-        .like('name', '%Client ID%')
-        .single();
+      // Save GitHub Client ID if provided
+      if (githubClientId.trim()) {
+        const { data: existingGithubId } = await supabase
+          .from('api_keys')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('provider', 'GitHub')
+          .like('name', '%Client ID%')
+          .single();
 
-      if (existingGithubId) {
-        await supabase
-          .from('api_keys')
-          .update({
-            key_value: githubClientId,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingGithubId.id);
-      } else {
-        await supabase
-          .from('api_keys')
-          .insert({
-            user_id: user.id,
-            name: 'GitHub OAuth Client ID',
-            key_value: githubClientId,
-            provider: 'GitHub',
-            is_active: true
-          });
+        if (existingGithubId) {
+          await supabase
+            .from('api_keys')
+            .update({
+              key_value: githubClientId,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingGithubId.id);
+        } else {
+          await supabase
+            .from('api_keys')
+            .insert({
+              user_id: user.id,
+              name: 'GitHub OAuth Client ID',
+              key_value: githubClientId,
+              provider: 'GitHub',
+              is_active: true
+            });
+        }
       }
 
-      // Save GitHub Client Secret
-      const { data: existingGithubSecret } = await supabase
-        .from('api_keys')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('provider', 'GitHub')
-        .like('name', '%Client Secret%')
-        .single();
+      // Save GitHub Client Secret if provided
+      if (githubClientSecret.trim()) {
+        const { data: existingGithubSecret } = await supabase
+          .from('api_keys')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('provider', 'GitHub')
+          .like('name', '%Client Secret%')
+          .single();
 
-      if (existingGithubSecret) {
-        await supabase
+        if (existingGithubSecret) {
+          await supabase
+            .from('api_keys')
+            .update({
+              key_value: githubClientSecret,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingGithubSecret.id);
+        } else {
+          await supabase
+            .from('api_keys')
+            .insert({
+              user_id: user.id,
+              name: 'GitHub OAuth Client Secret',
+              key_value: githubClientSecret,
+              provider: 'GitHub',
+              is_active: true
+            });
+        }
+      }
+
+      // Save GitHub Access Token if provided
+      if (githubAccessToken.trim()) {
+        const { data: existingGithubToken } = await supabase
           .from('api_keys')
-          .update({
-            key_value: githubClientSecret,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingGithubSecret.id);
-      } else {
-        await supabase
-          .from('api_keys')
-          .insert({
-            user_id: user.id,
-            name: 'GitHub OAuth Client Secret',
-            key_value: githubClientSecret,
-            provider: 'GitHub',
-            is_active: true
-          });
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('provider', 'GitHub')
+          .like('name', '%Access Token%')
+          .single();
+
+        if (existingGithubToken) {
+          await supabase
+            .from('api_keys')
+            .update({
+              key_value: githubAccessToken,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingGithubToken.id);
+        } else {
+          await supabase
+            .from('api_keys')
+            .insert({
+              user_id: user.id,
+              name: 'GitHub Access Token',
+              key_value: githubAccessToken,
+              provider: 'GitHub',
+              is_active: true
+            });
+        }
       }
 
       setSaved(true);
@@ -274,17 +309,19 @@ const DeploymentSettings = () => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
               <Github className="h-4 w-4" />
-              GitHub OAuth Configuration
+              GitHub Configuration
             </h3>
+            
+            {/* GitHub OAuth Settings */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="github-client-id" className="text-white">
-                  GitHub Client ID
+                  GitHub Client ID (OAuth)
                 </Label>
                 <Input
                   id="github-client-id"
                   type="text"
-                  placeholder="GitHub Client ID"
+                  placeholder="GitHub OAuth Client ID"
                   value={githubClientId}
                   onChange={(e) => setGithubClientId(e.target.value)}
                   className="bg-gray-800 border-gray-600 text-white"
@@ -292,29 +329,56 @@ const DeploymentSettings = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="github-client-secret" className="text-white">
-                  GitHub Client Secret
+                  GitHub Client Secret (OAuth)
                 </Label>
                 <Input
                   id="github-client-secret"
                   type="password"
-                  placeholder="GitHub Client Secret"
+                  placeholder="GitHub OAuth Client Secret"
                   value={githubClientSecret}
                   onChange={(e) => setGithubClientSecret(e.target.value)}
                   className="bg-gray-800 border-gray-600 text-white"
                 />
               </div>
             </div>
-            <p className="text-xs text-gray-400">
-              Create a GitHub OAuth App at{' '}
-              <a 
-                href="https://github.com/settings/applications/new" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                GitHub Developer Settings
-              </a>
-            </p>
+
+            {/* GitHub Access Token */}
+            <div className="space-y-2">
+              <Label htmlFor="github-access-token" className="text-white">
+                GitHub Personal Access Token
+              </Label>
+              <div className="relative">
+                <Key className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  id="github-access-token"
+                  type="password"
+                  placeholder="GitHub Personal Access Token"
+                  value={githubAccessToken}
+                  onChange={(e) => setGithubAccessToken(e.target.value)}
+                  className="pl-10 bg-gray-800 border-gray-600 text-white"
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                Create tokens at{' '}
+                <a 
+                  href="https://github.com/settings/tokens" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline"
+                >
+                  GitHub Personal Access Tokens
+                </a>
+                {' '}or OAuth apps at{' '}
+                <a 
+                  href="https://github.com/settings/applications/new" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline"
+                >
+                  GitHub Developer Settings
+                </a>
+              </p>
+            </div>
           </div>
 
           <Button 

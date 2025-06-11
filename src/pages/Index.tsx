@@ -17,17 +17,17 @@ const Index = () => {
     );
   }
 
-  // If no user, show the home page directly instead of redirecting
-  if (!user) {
-    return <Home />;
+  // If authenticated user, redirect to appropriate dashboard
+  if (user && profile) {
+    if (profile.role === 'admin') {
+      return <Navigate to="/dashboard" replace />;
+    } else {
+      return <Navigate to="/user-dashboard" replace />;
+    }
   }
 
-  // Redirect authenticated users based on their role
-  if (profile?.role === 'admin') {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  return <Navigate to="/user-dashboard" replace />;
+  // If no user, show the home page
+  return <Home />;
 };
 
 export default Index;

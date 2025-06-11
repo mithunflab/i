@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -106,7 +105,7 @@ const LoginForm = () => {
       <div className="relative z-10 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Button 
-            onClick={() => navigate('/')} 
+            onClick={() => navigate('/home')} 
             variant="outline" 
             className="border-gray-600 text-white hover:bg-white/10"
           >
@@ -115,7 +114,7 @@ const LoginForm = () => {
           </Button>
           
           <Button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/home')}
             variant="ghost"
             className="text-white hover:bg-white/10"
           >
