@@ -25,13 +25,12 @@ const LoginForm = () => {
     { email: 'zenmithun@outlook.com', password: 'GoZ22266' }
   ];
 
-  // Redirect if already logged in with more aggressive checking
+  // Redirect if already logged in
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       console.log('User detected in LoginForm, redirecting...');
       
-      // Immediate redirect based on user type or default to user dashboard
-      if (profile?.role === 'admin') {
+      if (profile.role === 'admin') {
         navigate('/dashboard', { replace: true });
       } else {
         navigate('/user-dashboard', { replace: true });
@@ -62,17 +61,7 @@ const LoginForm = () => {
       const response = await login(email, password);
       console.log('Login successful, response:', response);
       
-      // Force immediate redirect on successful login
-      if (response.data.user) {
-        console.log('Login successful, forcing redirect...');
-        
-        // Use window.location for immediate redirect
-        if (userType === 'developer') {
-          window.location.href = '/dashboard';
-        } else {
-          window.location.href = '/user-dashboard';
-        }
-      }
+      // The redirect will be handled by the useEffect above
     } catch (loginError: any) {
       console.error('Login failed:', loginError);
       setError(loginError.message);
@@ -327,3 +316,5 @@ const LoginForm = () => {
 };
 
 export default LoginForm;
+
+</edits_to_apply>

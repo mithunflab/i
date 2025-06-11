@@ -43,7 +43,7 @@ const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode,
     return <Navigate to="/login" replace />;
   }
 
-  // If user doesn't have profile yet, redirect to home
+  // If user doesn't have profile yet, redirect to home to let Index handle it
   if (!profile) {
     console.log('No profile, redirecting to home');
     return <Navigate to="/" replace />;

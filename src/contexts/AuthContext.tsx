@@ -10,7 +10,6 @@ interface Profile {
   role: string | null;
 }
 
-// Define specific return types that match Supabase's actual returns
 type LoginResponse = {
   data: {
     user: User | null;
@@ -56,6 +55,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const createDefaultProfile = (user: User): Profile => {
+    console.log('Creating default profile for user:', user.email);
+    return {
+      id: user.id,
+      email: user.email || '',
+      full_name: user.user_metadata?.full_name || null,
+      role: 'user'
+    };
+  };
+
   const loadProfile = async (userId: string): Promise<Profile | null> => {
     try {
       console.log('Loading profile for user:', userId);
@@ -64,41 +73,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error loading profile:', error);
-        
-        // If profile doesn't exist, create a default one
-        if (error.code === 'PGRST116') {
-          console.log('Profile not found, creating default profile');
-          const { data: newProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert({
-              id: userId,
-              email: user?.email || '',
-              full_name: user?.user_metadata?.full_name || null,
-              role: 'user'
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('Error creating profile:', createError);
-            return null;
-          }
-          
-          console.log('Created new profile:', newProfile);
-          return newProfile;
-        }
-        
         return null;
       }
 
-      console.log('Profile loaded successfully:', data);
-      return data;
+      if (data) {
+        console.log('Profile loaded successfully:', data);
+        return data;
+      }
+
+      console.log('No profile found, will use default');
+      return null;
     } catch (error) {
-      console.error('Error in loadProfile:', error);
+      console.error('Exception in loadProfile:', error);
       return null;
     }
   };
@@ -111,20 +101,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (session?.user) {
       setUser(session.user);
       
-      // Load profile data with better error handling
+      // Try to load profile, but don't block on it
       const profileData = await loadProfile(session.user.id);
-      setProfile(profileData);
       
-      // If profile loading failed but user exists, create a default profile
-      if (!profileData) {
-        console.log('Creating fallback profile for user');
-        const fallbackProfile: Profile = {
-          id: session.user.id,
-          email: session.user.email || '',
-          full_name: session.user.user_metadata?.full_name || null,
-          role: 'user'
-        };
-        setProfile(fallbackProfile);
+      if (profileData) {
+        setProfile(profileData);
+      } else {
+        // Use default profile if loading fails
+        const defaultProfile = createDefaultProfile(session.user);
+        setProfile(defaultProfile);
       }
     } else {
       setUser(null);
@@ -137,14 +122,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
-    // Get initial session
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
-          setLoading(false);
+          if (mounted) setLoading(false);
           return;
         }
 
@@ -153,43 +137,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('Error in getInitialSession:', error);
-        if (mounted) {
-          setLoading(false);
-        }
+        if (mounted) setLoading(false);
       }
     };
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (mounted) {
+        await handleAuthStateChange(event, session);
+      }
+    });
 
-    // Get initial session
     getInitialSession();
-
-    // Set up real-time subscription for profile changes
-    const profileSubscription = supabase
-      .channel('profile-changes')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'profiles',
-          filter: user ? `id=eq.${user.id}` : undefined
-        }, 
-        (payload) => {
-          console.log('Profile changed:', payload);
-          if (payload.eventType === 'UPDATE' && payload.new) {
-            setProfile(payload.new as Profile);
-          }
-        }
-      )
-      .subscribe();
 
     return () => {
       mounted = false;
       subscription?.unsubscribe();
-      profileSubscription?.unsubscribe();
     };
-  }, [user?.id]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     try {
