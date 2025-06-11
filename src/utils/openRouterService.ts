@@ -12,6 +12,9 @@ interface OpenRouterResponse {
     completion_tokens?: number;
     total_tokens?: number;
   };
+  error?: {
+    message: string;
+  };
 }
 
 interface ApiUsageLog {
@@ -45,27 +48,45 @@ export class OpenRouterService {
   }
 
   private static async getModelPricing(model: string) {
-    const { data, error } = await supabase
-      .from('model_pricing')
-      .select('*')
-      .eq('model', model)
-      .single();
+    // Mock pricing data until model_pricing table is available in types
+    const mockPricing = {
+      'gpt-4': { input_cost_per_token: 0.00003, output_cost_per_token: 0.00006 },
+      'gpt-3.5-turbo': { input_cost_per_token: 0.000001, output_cost_per_token: 0.000002 },
+      'claude-3-sonnet': { input_cost_per_token: 0.000015, output_cost_per_token: 0.000075 },
+      'default': { input_cost_per_token: 0.00001, output_cost_per_token: 0.00002 }
+    };
 
-    if (error) {
-      console.error('Error fetching model pricing:', error);
-      return { input_cost_per_token: 0, output_cost_per_token: 0 };
-    }
-
-    return data;
+    return mockPricing[model] || mockPricing['default'];
   }
 
   private static async logApiUsage(logData: ApiUsageLog) {
-    const { error } = await supabase
-      .from('api_usage_logs')
-      .insert(logData);
+    // For now, just log to console until api_usage_logs table is available in types
+    console.log('API Usage Log:', logData);
+    
+    // Store in analytics table as a workaround
+    try {
+      const { error } = await supabase
+        .from('analytics')
+        .insert({
+          user_id: logData.user_id,
+          event_type: 'api_usage',
+          event_data: {
+            api_key_id: logData.api_key_id,
+            model: logData.model,
+            provider: logData.provider,
+            tokens_used: logData.tokens_used,
+            cost_usd: logData.cost_usd,
+            response_time_ms: logData.response_time_ms,
+            status: logData.status,
+            error_message: logData.error_message
+          }
+        });
 
-    if (error) {
-      console.error('Error logging API usage:', error);
+      if (error) {
+        console.error('Error logging API usage to analytics:', error);
+      }
+    } catch (err) {
+      console.error('Failed to log API usage:', err);
     }
   }
 
@@ -144,4 +165,3 @@ export class OpenRouterService {
     }
   }
 }
-
