@@ -30,6 +30,7 @@ const YouTubeWebsiteBuilder = () => {
   const [success, setSuccess] = useState('');
   const [isConnected, setIsConnected] = useState(true);
   const [youtubeApiKeys, setYoutubeApiKeys] = useState<any[]>([]);
+  const [loadingKeys, setLoadingKeys] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -40,6 +41,8 @@ const YouTubeWebsiteBuilder = () => {
     if (user?.id) {
       loadYouTubeApiKeys();
       setupRealTimeUpdates();
+    } else {
+      setLoadingKeys(false);
     }
     
     return () => {
@@ -74,7 +77,7 @@ const YouTubeWebsiteBuilder = () => {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Real-time YouTube API key update:', payload);
+          console.log('Real-time YouTube API key update received:', payload);
           loadYouTubeApiKeys();
           setError('');
           toast({
@@ -90,38 +93,41 @@ const YouTubeWebsiteBuilder = () => {
   };
 
   const loadYouTubeApiKeys = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoadingKeys(false);
+      return;
+    }
+    
+    setLoadingKeys(true);
     
     try {
-      console.log('Loading YouTube API keys from youtube_api_keys table for user:', user.id);
+      console.log('Loading YouTube API keys for user:', user.id);
       
-      const { data: apiKeysData, error } = await supabase
-        .from('youtube_api_keys')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      const activeKey = await apiKeyManager.getActiveKey('youtube', user.id);
+      const allKeys = await apiKeyManager.getAllKeys(user.id);
+      
+      console.log('Active YouTube key:', activeKey);
+      console.log('All YouTube keys:', allKeys.youtube);
 
-      if (error) {
-        console.error('Error loading YouTube API keys:', error);
-        setError('Failed to load YouTube API configuration');
-        return;
-      }
-
-      console.log('YouTube API keys data:', apiKeysData);
-
-      if (apiKeysData && apiKeysData.length > 0) {
-        setYoutubeApiKeys(apiKeysData);
+      setYoutubeApiKeys(allKeys.youtube || []);
+      
+      if (allKeys.youtube && allKeys.youtube.length > 0) {
         setError('');
-        console.log('YouTube API keys loaded successfully:', apiKeysData.length);
+        console.log('YouTube API keys loaded successfully:', allKeys.youtube.length);
       } else {
-        console.log('No active YouTube API keys found');
-        setYoutubeApiKeys([]);
+        console.log('No YouTube API keys found');
         setError('YouTube API keys not configured. Please add API keys in the admin panel.');
       }
     } catch (err) {
       console.error('Exception loading YouTube API keys:', err);
       setError('Failed to load YouTube API configuration');
+      toast({
+        title: "Error",
+        description: "Failed to load YouTube API configuration",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingKeys(false);
     }
   };
 
@@ -146,7 +152,7 @@ const YouTubeWebsiteBuilder = () => {
         
         // Otherwise, we need to convert username/handle to channel ID
         const apiKey = await apiKeyManager.getActiveKey('youtube', user?.id || '');
-        if (!apiKey) {
+        if (!apiKey || !apiKey.api_key) {
           throw new Error('No YouTube API keys available');
         }
 
@@ -212,7 +218,7 @@ const YouTubeWebsiteBuilder = () => {
 
       // Get the best available API key
       const apiKey = await apiKeyManager.getActiveKey('youtube', user?.id || '');
-      if (!apiKey) {
+      if (!apiKey || !apiKey.api_key) {
         setError('No YouTube API keys available');
         return;
       }
@@ -253,12 +259,12 @@ const YouTubeWebsiteBuilder = () => {
       // Fetch recent videos with another API key if needed
       console.log('Fetching recent videos for channel:', channelId);
       const videoApiKey = await apiKeyManager.getActiveKey('youtube', user?.id || '');
-      if (!videoApiKey) {
+      if (!videoApiKey || !videoApiKey.api_key) {
         console.warn('No API key available for fetching videos, continuing with channel data only');
       }
 
       let videos = [];
-      if (videoApiKey) {
+      if (videoApiKey && videoApiKey.api_key) {
         const videoStartTime = Date.now();
         const videosResponse = await fetch(
           `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=10&order=date&type=video&key=${videoApiKey.api_key}`
@@ -401,6 +407,19 @@ const YouTubeWebsiteBuilder = () => {
       setIsGenerating(false);
     }
   };
+
+  if (loadingKeys) {
+    return (
+      <Card className="bg-white/5 border-gray-800">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-2 text-white">Loading YouTube API configuration...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

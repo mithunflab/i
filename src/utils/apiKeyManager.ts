@@ -23,7 +23,7 @@ export interface ApiKeyWithUsage {
 export const apiKeyManager = {
   async getAllKeys(userId: string): Promise<Record<string, ApiKeyWithUsage[]>> {
     try {
-      console.log('Loading API keys for user:', userId);
+      console.log('Loading all API keys for user:', userId);
 
       // Load YouTube keys
       const { data: youtubeKeys, error: youtubeError } = await supabase
@@ -65,12 +65,15 @@ export const apiKeyManager = {
         console.error('Error loading Netlify keys:', netlifyError);
       }
 
-      return {
+      const result = {
         youtube: (youtubeKeys || []) as ApiKeyWithUsage[],
         openrouter: (openrouterKeys || []) as ApiKeyWithUsage[],
         github: (githubKeys || []) as ApiKeyWithUsage[],
         netlify: (netlifyKeys || []) as ApiKeyWithUsage[]
       };
+
+      console.log('All API keys loaded:', result);
+      return result;
     } catch (error) {
       console.error('Error in getAllKeys:', error);
       return {
@@ -84,55 +87,42 @@ export const apiKeyManager = {
 
   async getActiveKey(provider: string, userId: string): Promise<ApiKeyWithUsage | null> {
     try {
-      let data, error;
-
+      console.log(`Getting active key for provider: ${provider}, user: ${userId}`);
+      
+      let tableName: string;
       switch (provider) {
         case 'youtube':
-          ({ data, error } = await supabase
-            .from('youtube_api_keys')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .limit(1)
-            .single());
+          tableName = 'youtube_api_keys';
           break;
         case 'openrouter':
-          ({ data, error } = await supabase
-            .from('openrouter_api_keys')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .limit(1)
-            .single());
+          tableName = 'openrouter_api_keys';
           break;
         case 'github':
-          ({ data, error } = await supabase
-            .from('github_api_keys')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .limit(1)
-            .single());
+          tableName = 'github_api_keys';
           break;
         case 'netlify':
-          ({ data, error } = await supabase
-            .from('netlify_api_keys')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .limit(1)
-            .single());
+          tableName = 'netlify_api_keys';
           break;
         default:
           throw new Error(`Unknown provider: ${provider}`);
       }
+
+      const { data, error } = await supabase
+        .from(tableName as any)
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
       if (error && error.code !== 'PGRST116') {
         console.error(`Error loading active ${provider} key:`, error);
         return null;
       }
 
-      return data as ApiKeyWithUsage || null;
+      const result = data && data.length > 0 ? data[0] as ApiKeyWithUsage : null;
+      console.log(`Active key for ${provider}:`, result);
+      return result;
     } catch (error) {
       console.error(`Error getting active key for ${provider}:`, error);
       return null;
@@ -151,55 +141,54 @@ export const apiKeyManager = {
 
   async updateUsage(provider: string, keyId: string, usageData: any): Promise<boolean> {
     try {
-      let error;
+      console.log(`Updating usage for ${provider} key ${keyId}:`, usageData);
+      
+      let tableName: string;
+      let updateData: any = { last_used_at: new Date().toISOString() };
 
       switch (provider) {
         case 'youtube':
-          ({ error } = await supabase
-            .from('youtube_api_keys')
-            .update({
-              quota_used: usageData.quota_used,
-              last_used_at: new Date().toISOString()
-            })
-            .eq('id', keyId));
+          tableName = 'youtube_api_keys';
+          if (usageData.quota_used !== undefined) {
+            updateData.quota_used = usageData.quota_used;
+          }
           break;
         case 'openrouter':
-          ({ error } = await supabase
-            .from('openrouter_api_keys')
-            .update({
-              credits_used: usageData.credits_used,
-              requests_count: usageData.requests_count,
-              last_used_at: new Date().toISOString()
-            })
-            .eq('id', keyId));
+          tableName = 'openrouter_api_keys';
+          if (usageData.credits_used !== undefined) {
+            updateData.credits_used = usageData.credits_used;
+          }
+          if (usageData.requests_count !== undefined) {
+            updateData.requests_count = usageData.requests_count;
+          }
           break;
         case 'github':
-          ({ error } = await supabase
-            .from('github_api_keys')
-            .update({
-              rate_limit_used: usageData.rate_limit_used,
-              last_used_at: new Date().toISOString()
-            })
-            .eq('id', keyId));
+          tableName = 'github_api_keys';
+          if (usageData.rate_limit_used !== undefined) {
+            updateData.rate_limit_used = usageData.rate_limit_used;
+          }
           break;
         case 'netlify':
-          ({ error } = await supabase
-            .from('netlify_api_keys')
-            .update({
-              deployments_count: usageData.deployments_count,
-              last_used_at: new Date().toISOString()
-            })
-            .eq('id', keyId));
+          tableName = 'netlify_api_keys';
+          if (usageData.deployments_count !== undefined) {
+            updateData.deployments_count = usageData.deployments_count;
+          }
           break;
         default:
           throw new Error(`Unknown provider: ${provider}`);
       }
+
+      const { error } = await supabase
+        .from(tableName as any)
+        .update(updateData)
+        .eq('id', keyId);
 
       if (error) {
         console.error(`Error updating ${provider} key usage:`, error);
         return false;
       }
 
+      console.log(`Successfully updated usage for ${provider} key ${keyId}`);
       return true;
     } catch (error) {
       console.error(`Error updating usage for ${provider}:`, error);
@@ -224,6 +213,17 @@ export const apiKeyManager = {
     errorMessage?: string
   ): Promise<boolean> {
     try {
+      console.log(`Tracking usage for ${provider}:`, {
+        keyId,
+        userId,
+        requestType,
+        tokensUsed,
+        costUsd,
+        responseTimeMs,
+        success,
+        errorMessage
+      });
+
       const { error } = await supabase
         .from('api_usage_tracking')
         .insert({
@@ -243,6 +243,7 @@ export const apiKeyManager = {
         return false;
       }
 
+      console.log(`Successfully tracked usage for ${provider}`);
       return true;
     } catch (error) {
       console.error(`Error tracking usage for ${provider}:`, error);

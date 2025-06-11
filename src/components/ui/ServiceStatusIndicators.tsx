@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Circle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiKeyManager } from '@/utils/apiKeyManager';
 
 interface ServiceStatus {
   youtube: boolean;
@@ -112,49 +113,16 @@ const ServiceStatusIndicators = () => {
     try {
       console.log('Checking service status for user:', user.id);
 
-      // Check YouTube API keys
-      const { data: youtubeKeys, error: youtubeError } = await supabase
-        .from('youtube_api_keys')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true);
+      // Use the apiKeyManager to get all keys
+      const allKeys = await apiKeyManager.getAllKeys(user.id);
 
-      // Check OpenRouter API keys
-      const { data: openrouterKeys, error: openrouterError } = await supabase
-        .from('openrouter_api_keys')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true);
-
-      // Check GitHub API keys
-      const { data: githubKeys, error: githubError } = await supabase
-        .from('github_api_keys')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true);
-
-      // Check Netlify API keys
-      const { data: netlifyKeys, error: netlifyError } = await supabase
-        .from('netlify_api_keys')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true);
-
-      if (youtubeError) console.error('Error fetching YouTube keys:', youtubeError);
-      if (openrouterError) console.error('Error fetching OpenRouter keys:', openrouterError);
-      if (githubError) console.error('Error fetching GitHub keys:', githubError);
-      if (netlifyError) console.error('Error fetching Netlify keys:', netlifyError);
-
-      console.log('YouTube Keys:', youtubeKeys);
-      console.log('OpenRouter Keys:', openrouterKeys);
-      console.log('GitHub Keys:', githubKeys);
-      console.log('Netlify Keys:', netlifyKeys);
+      console.log('All API keys from manager:', allKeys);
 
       const newStatus = {
-        youtube: (youtubeKeys && youtubeKeys.length > 0),
-        openrouter: (openrouterKeys && openrouterKeys.length > 0),
-        github: (githubKeys && githubKeys.length > 0),
-        netlify: (netlifyKeys && netlifyKeys.length > 0)
+        youtube: allKeys.youtube && allKeys.youtube.length > 0 && allKeys.youtube.some(key => key.is_active),
+        openrouter: allKeys.openrouter && allKeys.openrouter.length > 0 && allKeys.openrouter.some(key => key.is_active),
+        github: allKeys.github && allKeys.github.length > 0 && allKeys.github.some(key => key.is_active),
+        netlify: allKeys.netlify && allKeys.netlify.length > 0 && allKeys.netlify.some(key => key.is_active)
       };
 
       console.log('Service status updated:', newStatus);

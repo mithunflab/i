@@ -8,6 +8,7 @@ import { Youtube, Key, Save, AlertCircle, CheckCircle, Wifi } from 'lucide-react
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiKeyManager } from '@/utils/apiKeyManager';
 
 const YouTubeApiSettings = () => {
   const [apiKey, setApiKey] = useState('');
@@ -86,39 +87,32 @@ const YouTubeApiSettings = () => {
       return;
     }
     
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(user.id)) {
-      console.error('Invalid user ID format:', user.id);
-      setError('Invalid user session. Please sign out and sign in again.');
-      setLoadingData(false);
-      return;
-    }
-    
     try {
       console.log('Loading YouTube API keys for user:', user.id);
-      const { data, error } = await supabase
-        .from('youtube_api_keys')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error loading YouTube API keys:', error);
-        setError(`Failed to load API keys: ${error.message}`);
-      } else {
-        console.log('YouTube API keys loaded successfully:', data);
-        setExistingKeys(data || []);
-        // Set the first active key as default
-        const activeKey = data?.find(key => key.is_active);
-        if (activeKey) {
-          setApiKey(activeKey.api_key || '');
-          setApiKeyName(activeKey.name || '');
-        }
+      
+      // Use the apiKeyManager to get YouTube keys
+      const allKeys = await apiKeyManager.getAllKeys(user.id);
+      const youtubeKeys = allKeys.youtube || [];
+      
+      console.log('YouTube API keys loaded from manager:', youtubeKeys);
+      setExistingKeys(youtubeKeys);
+      
+      // Set the first active key as default
+      const activeKey = youtubeKeys.find(key => key.is_active);
+      if (activeKey) {
+        setApiKey(activeKey.api_key || '');
+        setApiKeyName(activeKey.name || '');
       }
+      
+      setError('');
     } catch (err) {
       console.error('Exception loading YouTube API keys:', err);
       setError('Failed to load API keys');
+      toast({
+        title: "Error",
+        description: "Failed to load API keys",
+        variant: "destructive"
+      });
     } finally {
       setLoadingData(false);
     }
@@ -161,6 +155,14 @@ const YouTubeApiSettings = () => {
     try {
       console.log('Saving YouTube API key for user:', user.id);
       
+      // Deactivate all existing keys first
+      if (existingKeys.length > 0) {
+        await supabase
+          .from('youtube_api_keys')
+          .update({ is_active: false })
+          .eq('user_id', user.id);
+      }
+      
       // Insert new key into youtube_api_keys table
       const { error } = await supabase
         .from('youtube_api_keys')
@@ -191,7 +193,7 @@ const YouTubeApiSettings = () => {
         });
         setTimeout(() => setSaved(false), 3000);
         console.log('YouTube API key saved successfully');
-        loadApiKeys(); // Reload the list
+        // The real-time subscription will trigger loadApiKeys automatically
       }
     } catch (err) {
       console.error('Exception saving YouTube API key:', err);
@@ -225,7 +227,7 @@ const YouTubeApiSettings = () => {
           title: "Success",
           description: "YouTube API key deleted successfully"
         });
-        loadApiKeys();
+        // Real-time subscription will trigger loadApiKeys automatically
       }
     } catch (err) {
       console.error('Exception deleting YouTube API key:', err);
@@ -256,7 +258,7 @@ const YouTubeApiSettings = () => {
           title: "Success",
           description: `API key ${!currentStatus ? 'activated' : 'deactivated'} successfully`
         });
-        loadApiKeys();
+        // Real-time subscription will trigger loadApiKeys automatically
       }
     } catch (err) {
       console.error('Exception updating YouTube API key status:', err);
