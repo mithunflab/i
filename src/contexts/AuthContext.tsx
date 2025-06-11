@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthResponse } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Profile {
@@ -16,10 +16,10 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
-  signup: (email: string, password: string, fullName: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  signup: (email: string, password: string, fullName: string) => Promise<AuthResponse>;
+  signUp: (email: string, password: string, fullName: string) => Promise<AuthResponse>;
   loginWithGoogle: () => Promise<void>;
 }
 
@@ -126,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      return data;
+      return { data, error };
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -150,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      return data;
+      return { data, error };
     } catch (error) {
       console.error('Signup error:', error);
       throw error;
