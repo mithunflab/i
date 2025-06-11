@@ -161,14 +161,20 @@ const UserDashboard = () => {
   const displayName = profile?.full_name || user?.email || 'User';
 
   return (
-    <div className="min-h-screen bg-black">
-      <div className="absolute inset-0 bg-noise opacity-20"></div>
+    <div className="min-h-screen bg-black relative">
+      {/* YouTube-style red multicolor gradient background */}
+      <div className="flex flex-col items-end absolute -right-60 -top-10 blur-xl z-0">
+        <div className="h-[10rem] rounded-full w-[60rem] z-1 bg-gradient-to-b blur-[6rem] from-red-600 to-pink-600"></div>
+        <div className="h-[10rem] rounded-full w-[90rem] z-1 bg-gradient-to-b blur-[6rem] from-red-900 to-orange-400"></div>
+        <div className="h-[10rem] rounded-full w-[60rem] z-1 bg-gradient-to-b blur-[6rem] from-orange-600 to-red-500"></div>
+      </div>
+      <div className="absolute inset-0 bg-noise opacity-30"></div>
       
       {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-full w-64 bg-black/50 border-r border-gray-800 z-50">
+      <div className="fixed left-0 top-0 h-full w-64 bg-black/70 border-r border-gray-800 z-50 backdrop-blur-sm">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-red-600 to-pink-600 flex items-center justify-center">
               <User className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -190,7 +196,7 @@ const UserDashboard = () => {
                 variant={activeTab === item.id ? "default" : "ghost"}
                 className={`w-full justify-start ${
                   activeTab === item.id 
-                    ? 'bg-purple-600 text-white' 
+                    ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white' 
                     : 'text-gray-400 hover:text-white hover:bg-white/10'
                 }`}
                 onClick={() => setActiveTab(item.id)}
@@ -216,14 +222,14 @@ const UserDashboard = () => {
       {/* Main Content */}
       <div className="ml-64 relative z-10">
         {/* Header */}
-        <header className="border-b border-gray-800 bg-black/50">
+        <header className="border-b border-gray-800 bg-black/50 backdrop-blur-sm">
           <div className="px-6 py-4 flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold text-white">Creator Dashboard</h1>
               <p className="text-sm text-gray-400">Welcome back, {displayName}</p>
             </div>
             <div className="flex items-center gap-4">
-              <Badge variant="secondary" className="bg-purple-600/20 text-purple-300 border-purple-500/30">
+              <Badge variant="secondary" className="bg-gradient-to-r from-red-600/20 to-pink-600/20 text-red-300 border-red-500/30">
                 <Zap size={14} className="mr-1" />
                 Pro Creator
               </Badge>

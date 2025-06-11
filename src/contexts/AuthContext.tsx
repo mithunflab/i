@@ -216,6 +216,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     console.log('Admin login successful:', data.user?.email);
+    
+    // For admin credentials, ensure they get admin role
+    if (email === 'kirishmithun2006@gmail.com' || email === 'zenmithun@outlook.com') {
+      // The profile creation will be handled in the auth state change
+      console.log('Admin user detected, profile will be created with admin role');
+    }
+    
     return data;
   };
 

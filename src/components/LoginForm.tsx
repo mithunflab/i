@@ -60,7 +60,7 @@ const LoginForm = () => {
           return;
         }
 
-        console.log('Attempting admin login...');
+        console.log('Attempting admin login for developer portal...');
         await loginAsAdmin(email, password);
       } else {
         console.log('Attempting regular login...');
@@ -128,7 +128,7 @@ const LoginForm = () => {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400">Loading...</p>
         </div>
       </div>
@@ -137,7 +137,13 @@ const LoginForm = () => {
 
   return (
     <div className="min-h-screen bg-black relative">
-      <div className="absolute inset-0 bg-noise opacity-20"></div>
+      {/* YouTube-style red multicolor gradient background */}
+      <div className="flex flex-col items-end absolute -right-60 -top-10 blur-xl z-0">
+        <div className="h-[10rem] rounded-full w-[60rem] z-1 bg-gradient-to-b blur-[6rem] from-red-600 to-pink-600"></div>
+        <div className="h-[10rem] rounded-full w-[90rem] z-1 bg-gradient-to-b blur-[6rem] from-red-900 to-orange-400"></div>
+        <div className="h-[10rem] rounded-full w-[60rem] z-1 bg-gradient-to-b blur-[6rem] from-orange-600 to-red-500"></div>
+      </div>
+      <div className="absolute inset-0 bg-noise opacity-30"></div>
       
       {/* Navigation Header */}
       <div className="relative z-10 p-6">
