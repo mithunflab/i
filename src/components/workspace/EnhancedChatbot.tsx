@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +27,8 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
   const [inputValue, setInputValue] = useState('');
   const [showQuickIdeas, setShowQuickIdeas] = useState(false);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
-  const { messages, loading, sendMessage, projectId } = useEnhancedProjectChat(youtubeUrl, projectIdea, channelData);
+  const [currentFiles, setCurrentFiles] = useState<string[]>([]);
+  const { messages, loading, sendMessage, projectId, currentProject } = useEnhancedProjectChat(youtubeUrl, projectIdea, channelData);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || loading) return;
@@ -78,6 +78,33 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
     }
   ];
 
+  const getChannelThumbnail = (channelData: ChannelData | null) => {
+    if (!channelData?.thumbnail) return channelData?.thumbnail || '';
+    
+    // Fix YouTube thumbnail URL to get high quality version
+    let thumbnailUrl = channelData.thumbnail;
+    
+    // Replace size parameters to get better quality
+    thumbnailUrl = thumbnailUrl.replace(/=s\d+/, '=s240');
+    thumbnailUrl = thumbnailUrl.replace(/\/s\d+/, '/s240');
+    
+    // If it's a default YouTube thumbnail URL, ensure it's high quality
+    if (thumbnailUrl.includes('yt3.ggpht.com') && !thumbnailUrl.includes('=s')) {
+      thumbnailUrl += '=s240-c-k-c0x00ffffff-no-rj';
+    }
+    
+    return thumbnailUrl;
+  };
+
+  // Track file changes from AI responses
+  React.useEffect(() => {
+    const latestMessage = messages[messages.length - 1];
+    if (latestMessage?.type === 'bot' && latestMessage.fileChanges) {
+      const newFiles = latestMessage.fileChanges.map(change => change.path);
+      setCurrentFiles(prev => [...new Set([...prev, ...newFiles])]);
+    }
+  }, [messages]);
+
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Compact Expandable Header */}
@@ -90,9 +117,13 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <img 
-                  src={channelData.thumbnail} 
+                  src={getChannelThumbnail(channelData)} 
                   alt={channelData.title}
                   className="w-10 h-10 rounded-full object-cover border-2 border-cyan-400 shadow-lg shadow-cyan-400/50 flex-shrink-0"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=80&h=80&fit=crop';
+                  }}
                 />
                 <div className="min-w-0 flex-1">
                   <h3 className="font-semibold text-cyan-400 text-sm truncate">
@@ -123,39 +154,64 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
           )}
         </div>
 
-        {/* Expanded Content */}
-        {isHeaderExpanded && channelData && (
+        {/* Expanded Content - Project Files */}
+        {isHeaderExpanded && (
           <div className="px-3 pb-3 border-t border-purple-500/20">
             <div className="mt-3">
-              <p className="text-xs font-medium text-cyan-400 mb-2">Latest Videos:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {latestVideos.map((video, index) => (
-                  <a
-                    key={index}
-                    href={video.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-2 p-2 rounded-lg bg-black/30 hover:bg-black/50 transition-colors group"
-                  >
-                    <img 
-                      src={video.thumbnail} 
-                      alt={video.title}
-                      className="w-12 h-9 rounded object-cover flex-shrink-0 border border-gray-600"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-white line-clamp-2 group-hover:text-cyan-300 transition-colors">
-                        {video.title}
-                      </p>
+              <p className="text-xs font-medium text-cyan-400 mb-2">
+                {currentProject ? 'Editing Project:' : 'Project Files:'}
+              </p>
+              {currentProject && (
+                <div className="bg-black/30 rounded-lg p-2 mb-3">
+                  <p className="text-sm text-white font-medium">{currentProject.name}</p>
+                  <p className="text-xs text-gray-300">{currentProject.description}</p>
+                  <div className="flex gap-2 mt-2">
+                    {currentProject.github_url && (
+                      <a
+                        href={currentProject.github_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded border border-gray-600 transition-colors"
+                      >
+                        <Github size={10} className="inline mr-1" />
+                        GitHub
+                      </a>
+                    )}
+                    {currentProject.netlify_url && (
+                      <a
+                        href={currentProject.netlify_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition-colors"
+                      >
+                        <Globe size={10} className="inline mr-1" />
+                        Live Site
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto">
+                {currentFiles.length > 0 ? (
+                  currentFiles.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-black/30 hover:bg-black/50 transition-colors text-xs text-white"
+                    >
+                      <FileText size={12} />
+                      <span className="truncate">{file}</span>
                     </div>
-                  </a>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-400 italic">No files generated yet</p>
+                )}
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Messages - Maximum Height */}
+      {/* Messages - Show file changes in real-time */}
       <ScrollArea className="flex-1 p-4" style={{ height: 'calc(100vh - 200px)' }}>
         <div className="space-y-4">
           {messages.map((message) => (
@@ -184,13 +240,37 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
               >
                 <p className="text-sm whitespace-pre-line leading-relaxed text-white">{message.content}</p>
                 
+                {/* Show file changes in real-time */}
+                {message.fileChanges && message.fileChanges.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <div className="p-2 bg-blue-500/20 border border-blue-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-blue-400 text-xs">
+                        <Code size={12} />
+                        <span>Code Changes Applied</span>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        {message.fileChanges.map((change, index) => (
+                          <div key={index} className="text-xs text-blue-300 flex items-center gap-1">
+                            {change.action === 'create' && <span className="text-green-400">+</span>}
+                            {change.action === 'update' && <span className="text-yellow-400">~</span>}
+                            {change.action === 'delete' && <span className="text-red-400">-</span>}
+                            <span>{change.path}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Deployment info */}
                 {message.generatedCode && (
                   <div className="mt-3 space-y-2">
                     <div className="p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
                       <div className="flex items-center gap-2 text-green-400 text-xs">
                         <FileText size={12} />
-                        <span>Website Generated & Auto-Deployed</span>
+                        <span>
+                          {currentProject ? 'Project Updated & Redeployed' : 'Website Generated & Auto-Deployed'}
+                        </span>
                       </div>
                       {message.codeDescription && (
                         <p className="text-xs text-green-300 mt-1">{message.codeDescription}</p>
@@ -251,7 +331,9 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
                     <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
                     <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                   </div>
-                  <span className="text-sm text-cyan-400 ml-2">Creating your website...</span>
+                  <span className="text-sm text-cyan-400 ml-2">
+                    {currentProject ? 'Updating your project...' : 'Creating your website...'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -265,7 +347,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Input
-                placeholder={`Tell AI what to create for ${channelData?.title || 'you'}...`}
+                placeholder={`Tell AI what to ${currentProject ? 'change in' : 'create for'} ${channelData?.title || 'you'}...`}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -293,11 +375,18 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
             </Button>
           </div>
 
-          {/* Quick Ideas */}
+          {/* Quick Ideas - Updated for editing vs creating */}
           {showQuickIdeas && (
             <div className="absolute bottom-full left-0 right-0 mb-2 bg-black/90 border border-cyan-500/30 rounded-lg shadow-2xl shadow-cyan-400/20 p-3 z-50 backdrop-blur-sm">
               <div className="grid grid-cols-1 gap-2">
-                {quickIdeas.map((idea) => (
+                {(currentProject ? [
+                  { label: 'Add a contact form', icon: '📝' },
+                  { label: 'Change color scheme', icon: '🎨' },
+                  { label: 'Add image gallery', icon: '🖼️' },
+                  { label: 'Update navigation menu', icon: '🧭' },
+                  { label: 'Add social media links', icon: '📱' },
+                  { label: 'Improve mobile layout', icon: '📱' }
+                ] : quickIdeas).map((idea) => (
                   <Button
                     key={idea.label}
                     variant="ghost"

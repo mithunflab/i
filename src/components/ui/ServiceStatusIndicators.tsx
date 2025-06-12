@@ -1,186 +1,156 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Circle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiKeyManager } from '@/utils/apiKeyManager';
 
 interface ServiceStatus {
-  ai: boolean;
-  youtube: boolean;
-  netlify: boolean;
-  github: boolean;
+  youtube: 'available' | 'in-use' | 'unavailable';
+  openrouter: 'available' | 'in-use' | 'unavailable';
+  github: 'available' | 'in-use' | 'unavailable';
+  netlify: 'available' | 'in-use' | 'unavailable';
 }
 
-const ServiceStatusIndicators = () => {
-  const [serviceStatus, setServiceStatus] = useState<ServiceStatus>({
-    ai: false,
-    youtube: false,
-    netlify: false,
-    github: false
-  });
+const ServiceStatusIndicators: React.FC = () => {
   const { user } = useAuth();
-  const channelRef = useRef<any>(null);
-
-  useEffect(() => {
-    // Check service status immediately
-    checkServiceStatus();
-    
-    // Set up real-time updates for keys
-    if (user?.id) {
-      setupRealTimeUpdates();
-    }
-
-    // Refresh status every 30 seconds
-    const interval = setInterval(checkServiceStatus, 30000);
-
-    return () => {
-      cleanupRealTimeUpdates();
-      clearInterval(interval);
-    };
-  }, [user?.id]);
-
-  const cleanupRealTimeUpdates = () => {
-    if (channelRef.current) {
-      console.log('🧹 Cleaning up service status real-time subscription');
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-  };
-
-  const setupRealTimeUpdates = () => {
-    cleanupRealTimeUpdates();
-    
-    if (!user?.id) return;
-    
-    console.log('🔄 Setting up real-time updates for service status');
-    
-    channelRef.current = supabase
-      .channel('service-status')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'youtube_api_keys'
-        },
-        (payload) => {
-          console.log('📺 Real-time YouTube API key update:', payload.eventType);
-          setTimeout(checkServiceStatus, 1000);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'openrouter_api_keys'
-        },
-        (payload) => {
-          console.log('🤖 Real-time OpenRouter API key update:', payload.eventType);
-          setTimeout(checkServiceStatus, 1000);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'github_api_keys'
-        },
-        (payload) => {
-          console.log('🐙 Real-time GitHub API key update:', payload.eventType);
-          setTimeout(checkServiceStatus, 1000);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'netlify_api_keys'
-        },
-        (payload) => {
-          console.log('🌐 Real-time Netlify API key update:', payload.eventType);
-          setTimeout(checkServiceStatus, 1000);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'deployment_tokens'
-        },
-        (payload) => {
-          console.log('🔑 Real-time deployment token update:', payload.eventType);
-          setTimeout(checkServiceStatus, 1000);
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Service status real-time subscription status:', status);
-      });
-  };
+  const [status, setStatus] = useState<ServiceStatus>({
+    youtube: 'unavailable',
+    openrouter: 'unavailable',
+    github: 'unavailable',
+    netlify: 'unavailable'
+  });
+  const [loading, setLoading] = useState(true);
 
   const checkServiceStatus = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      console.log('🔍 Checking service status from Supabase tables...');
+      console.log('🔍 Checking service status...');
 
-      // Clear cache to get fresh data
-      apiKeyManager.clearCache();
+      // Check each service for available keys and current usage
+      const [youtubeKeys, openrouterKeys, githubKeys, netlifyKeys] = await Promise.all([
+        supabase.from('youtube_api_keys').select('*').eq('is_active', true),
+        supabase.from('openrouter_api_keys').select('*').eq('is_active', true),
+        supabase.from('github_api_keys').select('*').eq('is_active', true),
+        supabase.from('netlify_api_keys').select('*').eq('is_active', true)
+      ]);
 
-      const availability = await apiKeyManager.checkKeyAvailability();
+      // Check current usage from logs (last 5 minutes)
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: recentUsage } = await supabase
+        .from('api_usage_logs')
+        .select('provider')
+        .gte('created_at', fiveMinutesAgo);
 
-      // Map openrouter to ai for display
-      const statusWithAI = {
-        ai: availability.openrouter,
-        youtube: availability.youtube,
-        netlify: availability.netlify,
-        github: availability.github
+      const activeServices = new Set(recentUsage?.map(log => log.provider) || []);
+
+      const newStatus: ServiceStatus = {
+        youtube: youtubeKeys.data && youtubeKeys.data.length > 0 
+          ? (activeServices.has('youtube') ? 'in-use' : 'available')
+          : 'unavailable',
+        openrouter: openrouterKeys.data && openrouterKeys.data.length > 0 
+          ? (activeServices.has('openrouter') ? 'in-use' : 'available')
+          : 'unavailable',
+        github: githubKeys.data && githubKeys.data.length > 0 
+          ? (activeServices.has('github') ? 'in-use' : 'available')
+          : 'unavailable',
+        netlify: netlifyKeys.data && netlifyKeys.data.length > 0 
+          ? (activeServices.has('netlify') ? 'in-use' : 'available')
+          : 'unavailable'
       };
 
-      console.log('📊 Service status updated from Supabase tables:', statusWithAI);
-      setServiceStatus(statusWithAI);
+      setStatus(newStatus);
+      console.log('✅ Service status updated:', newStatus);
     } catch (error) {
       console.error('❌ Error checking service status:', error);
-      // Set all to false on error
-      setServiceStatus({
-        ai: false,
-        youtube: false,
-        netlify: false,
-        github: false
-      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checkServiceStatus();
+    
+    // Check status every 30 seconds
+    const interval = setInterval(checkServiceStatus, 30000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const getStatusColor = (serviceStatus: 'available' | 'in-use' | 'unavailable') => {
+    switch (serviceStatus) {
+      case 'available':
+        return 'bg-green-500';
+      case 'in-use':
+        return 'bg-blue-500';
+      case 'unavailable':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  const getStatusText = (serviceStatus: 'available' | 'in-use' | 'unavailable') => {
+    switch (serviceStatus) {
+      case 'available':
+        return 'Available';
+      case 'in-use':
+        return 'In Use';
+      case 'unavailable':
+        return 'No API Key';
+      default:
+        return 'Unknown';
     }
   };
 
   const services = [
-    { name: 'AI', key: 'ai' as keyof ServiceStatus, emoji: '🤖' },
-    { name: 'YouTube', key: 'youtube' as keyof ServiceStatus, emoji: '📺' },
-    { name: 'GitHub', key: 'github' as keyof ServiceStatus, emoji: '🐙' },
-    { name: 'Netlify', key: 'netlify' as keyof ServiceStatus, emoji: '🌐' }
+    { name: 'YouTube', key: 'youtube' as keyof ServiceStatus },
+    { name: 'AI', key: 'openrouter' as keyof ServiceStatus },
+    { name: 'GitHub', key: 'github' as keyof ServiceStatus },
+    { name: 'Netlify', key: 'netlify' as keyof ServiceStatus }
   ];
 
-  return (
-    <div className="flex items-center gap-2">
-      {services.map((service) => (
-        <div key={service.key} className="relative group">
-          <Circle
-            size={8}
-            className={`${
-              serviceStatus[service.key] 
-                ? 'text-green-400 fill-green-400' 
-                : 'text-red-400 fill-red-400'
-            }`}
-          />
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 border border-gray-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-lg">
-            <div className="flex items-center gap-2">
-              <span>{service.emoji}</span>
-              <span>{service.name}: {serviceStatus[service.key] ? '✅ Connected' : '❌ Not Connected'}</span>
-            </div>
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2">
+        {services.map((service) => (
+          <div key={service.name} className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
+            <span className="text-xs text-gray-500">{service.name}</span>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center gap-2">
+        {services.map((service) => (
+          <Tooltip key={service.name}>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 cursor-pointer">
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(status[service.key])}`} />
+                <span className="text-xs text-gray-600">{service.name}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{service.name}: {getStatusText(status[service.key])}</p>
+              {status[service.key] === 'unavailable' && (
+                <p className="text-xs text-red-400">No API keys configured</p>
+              )}
+              {status[service.key] === 'in-use' && (
+                <p className="text-xs text-blue-400">Currently processing requests</p>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+    </TooltipProvider>
   );
 };
 

@@ -19,8 +19,6 @@ export const useNetlifyDeploy = () => {
       console.log('🌐 Deploying to Netlify:', siteName);
       
       // Get Netlify token from Supabase tables
-      console.log('🔍 Fetching Netlify token from Supabase tables...');
-      
       const { data: netlifyKeys, error: netlifyError } = await supabase
         .from('netlify_api_keys')
         .select('api_token')
@@ -28,21 +26,13 @@ export const useNetlifyDeploy = () => {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (netlifyError) {
-        console.error('❌ Error fetching Netlify keys:', netlifyError);
-        throw new Error('Failed to fetch Netlify API keys from database');
-      }
-
-      if (!netlifyKeys || netlifyKeys.length === 0) {
-        console.error('❌ No active Netlify API keys found in database');
+      if (netlifyError || !netlifyKeys || netlifyKeys.length === 0) {
         throw new Error('No active Netlify API keys found in database');
       }
 
       const netlifyToken = netlifyKeys[0].api_token;
-      console.log('✅ Found Netlify token in database');
 
       // Create site
-      console.log('🔨 Creating Netlify site...');
       const siteResponse = await fetch('https://api.netlify.com/api/v1/sites', {
         method: 'POST',
         headers: {
@@ -57,15 +47,12 @@ export const useNetlifyDeploy = () => {
 
       if (!siteResponse.ok) {
         const error = await siteResponse.text();
-        console.error('❌ Netlify site creation failed:', error);
         throw new Error(`Failed to create Netlify site: ${siteResponse.status} - ${error}`);
       }
 
       const site = await siteResponse.json();
-      console.log('✅ Netlify site created:', site.url);
 
-      // Create deployment with HTML content
-      console.log('🚀 Deploying to Netlify...');
+      // Create deployment
       const deployResponse = await fetch(`https://api.netlify.com/api/v1/sites/${site.site_id}/deploys`, {
         method: 'POST',
         headers: {
@@ -78,12 +65,10 @@ export const useNetlifyDeploy = () => {
 
       if (!deployResponse.ok) {
         const error = await deployResponse.text();
-        console.error('❌ Netlify deployment failed:', error);
         throw new Error(`Failed to deploy: ${deployResponse.status} - ${error}`);
       }
 
       const deployment: NetlifyDeployment = await deployResponse.json();
-      console.log('✅ Netlify deployment successful:', deployment.url);
       
       toast({
         title: "Netlify Deployment Success",
@@ -96,6 +81,67 @@ export const useNetlifyDeploy = () => {
       toast({
         title: "Netlify Error",
         description: error instanceof Error ? error.message : "Failed to deploy",
+        variant: "destructive"
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateNetlifyDeployment = async (siteUrl: string, code: string) => {
+    setLoading(true);
+    try {
+      console.log('🔄 Updating Netlify deployment:', siteUrl);
+      
+      // Extract site ID from URL
+      const siteId = siteUrl.split('//')[1].split('.')[0];
+      
+      // Get Netlify token
+      const { data: netlifyKeys, error: netlifyError } = await supabase
+        .from('netlify_api_keys')
+        .select('api_token')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (netlifyError || !netlifyKeys || netlifyKeys.length === 0) {
+        throw new Error('No active Netlify API keys found');
+      }
+
+      const netlifyToken = netlifyKeys[0].api_token;
+
+      // Create new deployment
+      const deployResponse = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${netlifyToken}`,
+          'Content-Type': 'application/zip',
+          'User-Agent': 'AI-Website-Builder'
+        },
+        body: await createZipFile(code)
+      });
+
+      if (!deployResponse.ok) {
+        const error = await deployResponse.text();
+        throw new Error(`Failed to update deployment: ${deployResponse.status} - ${error}`);
+      }
+
+      const deployment = await deployResponse.json();
+      
+      console.log('✅ Netlify deployment updated successfully');
+      
+      toast({
+        title: "Site Updated",
+        description: "Your website has been updated and redeployed",
+      });
+
+      return deployment;
+    } catch (error) {
+      console.error('❌ Netlify update error:', error);
+      toast({
+        title: "Update Error",
+        description: error instanceof Error ? error.message : "Failed to update deployment",
         variant: "destructive"
       });
       throw error;
@@ -132,6 +178,7 @@ export const useNetlifyDeploy = () => {
 
   return {
     deployToNetlify,
+    updateNetlifyDeployment,
     loading
   };
 };
