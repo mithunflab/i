@@ -1,5 +1,5 @@
 
-import { apiKeyManager } from '@/utils/apiKeyManager';
+import { supabase } from '@/integrations/supabase/client';
 
 interface OpenRouterResponse {
   choices: Array<{
@@ -36,18 +36,26 @@ export class OpenRouterService {
     try {
       console.log('🔄 Getting OpenRouter API key from Supabase tables...');
       
-      // Clear cache to ensure fresh data
-      apiKeyManager.clearCache('openrouter');
-      
       // Get OpenRouter key from Supabase tables
-      const apiKey = await apiKeyManager.getOpenRouterKey();
-      
-      if (!apiKey) {
-        console.error('❌ No OpenRouter API key found in Supabase tables');
+      const { data: openrouterKeys, error: openrouterError } = await supabase
+        .from('openrouter_api_keys')
+        .select('api_key')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (openrouterError) {
+        console.error('❌ Error fetching OpenRouter keys:', openrouterError);
+        throw new Error('Failed to fetch OpenRouter API keys from database');
+      }
+
+      if (!openrouterKeys || openrouterKeys.length === 0) {
+        console.error('❌ No active OpenRouter API keys found in database');
         throw new Error('No active OpenRouter API keys found. Please contact admin to add API keys.');
       }
 
-      console.log('✅ Found OpenRouter API key, making request...');
+      const apiKey = openrouterKeys[0].api_key;
+      console.log('✅ Found OpenRouter API key in database, making request...');
 
       const pricing = await this.getModelPricing(model);
 
@@ -93,6 +101,23 @@ export class OpenRouterService {
         responseTime
       });
 
+      // Log usage to database
+      try {
+        await supabase
+          .from('api_usage_logs')
+          .insert({
+            user_id: userId,
+            provider: 'openrouter',
+            model: model,
+            tokens_used: tokensUsed,
+            cost_usd: cost,
+            response_time_ms: responseTime,
+            status: 'success'
+          });
+      } catch (logError) {
+        console.warn('Failed to log API usage:', logError);
+      }
+
       return data;
     } catch (error) {
       const responseTime = Date.now() - startTime;
@@ -102,6 +127,24 @@ export class OpenRouterService {
         model,
         responseTime
       });
+
+      // Log error to database
+      try {
+        await supabase
+          .from('api_usage_logs')
+          .insert({
+            user_id: userId,
+            provider: 'openrouter',
+            model: model,
+            tokens_used: 0,
+            cost_usd: 0,
+            response_time_ms: responseTime,
+            status: 'error',
+            error_message: error instanceof Error ? error.message : 'Unknown error'
+          });
+      } catch (logError) {
+        console.warn('Failed to log API error:', logError);
+      }
 
       throw error;
     }
