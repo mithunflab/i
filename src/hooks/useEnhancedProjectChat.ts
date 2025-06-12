@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -96,7 +95,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           github_url: githubUrl,
           netlify_url: netlifyUrl,
           youtube_url: youtubeUrl,
-          channel_data: channelData
+          channel_data: channelData as any // Cast to any to match Json type
         });
 
       if (error) {
