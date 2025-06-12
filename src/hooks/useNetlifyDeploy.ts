@@ -32,50 +32,67 @@ export const useNetlifyDeploy = () => {
 
       const netlifyToken = netlifyKeys[0].api_token;
 
-      // Create site
+      // Create files object for deployment
+      const files = {
+        'index.html': code,
+        'robots.txt': 'User-agent: *\nAllow: /',
+        '_redirects': '/* /index.html 200'
+      };
+
+      // Create site first
       const siteResponse = await fetch('https://api.netlify.com/api/v1/sites', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${netlifyToken}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'AI-Website-Builder'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name: siteName.toLowerCase().replace(/\s+/g, '-')
+          name: siteName.toLowerCase().replace(/[^a-z0-9-]/g, '-')
         })
       });
 
       if (!siteResponse.ok) {
-        const error = await siteResponse.text();
-        throw new Error(`Failed to create Netlify site: ${siteResponse.status} - ${error}`);
+        const errorText = await siteResponse.text();
+        throw new Error(`Failed to create site: ${errorText}`);
       }
 
       const site = await siteResponse.json();
 
-      // Create deployment
+      // Deploy files using the files API
       const deployResponse = await fetch(`https://api.netlify.com/api/v1/sites/${site.site_id}/deploys`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${netlifyToken}`,
-          'Content-Type': 'application/zip',
-          'User-Agent': 'AI-Website-Builder'
+          'Content-Type': 'application/json'
         },
-        body: await createZipFile(code)
+        body: JSON.stringify({
+          files: files,
+          draft: false
+        })
       });
 
       if (!deployResponse.ok) {
-        const error = await deployResponse.text();
-        throw new Error(`Failed to deploy: ${deployResponse.status} - ${error}`);
+        const errorText = await deployResponse.text();
+        throw new Error(`Failed to deploy: ${errorText}`);
       }
 
       const deployment: NetlifyDeployment = await deployResponse.json();
       
+      // Wait for deployment to be ready
+      await waitForDeployment(netlifyToken, deployment.id);
+      
+      const finalUrl = site.ssl_url || site.url;
+      
       toast({
-        title: "Netlify Deployment Success",
-        description: `Site deployed to ${deployment.url}`,
+        title: "🎉 Netlify Deployment Success!",
+        description: `Site deployed to ${finalUrl}`,
       });
 
-      return deployment;
+      return {
+        url: finalUrl,
+        admin_url: deployment.admin_url,
+        site_id: site.site_id
+      };
     } catch (error) {
       console.error('❌ Netlify deployment error:', error);
       toast({
@@ -111,28 +128,40 @@ export const useNetlifyDeploy = () => {
 
       const netlifyToken = netlifyKeys[0].api_token;
 
+      // Create files for update
+      const files = {
+        'index.html': code,
+        'robots.txt': 'User-agent: *\nAllow: /',
+        '_redirects': '/* /index.html 200'
+      };
+
       // Create new deployment
       const deployResponse = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${netlifyToken}`,
-          'Content-Type': 'application/zip',
-          'User-Agent': 'AI-Website-Builder'
+          'Content-Type': 'application/json'
         },
-        body: await createZipFile(code)
+        body: JSON.stringify({
+          files: files,
+          draft: false
+        })
       });
 
       if (!deployResponse.ok) {
-        const error = await deployResponse.text();
-        throw new Error(`Failed to update deployment: ${deployResponse.status} - ${error}`);
+        const errorText = await deployResponse.text();
+        throw new Error(`Failed to update deployment: ${errorText}`);
       }
 
       const deployment = await deployResponse.json();
       
+      // Wait for deployment to complete
+      await waitForDeployment(netlifyToken, deployment.id);
+      
       console.log('✅ Netlify deployment updated successfully');
       
       toast({
-        title: "Site Updated",
+        title: "🚀 Site Updated!",
         description: "Your website has been updated and redeployed",
       });
 
@@ -150,30 +179,41 @@ export const useNetlifyDeploy = () => {
     }
   };
 
-  const createZipFile = async (htmlContent: string): Promise<Blob> => {
-    // Create a simple zip-like structure for Netlify
-    // For now, return the HTML content as a blob
-    // In production, you'd use a proper zip library
-    console.log('📦 Creating deployment package...');
+  const waitForDeployment = async (token: string, deployId: string): Promise<void> => {
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    while (attempts < maxAttempts) {
+      try {
+        const response = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const deploy = await response.json();
+          if (deploy.state === 'ready') {
+            return;
+          }
+          if (deploy.state === 'error') {
+            throw new Error('Deployment failed on Netlify');
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+      } catch (error) {
+        console.warn('Deployment check attempt failed:', attempts);
+        if (attempts >= maxAttempts - 1) {
+          throw error;
+        }
+        attempts++;
+      }
+    }
     
-    const files = new Map();
-    files.set('index.html', htmlContent);
-    
-    // Create a simple tar-like format that Netlify can understand
-    const boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW';
-    let body = '';
-    
-    files.forEach((content, filename) => {
-      body += `--${boundary}\r\n`;
-      body += `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n`;
-      body += `Content-Type: text/html\r\n\r\n`;
-      body += content;
-      body += `\r\n`;
-    });
-    
-    body += `--${boundary}--\r\n`;
-    
-    return new Blob([body], { type: 'multipart/form-data; boundary=' + boundary });
+    throw new Error('Deployment timeout - please check Netlify dashboard');
   };
 
   return {

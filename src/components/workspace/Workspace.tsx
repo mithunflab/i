@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -153,9 +154,9 @@ const Workspace = () => {
 
   const getSidebarStyle = () => {
     if (deviceType === 'mobile') {
-      return 'h-96 w-full order-2 border-t';
+      return 'h-96 w-full order-2 border-t border-purple-500/30';
     }
-    return 'w-80 h-full order-1 border-r';
+    return 'w-80 h-full order-1 border-r border-purple-500/30';
   };
 
   const getMainContentStyle = () => {
@@ -173,13 +174,13 @@ const Workspace = () => {
   />;
 
   return (
-    <div className="min-h-screen bg-background animated-gradient overflow-hidden">
-      {/* Compact Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm glass">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
+      {/* Header with chatbox styling */}
+      <header className="border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" onClick={() => navigate('/user-dashboard')} className="flex items-center gap-2 cyber-button">
+              <Button variant="outline" size="sm" onClick={() => navigate('/user-dashboard')} className="flex items-center gap-2 bg-black/80 border-cyan-500/50 text-cyan-400 hover:bg-black/60 hover:border-cyan-400">
                 <ArrowLeft size={16} />
                 <span className="hidden sm:inline">Back</span>
               </Button>
@@ -203,37 +204,37 @@ const Workspace = () => {
               if (!isElementSelectorActive) {
                 alert('🎯 Element Selector activated! Click any element to customize it for your brand.');
               }
-            }} className="flex items-center gap-1">
+            }} className="flex items-center gap-1 bg-black/80 border-cyan-500/50 text-cyan-400 hover:bg-black/60">
                 <Zap size={14} />
                 <span className="hidden sm:inline">Edit</span>
               </Button>
 
               {/* Features Button */}
-              <Button variant="outline" size="sm" onClick={() => setShowToolbar(!showToolbar)} className="flex items-center gap-1">
+              <Button variant="outline" size="sm" onClick={() => setShowToolbar(!showToolbar)} className="flex items-center gap-1 bg-black/80 border-cyan-500/50 text-cyan-400 hover:bg-black/60">
                 <span className="hidden sm:inline">Features</span>
                 {showToolbar ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </Button>
 
               {/* Device Preview Toggle */}
               <div className="hidden sm:flex items-center gap-1">
-                <Button variant={previewMode === 'mobile' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('mobile')}>
+                <Button variant={previewMode === 'mobile' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('mobile')} className="bg-black/80 border-cyan-500/50 text-cyan-400">
                   <Smartphone size={14} />
                 </Button>
-                <Button variant={previewMode === 'tablet' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('tablet')}>
+                <Button variant={previewMode === 'tablet' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('tablet')} className="bg-black/80 border-cyan-500/50 text-cyan-400">
                   <Tablet size={14} />
                 </Button>
-                <Button variant={previewMode === 'desktop' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('desktop')}>
+                <Button variant={previewMode === 'desktop' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('desktop')} className="bg-black/80 border-cyan-500/50 text-cyan-400">
                   <Monitor size={14} />
                 </Button>
               </div>
 
               <Tabs value={activeView} onValueChange={setActiveView}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="preview" className="flex items-center gap-2">
+                <TabsList className="grid w-full grid-cols-2 bg-black/80 border border-cyan-500/50">
+                  <TabsTrigger value="preview" className="flex items-center gap-2 text-cyan-400 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-purple-500 data-[state=active]:text-white">
                     <Eye size={14} />
                     <span className="hidden sm:inline">Preview</span>
                   </TabsTrigger>
-                  <TabsTrigger value="code" className="flex items-center gap-2">
+                  <TabsTrigger value="code" className="flex items-center gap-2 text-cyan-400 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-purple-500 data-[state=active]:text-white">
                     <Code size={14} />
                     <span className="hidden sm:inline">Code</span>
                     {isLiveTyping && <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse ml-1"></div>}
@@ -241,7 +242,7 @@ const Workspace = () => {
                 </TabsList>
               </Tabs>
               
-              <Button onClick={handleDeploy} className="cyber-button flex items-center gap-2">
+              <Button onClick={handleDeploy} className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white flex items-center gap-2">
                 <Rocket size={16} />
                 <span>Publish</span>
               </Button>
@@ -249,7 +250,7 @@ const Workspace = () => {
           </div>
 
           {/* Collapsible Features Toolbar */}
-          {showToolbar && <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 pt-3 mt-3 border-t border-border/30">
+          {showToolbar && <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 pt-3 mt-3 border-t border-purple-500/30">
               {[{
             icon: Youtube,
             name: 'YT Sync',
@@ -286,7 +287,7 @@ const Workspace = () => {
             icon: Radio,
             name: 'Live',
             feature: 'Live Stream'
-          }].map((item, index) => <Button key={index} variant="outline" size="sm" onClick={() => handleFeature(item.feature)} className="flex items-center gap-1 text-xs">
+          }].map((item, index) => <Button key={index} variant="outline" size="sm" onClick={() => handleFeature(item.feature)} className="flex items-center gap-1 text-xs bg-black/80 border-cyan-500/50 text-cyan-400 hover:bg-black/60">
                   <item.icon size={12} className={item.icon === Youtube ? 'text-red-500' : ''} />
                   <span className="hidden sm:inline">{item.name}</span>
                 </Button>)}
@@ -294,34 +295,35 @@ const Workspace = () => {
         </div>
       </header>
 
-      {/* Main Layout - Full Height */}
+      {/* Main Layout - Full Height with chatbox styling */}
       <div className={`flex ${getLayoutStyle()}`} style={{
         height: `calc(100vh - ${showToolbar ? '140px' : '80px'})`
       }}>
-        {/* Chatbot Sidebar */}
-        <div className={`${getSidebarStyle()} border-border bg-card/30 glass overflow-hidden`}>
+        {/* Chatbot Sidebar - matching chatbox style */}
+        <div className={`${getSidebarStyle()} bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden`}>
           <div className="h-full flex flex-col">
             {renderChatbot()}
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className={`${getMainContentStyle()} overflow-hidden`}>
+        {/* Main Content Area with chatbox background */}
+        <div className={`${getMainContentStyle()} overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900`}>
           <Tabs value={activeView} onValueChange={setActiveView} className="h-full flex flex-col">
             <TabsContent value="preview" className="flex-1 m-0 overflow-hidden">
-              <div className="h-full bg-white p-2 sm:p-4 relative overflow-auto">
+              <div className="h-full bg-black/20 p-2 sm:p-4 relative overflow-auto backdrop-blur-sm">
                 {isElementSelectorActive && <ElementSelector onElementSelect={handleElementSelect} isActive={isElementSelectorActive} />}
                 <PreviewFrame 
                   youtubeUrl={youtubeUrl} 
                   projectIdea={projectIdea} 
                   previewMode={previewMode}
                   generatedCode={generatedCode}
+                  channelData={channelData}
                 />
               </div>
             </TabsContent>
             
             <TabsContent value="code" className="flex-1 m-0 overflow-hidden">
-              <div className="h-full">
+              <div className="h-full bg-black/20 backdrop-blur-sm">
                 <CodePreview 
                   generatedCode={generatedCode} 
                   codeBlocks={codeBlocks}

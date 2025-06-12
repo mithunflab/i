@@ -52,6 +52,31 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
       `;
     }
 
+    // Get real video thumbnails with proper URLs
+    const getVideoThumbnail = (video: any) => {
+      if (video?.thumbnail) {
+        // Ensure high quality thumbnail
+        let thumbUrl = video.thumbnail;
+        if (thumbUrl.includes('maxresdefault')) {
+          return thumbUrl;
+        }
+        if (thumbUrl.includes('hqdefault')) {
+          return thumbUrl.replace('hqdefault', 'maxresdefault');
+        }
+        return thumbUrl;
+      }
+      return 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=320&h=180&fit=crop';
+    };
+
+    // Get high quality channel thumbnail
+    const getChannelThumbnail = () => {
+      let thumbUrl = channelData.thumbnail;
+      if (thumbUrl.includes('=s') && !thumbUrl.includes('=s800')) {
+        thumbUrl = thumbUrl.replace(/=s\d+/, '=s800-c-k-c0x00ffffff-no-rj');
+      }
+      return thumbUrl;
+    };
+
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -79,6 +104,37 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
             padding: 0 20px;
         }
         
+        /* Verified Badge */
+        .verified-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(45deg, #4CAF50, #2196F3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .verified-badge::before {
+            content: "✓";
+            background: white;
+            color: #4CAF50;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
         /* Header */
         .header {
             background: rgba(0, 0, 0, 0.9);
@@ -102,10 +158,11 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
         }
         
         .logo img {
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
             border: 3px solid #FF0000;
+            object-fit: cover;
         }
         
         .logo h1 {
@@ -233,6 +290,7 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s;
+            cursor: pointer;
         }
         
         .video-card:hover {
@@ -242,12 +300,35 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
         .video-thumbnail {
             width: 100%;
             height: 200px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .play-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.9);
             color: white;
-            font-size: 3rem;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .play-button:hover {
+            background: #cc0000;
+            transform: translate(-50%, -50%) scale(1.1);
         }
         
         .video-info {
@@ -259,11 +340,27 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
             font-weight: bold;
             margin-bottom: 0.5rem;
             color: #333;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
         
         .video-description {
             color: #666;
             font-size: 0.9rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .video-stats {
+            margin-top: 0.5rem;
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: #888;
         }
         
         /* Footer */
@@ -317,15 +414,27 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
             .video-grid {
                 grid-template-columns: 1fr;
             }
+            
+            .verified-badge {
+                top: 10px;
+                right: 10px;
+                padding: 6px 12px;
+                font-size: 0.8rem;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Verified Badge -->
+    <div class="verified-badge">
+        Developer Verified
+    </div>
+
     <!-- Header -->
     <header class="header">
         <nav class="nav container">
             <div class="logo">
-                <img src="${channelData.thumbnail}" alt="${channelData.title}" onerror="this.src='https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=80&h=80&fit=crop'">
+                <img src="${getChannelThumbnail()}" alt="${channelData.title}" onerror="this.src='https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=80&h=80&fit=crop'">
                 <h1>${channelData.title}</h1>
             </div>
             <ul class="nav-links">
@@ -374,32 +483,46 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
             <h2 class="section-title">Latest Videos</h2>
             <div class="video-grid">
                 ${channelData.videos ? channelData.videos.slice(0, 6).map(video => `
-                    <div class="video-card">
+                    <div class="video-card" onclick="window.open('https://youtube.com/watch?v=${video.id}', '_blank')">
                         <div class="video-thumbnail">
-                            <img src="${video.thumbnail}" alt="${video.title}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.outerHTML='<div style=&quot;width: 100%; height: 100%; background: linear-gradient(45deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem;&quot;>🎥</div>'">
+                            <img src="${getVideoThumbnail(video)}" alt="${video.title}" loading="lazy">
+                            <button class="play-button">▶</button>
                         </div>
                         <div class="video-info">
                             <div class="video-title">${video.title}</div>
-                            <div class="video-description">${video.description ? video.description.substring(0, 100) + '...' : 'Watch this amazing video!'}</div>
+                            <div class="video-description">${video.description ? video.description.substring(0, 120) + '...' : 'Watch this amazing video from our channel!'}</div>
+                            <div class="video-stats">
+                                <span>👁 ${video.viewCount ? parseInt(video.viewCount).toLocaleString() : 'N/A'} views</span>
+                                <span>👍 ${video.likeCount ? parseInt(video.likeCount).toLocaleString() : 'N/A'} likes</span>
+                            </div>
                         </div>
                     </div>
                 `).join('') : `
                     <div class="video-card">
-                        <div class="video-thumbnail">🎥</div>
+                        <div class="video-thumbnail">
+                            <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=320&h=180&fit=crop" alt="Latest Video">
+                            <button class="play-button">▶</button>
+                        </div>
                         <div class="video-info">
                             <div class="video-title">Latest Video</div>
                             <div class="video-description">Check out our latest content!</div>
                         </div>
                     </div>
                     <div class="video-card">
-                        <div class="video-thumbnail">🎬</div>
+                        <div class="video-thumbnail">
+                            <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=320&h=180&fit=crop" alt="Popular Video">
+                            <button class="play-button">▶</button>
+                        </div>
                         <div class="video-info">
                             <div class="video-title">Popular Video</div>
                             <div class="video-description">Our most viewed content!</div>
                         </div>
                     </div>
                     <div class="video-card">
-                        <div class="video-thumbnail">📺</div>
+                        <div class="video-thumbnail">
+                            <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=320&h=180&fit=crop" alt="Featured Video">
+                            <button class="play-button">▶</button>
+                        </div>
                         <div class="video-info">
                             <div class="video-title">Featured Video</div>
                             <div class="video-description">Don't miss this one!</div>
@@ -423,6 +546,31 @@ const PreviewFrame: React.FC<PreviewFrameProps> = ({
             <p style="margin-top: 2rem; opacity: 0.7;">&copy; 2024 ${channelData.title}. All rights reserved.</p>
         </div>
     </footer>
+
+    <script>
+        // Add some interactivity
+        document.addEventListener('DOMContentLoaded', function() {
+            // Smooth scrolling for navigation links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+
+            // Add loading animation for images
+            document.querySelectorAll('img').forEach(img => {
+                img.addEventListener('load', function() {
+                    this.style.opacity = '1';
+                });
+            });
+        });
+    </script>
 </body>
 </html>
     `;

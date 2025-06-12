@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Globe, Plus, Settings, Shield, CheckCircle, Clock, ExternalLink } from 'lucide-react';
+import { Globe, Plus, Settings, Shield, CheckCircle, Clock, ExternalLink, Award } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,8 @@ interface Project {
   status: string;
   created_at: string;
   verification_status?: 'pending' | 'approved' | 'rejected' | null;
+  github_url?: string;
+  netlify_url?: string;
 }
 
 const UserProjects = () => {
@@ -70,6 +72,47 @@ const UserProjects = () => {
       console.error('Error in loadProjects:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGetVerified = async (project: Project) => {
+    try {
+      const { error } = await supabase
+        .from('project_verification_requests')
+        .insert({
+          project_id: project.id,
+          user_id: user?.id,
+          project_name: project.name,
+          project_url: project.netlify_url || project.github_url || '',
+          status: 'pending'
+        });
+
+      if (error) {
+        if (error.code === '23505') { // Unique constraint violation
+          toast({
+            title: "Already Requested",
+            description: "You've already requested verification for this project.",
+            variant: "destructive"
+          });
+          return;
+        }
+        throw error;
+      }
+
+      toast({
+        title: "🎉 Verification Requested!",
+        description: "Your project has been submitted for developer review.",
+      });
+
+      // Reload projects to show updated status
+      loadProjects();
+    } catch (error) {
+      console.error('Error requesting verification:', error);
+      toast({
+        title: "Request Failed",
+        description: "Unable to submit verification request. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -176,11 +219,17 @@ const UserProjects = () => {
                       View
                     </Button>
                     
+                    {/* Get Verified Button */}
                     {canRequestVerification(project.verification_status) && (
-                      <ProjectVerificationDialog 
-                        project={project} 
-                        onVerificationSubmitted={onVerificationSubmitted}
-                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleGetVerified(project)}
+                        className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 flex items-center gap-1"
+                      >
+                        <Award size={14} />
+                        <span className="text-xs">Get Verified</span>
+                      </Button>
                     )}
                   </div>
                 </CardContent>

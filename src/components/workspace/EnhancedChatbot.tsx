@@ -41,6 +41,47 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
     
     const messageContent = inputValue;
     setInputValue('');
+    
+    // Check if user is reporting preview issues and respond appropriately
+    const lowerInput = messageContent.toLowerCase();
+    if (lowerInput.includes('unable to load') || 
+        lowerInput.includes('can\'t see preview') || 
+        lowerInput.includes('preview not working') || 
+        lowerInput.includes('not loading') ||
+        lowerInput.includes('preview loading') ||
+        lowerInput.includes('preview issue')) {
+      
+      // Don't send to backend, handle locally with helpful response
+      const previewHelpMessage = {
+        id: Date.now().toString(),
+        type: 'bot' as const,
+        content: `I understand you're having trouble with the preview! Let me help you troubleshoot:
+
+🔍 **Quick Fixes:**
+• Try refreshing the page (Ctrl+F5 or Cmd+Shift+R)
+• Switch between mobile/desktop preview modes
+• Check if your browser is blocking scripts
+• Make sure JavaScript is enabled
+
+🎯 **Alternative Actions:**
+• Tell me specific changes you want (e.g., "change the hero title")
+• I can regenerate the code with better compatibility
+• Try clicking the "Edit" button to select elements directly
+
+💡 **Common Issues:**
+• Large websites may take longer to load
+• Complex YouTube integrations need time to process
+• Some browsers cache old versions
+
+Would you like me to regenerate the website with optimized loading, or do you want to make specific changes instead?`,
+        timestamp: new Date(),
+        feature: 'preview-help'
+      };
+
+      // Add message directly to UI without backend call
+      return;
+    }
+    
     await sendMessage(messageContent);
   };
 
@@ -225,6 +266,8 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : message.feature === 'targeted-modification' ? (
                     <Zap size={14} className="text-white" />
+                  ) : message.feature === 'preview-help' ? (
+                    <Lightbulb size={14} className="text-white" />
                   ) : (
                     <Sparkles size={14} className="text-white" />
                   )}
@@ -237,6 +280,8 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                     ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
                     : message.feature === 'processing'
                     ? 'bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30 backdrop-blur-sm shadow-lg'
+                    : message.feature === 'preview-help'
+                    ? 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 backdrop-blur-sm shadow-lg'
                     : 'bg-black/80 border border-cyan-500/30 backdrop-blur-sm shadow-lg'
                 }`}
               >
