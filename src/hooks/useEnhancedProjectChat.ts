@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGitHubIntegration } from './useGitHubIntegration';
 import { useNetlifyDeploy } from './useNetlifyDeploy';
-import { generateReadme } from '@/utils/readmeGenerator';
+import { generateReadme, generateProjectFeatures } from '@/utils/readmeGenerator';
 import { useToast } from '@/hooks/use-toast';
 
 interface ChannelData {
@@ -250,11 +250,13 @@ export const useEnhancedProjectChat = (
         ? `${channelData.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-website`
         : 'ai-generated-website';
 
+      const features = generateProjectFeatures(message.codeDescription || 'AI Generated Website', channelData);
+
       const readme = generateReadme({
-        siteName,
+        title: siteName,
         description: message.codeDescription || 'AI Generated Website',
-        channelTitle: channelData?.title || 'AI Generated Project',
-        youtubeUrl
+        channelData,
+        features
       });
 
       // Deploy to GitHub (if available)
