@@ -23,6 +23,8 @@ const Workspace = () => {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string>('');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [codeBlocks, setCodeBlocks] = useState<Array<{ type: string, content: string }>>([]);
+  const [isLiveTyping, setIsLiveTyping] = useState(false);
 
   const {
     youtubeUrl = 'https://youtube.com/@example',
@@ -54,14 +56,23 @@ const Workspace = () => {
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  const handleCodeGenerated = (code: string) => {
-    console.log('📝 New code generated:', code.substring(0, 100) + '...');
-    setGeneratedCode(code);
+  const handleCodeGenerated = (code: string, blocks?: Array<{ type: string, content: string }>) => {
+    console.log('📝 Professional code generated:', code.substring(0, 100) + '...');
+    setIsLiveTyping(true);
     
-    // Switch to preview tab when code is generated
-    if (activeView !== 'preview') {
-      setActiveView('preview');
-    }
+    // Simulate live typing effect
+    setTimeout(() => {
+      setGeneratedCode(code);
+      if (blocks) {
+        setCodeBlocks(blocks);
+      }
+      setIsLiveTyping(false);
+      
+      // Auto-switch to preview when code is generated
+      if (activeView !== 'preview') {
+        setActiveView('preview');
+      }
+    }, 500);
   };
 
   const handleFeature = (feature: string) => {
@@ -176,33 +187,26 @@ const Workspace = () => {
             </div>
             
             <div className="flex items-center gap-3">
+              {/* Enhanced Status Indicator */}
+              {generatedCode && (
+                <div className="flex items-center gap-2 text-xs">
+                  <div className={`w-2 h-2 rounded-full ${isLiveTyping ? 'bg-green-400 animate-pulse' : 'bg-blue-400'}`}></div>
+                  <span className={isLiveTyping ? 'text-green-400' : 'text-blue-400'}>
+                    {isLiveTyping ? 'Live Generation' : 'Code Ready'}
+                  </span>
+                </div>
+              )}
+
               {/* Edit Button */}
               <Button variant={isElementSelectorActive ? 'default' : 'outline'} size="sm" onClick={() => {
               setIsElementSelectorActive(!isElementSelectorActive);
               if (!isElementSelectorActive) {
-                alert('🎯 Element Selector activated! Click any element to customize it for your YouTube brand.');
+                alert('🎯 Element Selector activated! Click any element to customize it for your brand.');
               }
             }} className="flex items-center gap-1">
                 <Zap size={14} />
                 <span className="hidden sm:inline">Edit</span>
               </Button>
-
-              {/* Ideas Button */}
-              <div className="relative">
-                
-                
-                {showQuickActions && <div className="absolute top-full right-0 mt-2 z-50 bg-card border border-border rounded-lg shadow-lg p-3 min-w-64">
-                    <div className="grid grid-cols-1 gap-2">
-                      {quickActions.map(action => <Button key={action.label} variant="ghost" size="sm" className="justify-start text-left" onClick={() => {
-                    handleFeature(action.label);
-                    setShowQuickActions(false);
-                  }}>
-                          <span className="mr-2">{action.icon}</span>
-                          {action.label}
-                        </Button>)}
-                    </div>
-                  </div>}
-              </div>
 
               {/* Features Button */}
               <Button variant="outline" size="sm" onClick={() => setShowToolbar(!showToolbar)} className="flex items-center gap-1">
@@ -232,6 +236,7 @@ const Workspace = () => {
                   <TabsTrigger value="code" className="flex items-center gap-2">
                     <Code size={14} />
                     <span className="hidden sm:inline">Code</span>
+                    {isLiveTyping && <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse ml-1"></div>}
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -317,7 +322,11 @@ const Workspace = () => {
             
             <TabsContent value="code" className="flex-1 m-0 overflow-hidden">
               <div className="h-full">
-                <CodePreview generatedCode={generatedCode} />
+                <CodePreview 
+                  generatedCode={generatedCode} 
+                  codeBlocks={codeBlocks}
+                  isLiveTyping={isLiveTyping}
+                />
               </div>
             </TabsContent>
           </Tabs>

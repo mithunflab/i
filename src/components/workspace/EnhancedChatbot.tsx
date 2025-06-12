@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Youtube, Users, Play, Eye, Lightbulb, Code, FileText, Github, Globe, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Youtube, Users, Play, Eye, Lightbulb, Code, FileText, Github, Globe, ChevronDown, ChevronUp, Sparkles, Zap } from 'lucide-react';
 import { useEnhancedProjectChat } from '@/hooks/useEnhancedProjectChat';
 
 interface ChannelData {
@@ -52,12 +52,12 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
   };
 
   const quickIdeas = [
-    { label: 'Create futuristic website', icon: '🚀' },
-    { label: 'Build cyberpunk design', icon: '🌆' },
-    { label: 'Make modern homepage', icon: '🎨' },
-    { label: 'Add YouTube integration', icon: '📺' },
-    { label: 'Generate professional site', icon: '💼' },
-    { label: 'Create gaming website', icon: '🎮' }
+    { label: 'Create stunning modern website', icon: '🚀' },
+    { label: 'Build professional portfolio', icon: '💼' },
+    { label: 'Make YouTube channel site', icon: '📺' },
+    { label: 'Design landing page', icon: '🎨' },
+    { label: 'Create interactive gallery', icon: '🖼️' },
+    { label: 'Build business website', icon: '🏢' }
   ];
 
   // Mock latest videos for Chitti - Tamil channel
@@ -106,7 +106,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
   React.useEffect(() => {
     const latestMessage = messages[messages.length - 1];
     if (latestMessage?.type === 'bot' && latestMessage.generatedCode) {
-      console.log('🔄 Code generated, updating preview...');
+      console.log('🔄 Professional code generated, updating preview...');
       onCodeGenerated?.(latestMessage.generatedCode);
       
       if (latestMessage.fileChanges) {
@@ -158,7 +158,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-purple-500">
                   <Bot className="text-white" size={16} />
                 </div>
-                <h3 className="font-semibold text-cyan-400 text-sm">Iris AI Assistant</h3>
+                <h3 className="font-semibold text-cyan-400 text-sm">Professional AI Builder</h3>
               </div>
               {isHeaderExpanded ? <ChevronUp size={16} className="text-cyan-400" /> : <ChevronDown size={16} className="text-cyan-400" />}
             </div>
@@ -170,7 +170,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
           <div className="px-3 pb-3 border-t border-purple-500/20">
             <div className="mt-3">
               <p className="text-xs font-medium text-cyan-400 mb-2">
-                {currentProject ? 'Editing Project:' : 'Project Files:'}
+                {currentProject ? 'Active Project:' : 'Generated Files:'}
               </p>
               {currentProject && (
                 <div className="bg-black/30 rounded-lg p-2 mb-3">
@@ -214,7 +214,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-gray-400 italic">No files generated yet</p>
+                  <p className="text-xs text-gray-400 italic">No files generated yet - start creating!</p>
                 )}
               </div>
             </div>
@@ -222,7 +222,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
         )}
       </div>
 
-      {/* Messages - Show file changes in real-time */}
+      {/* Messages - Enhanced for professional generation */}
       <ScrollArea className="flex-1 p-4" style={{ height: 'calc(100vh - 200px)' }}>
         <div className="space-y-4">
           {messages.map((message) => (
@@ -232,12 +232,12 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
             >
               {message.type === 'bot' && (
                 <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-400/50">
-                  {message.feature === 'video' ? (
+                  {message.feature === 'professional-website' ? (
+                    <Zap size={14} className="text-white" />
+                  ) : message.feature === 'video' ? (
                     <Youtube size={14} className="text-white" />
-                  ) : message.feature === 'website' ? (
-                    <Sparkles size={14} className="text-white" />
                   ) : (
-                    <Bot size={14} className="text-white" />
+                    <Sparkles size={14} className="text-white" />
                   )}
                 </div>
               )}
@@ -251,17 +251,20 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
               >
                 <p className="text-sm whitespace-pre-line leading-relaxed text-white">{message.content}</p>
                 
-                {/* Show code generation status */}
+                {/* Enhanced code generation status */}
                 {message.generatedCode && (
                   <div className="mt-3 space-y-2">
-                    <div className="p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
-                      <div className="flex items-center gap-2 text-green-400 text-xs">
-                        <Code size={12} />
-                        <span>✨ Stunning Website Generated!</span>
+                    <div className="p-3 bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+                        <Zap size={14} />
+                        <span>🌟 Professional Website Generated!</span>
                       </div>
                       {message.codeDescription && (
                         <p className="text-xs text-green-300 mt-1">{message.codeDescription}</p>
                       )}
+                      <div className="text-xs text-gray-300 mt-2">
+                        ✨ Modern design • 📱 Responsive • 🎨 YouTube integration • ⚡ Interactive
+                      </div>
                     </div>
                     
                     {(message.githubUrl || message.netlifyUrl) && (
@@ -271,10 +274,10 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                             href={message.githubUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded border border-gray-600 transition-colors"
+                            className="flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg border border-gray-600 transition-colors"
                           >
-                            <Github size={10} />
-                            <span className="text-white">Source Code</span>
+                            <Github size={12} />
+                            <span className="text-white">View Source</span>
                           </a>
                         )}
                         {message.netlifyUrl && (
@@ -282,10 +285,10 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                             href={message.netlifyUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition-colors"
+                            className="flex items-center gap-1 text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-3 py-2 rounded-lg transition-colors"
                           >
-                            <Globe size={10} />
-                            <span className="text-white">Live Site</span>
+                            <Globe size={12} />
+                            <span className="text-white">Live Website</span>
                           </a>
                         )}
                       </div>
@@ -309,18 +312,21 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
           {loading && (
             <div className="flex gap-3 justify-start">
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center flex-shrink-0 animate-pulse shadow-lg shadow-cyan-400/50">
-                <Bot size={14} className="text-white" />
+                <Zap size={14} className="text-white" />
               </div>
-              <div className="bg-black/80 border border-cyan-500/30 backdrop-blur-sm p-3 rounded-lg shadow-lg">
-                <div className="flex items-center gap-2">
+              <div className="bg-black/80 border border-cyan-500/30 backdrop-blur-sm p-4 rounded-lg shadow-lg">
+                <div className="flex items-center gap-3">
                   <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                    <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
-                  <span className="text-sm text-cyan-400 ml-2">
-                    ✨ Creating stunning website code...
+                  <span className="text-sm text-cyan-400 font-medium">
+                    🚀 Creating professional website with YouTube integration...
                   </span>
+                </div>
+                <div className="text-xs text-gray-400 mt-2">
+                  Modern design • Responsive layout • Interactive elements
                 </div>
               </div>
             </div>
@@ -328,13 +334,13 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
         </div>
       </ScrollArea>
 
-      {/* Compact Input */}
+      {/* Enhanced Input */}
       <div className="p-3 border-t border-purple-500/30 bg-black/50 backdrop-blur-sm">
         <div className="relative">
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Input
-                placeholder={`Tell AI what to ${currentProject ? 'change in' : 'create for'} ${channelData?.title || 'you'}...`}
+                placeholder={`Create ${currentProject ? 'updates for' : 'a stunning website for'} ${channelData?.title || 'your project'}...`}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -362,9 +368,10 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
             </Button>
           </div>
 
-          {/* Quick Ideas */}
+          {/* Enhanced Quick Ideas */}
           {showQuickIdeas && (
             <div className="absolute bottom-full left-0 right-0 mb-2 bg-black/90 border border-cyan-500/30 rounded-lg shadow-2xl shadow-cyan-400/20 p-3 z-50 backdrop-blur-sm">
+              <h4 className="text-sm font-medium text-cyan-400 mb-2">💡 Professional Ideas:</h4>
               <div className="grid grid-cols-1 gap-2">
                 {quickIdeas.map((idea) => (
                   <Button
