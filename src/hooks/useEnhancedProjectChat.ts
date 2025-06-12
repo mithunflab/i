@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,7 +30,9 @@ interface ChannelData {
   videos: any[];
 }
 
+// Make MessageMetadata compatible with Supabase Json type
 interface MessageMetadata {
+  [key: string]: string | undefined;
   feature?: string;
   generatedCode?: string;
   codeDescription?: string;
@@ -64,7 +65,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           user_id: user.id,
           message_type: messageType,
           content,
-          metadata
+          metadata: metadata as any // Cast to any to satisfy Json type requirement
         });
 
       if (error) {
