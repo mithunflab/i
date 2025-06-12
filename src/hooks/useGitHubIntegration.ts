@@ -22,7 +22,7 @@ export const useGitHubIntegration = () => {
       
       const githubToken = await apiKeyManager.getGitHubToken();
       if (!githubToken) {
-        throw new Error('GitHub API key not available');
+        throw new Error('GitHub API key not available in Supabase tables');
       }
 
       // Create repository

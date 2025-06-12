@@ -41,7 +41,7 @@ interface AllKeysResponse {
 class ApiKeyManager {
   private cache: Map<string, any[]> = new Map();
   private cacheExpiry: Map<string, number> = new Map();
-  private readonly CACHE_DURATION = 1 * 60 * 1000; // 1 minute cache
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minute cache
 
   private isCacheValid(provider: string): boolean {
     const expiry = this.cacheExpiry.get(provider);
@@ -52,7 +52,7 @@ class ApiKeyManager {
     this.cacheExpiry.set(provider, Date.now() + this.CACHE_DURATION);
   }
 
-  // Get all provider keys (method that was missing)
+  // Get all provider keys
   async getAllProviderKeys(): Promise<AllKeysResponse> {
     console.log('🔍 Getting all provider keys...');
     
@@ -71,49 +71,9 @@ class ApiKeyManager {
     };
   }
 
-  // Get all active API keys from shared pool (accessible to all authenticated users)
-  async getPlatformApiKeys(provider: string): Promise<ApiKey[]> {
-    console.log(`🔍 Getting shared platform API keys for provider: ${provider}`);
-    
-    const cacheKey = `platform_${provider}`;
-    if (this.isCacheValid(cacheKey)) {
-      const cached = this.cache.get(cacheKey);
-      if (cached) {
-        console.log(`📦 Using cached keys for ${provider}:`, cached.length);
-        return cached;
-      }
-    }
-
-    try {
-      // Get all active keys for this provider from shared pool
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('provider', provider)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error(`❌ Error fetching shared ${provider} API keys:`, error);
-        return [];
-      }
-
-      const keys = data || [];
-      console.log(`✅ Fetched ${keys.length} shared platform keys for ${provider}`);
-      
-      this.cache.set(cacheKey, keys);
-      this.setCacheExpiry(cacheKey);
-      
-      return keys;
-    } catch (error) {
-      console.error(`❌ Exception fetching shared ${provider} API keys:`, error);
-      return [];
-    }
-  }
-
-  // Get provider-specific keys (YouTube, OpenRouter, GitHub, Netlify)
+  // Get provider-specific keys from Supabase tables
   async getProviderSpecificKeys(provider: string): Promise<ProviderSpecificKey[]> {
-    console.log(`🔍 Getting shared provider-specific keys for: ${provider}`);
+    console.log(`🔍 Getting provider-specific keys for: ${provider}`);
     
     const cacheKey = `specific_${provider}`;
     if (this.isCacheValid(cacheKey)) {
@@ -221,137 +181,93 @@ class ApiKeyManager {
       }
 
       if (error) {
-        console.error(`❌ Error fetching shared ${provider} provider-specific keys:`, error);
+        console.error(`❌ Error fetching ${provider} provider-specific keys:`, error);
         return [];
       }
 
-      console.log(`✅ Fetched ${data.length} shared provider-specific keys for ${provider}`);
+      console.log(`✅ Fetched ${data.length} provider-specific keys for ${provider}`);
       this.cache.set(cacheKey, data);
       this.setCacheExpiry(cacheKey);
       
       return data;
     } catch (error) {
-      console.error(`❌ Exception fetching shared ${provider} provider-specific keys:`, error);
+      console.error(`❌ Exception fetching ${provider} provider-specific keys:`, error);
       return [];
     }
   }
 
   async getYouTubeKey(): Promise<string | null> {
-    console.log('🎥 Getting shared YouTube API key...');
+    console.log('🎥 Getting YouTube API key...');
     
-    // First try provider-specific table
     const providerKeys = await this.getProviderSpecificKeys('youtube');
     if (providerKeys.length > 0) {
       const activeKey = providerKeys.find(key => key.is_active && key.api_key);
       if (activeKey?.api_key) {
-        console.log('✅ Found shared YouTube key in provider-specific table');
+        console.log('✅ Found YouTube key in provider-specific table');
         return activeKey.api_key;
       }
     }
 
-    // Fallback to general api_keys table
-    const generalKeys = await this.getPlatformApiKeys('YouTube');
-    if (generalKeys.length > 0) {
-      const activeKey = generalKeys.find(key => key.is_active);
-      if (activeKey?.key_value) {
-        console.log('✅ Found shared YouTube key in general api_keys table');
-        return activeKey.key_value;
-      }
-    }
-
-    console.log('❌ No shared YouTube API key found');
+    console.log('❌ No YouTube API key found');
     return null;
   }
 
   async getOpenRouterKey(): Promise<string | null> {
-    console.log('🤖 Getting shared OpenRouter API key...');
+    console.log('🤖 Getting OpenRouter API key...');
     
-    // First try provider-specific table
     const providerKeys = await this.getProviderSpecificKeys('openrouter');
     if (providerKeys.length > 0) {
       const activeKey = providerKeys.find(key => key.is_active && key.api_key);
       if (activeKey?.api_key) {
-        console.log('✅ Found shared OpenRouter key in provider-specific table');
+        console.log('✅ Found OpenRouter key in provider-specific table');
         return activeKey.api_key;
       }
     }
 
-    // Fallback to general api_keys table
-    const generalKeys = await this.getPlatformApiKeys('OpenRouter');
-    if (generalKeys.length > 0) {
-      const activeKey = generalKeys.find(key => key.is_active);
-      if (activeKey?.key_value) {
-        console.log('✅ Found shared OpenRouter key in general api_keys table');
-        return activeKey.key_value;
-      }
-    }
-
-    console.log('❌ No shared OpenRouter API key found');
+    console.log('❌ No OpenRouter API key found');
     return null;
   }
 
   async getGitHubToken(): Promise<string | null> {
-    console.log('🐙 Getting shared GitHub token...');
+    console.log('🐙 Getting GitHub token...');
     
-    // First try provider-specific table including deployment tokens
     const providerKeys = await this.getProviderSpecificKeys('github');
     if (providerKeys.length > 0) {
       const activeKey = providerKeys.find(key => key.is_active && key.api_token);
       if (activeKey?.api_token) {
-        console.log('✅ Found shared GitHub token in provider-specific table');
+        console.log('✅ Found GitHub token in provider-specific table');
         return activeKey.api_token;
       }
     }
 
-    // Fallback to general api_keys table
-    const generalKeys = await this.getPlatformApiKeys('GitHub');
-    if (generalKeys.length > 0) {
-      const activeKey = generalKeys.find(key => key.is_active);
-      if (activeKey?.key_value) {
-        console.log('✅ Found shared GitHub token in general api_keys table');
-        return activeKey.key_value;
-      }
-    }
-
-    console.log('❌ No shared GitHub token found');
+    console.log('❌ No GitHub token found');
     return null;
   }
 
   async getNetlifyToken(): Promise<string | null> {
-    console.log('🌐 Getting shared Netlify token...');
+    console.log('🌐 Getting Netlify token...');
     
-    // First try provider-specific table including deployment tokens
     const providerKeys = await this.getProviderSpecificKeys('netlify');
     if (providerKeys.length > 0) {
       const activeKey = providerKeys.find(key => key.is_active && key.api_token);
       if (activeKey?.api_token) {
-        console.log('✅ Found shared Netlify token in provider-specific table');
+        console.log('✅ Found Netlify token in provider-specific table');
         return activeKey.api_token;
       }
     }
 
-    // Fallback to general api_keys table
-    const generalKeys = await this.getPlatformApiKeys('Netlify');
-    if (generalKeys.length > 0) {
-      const activeKey = generalKeys.find(key => key.is_active);
-      if (activeKey?.key_value) {
-        console.log('✅ Found shared Netlify token in general api_keys table');
-        return activeKey.key_value;
-      }
-    }
-
-    console.log('❌ No shared Netlify token found');
+    console.log('❌ No Netlify token found');
     return null;
   }
 
-  // Check if shared keys are available (accessible to all authenticated users)
+  // Check if keys are available
   async checkKeyAvailability(): Promise<{
     youtube: boolean;
     openrouter: boolean;
     github: boolean;
     netlify: boolean;
   }> {
-    console.log('🔍 Checking shared API key availability for all authenticated users...');
+    console.log('🔍 Checking API key availability...');
     
     const [youtubeKey, openrouterKey, githubKey, netlifyKey] = await Promise.all([
       this.getYouTubeKey(),
@@ -367,16 +283,14 @@ class ApiKeyManager {
       netlify: !!netlifyKey
     };
 
-    console.log('📊 Shared API key availability:', availability);
+    console.log('📊 API key availability:', availability);
     return availability;
   }
 
   // Clear cache for a specific provider or all
   clearCache(provider?: string): void {
     if (provider) {
-      this.cache.delete(`platform_${provider}`);
       this.cache.delete(`specific_${provider}`);
-      this.cacheExpiry.delete(`platform_${provider}`);
       this.cacheExpiry.delete(`specific_${provider}`);
     } else {
       this.cache.clear();
@@ -385,24 +299,18 @@ class ApiKeyManager {
     console.log(`🧹 Cache cleared for ${provider || 'all providers'}`);
   }
 
-  // Get total key count across all providers - now including provider-specific tables
+  // Get total key count across all providers
   async getTotalKeyCount(): Promise<number> {
-    console.log('🔢 Getting total shared platform key count...');
+    console.log('🔢 Getting total platform key count...');
     
     try {
-      // Get counts from all tables
       const [
-        generalKeysResult,
         youtubeKeysResult,
         openrouterKeysResult,
         githubKeysResult,
         netlifyKeysResult,
         deploymentTokensResult
       ] = await Promise.all([
-        supabase
-          .from('api_keys')
-          .select('id', { count: 'exact' })
-          .eq('is_active', true),
         supabase
           .from('youtube_api_keys')
           .select('id', { count: 'exact' })
@@ -426,14 +334,13 @@ class ApiKeyManager {
       ]);
 
       const totalCount = 
-        (generalKeysResult.data?.length || 0) +
-        (youtubeKeysResult.data?.length || 0) +
-        (openrouterKeysResult.data?.length || 0) +
-        (githubKeysResult.data?.length || 0) +
-        (netlifyKeysResult.data?.length || 0) +
-        (deploymentTokensResult.data?.length || 0);
+        (youtubeKeysResult.count || 0) +
+        (openrouterKeysResult.count || 0) +
+        (githubKeysResult.count || 0) +
+        (netlifyKeysResult.count || 0) +
+        (deploymentTokensResult.count || 0);
 
-      console.log(`📊 Total shared platform keys: ${totalCount}`);
+      console.log(`📊 Total platform keys: ${totalCount}`);
       return totalCount;
     } catch (error) {
       console.error('❌ Exception getting total key count:', error);

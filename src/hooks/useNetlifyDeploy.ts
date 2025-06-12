@@ -20,7 +20,7 @@ export const useNetlifyDeploy = () => {
       
       const netlifyToken = await apiKeyManager.getNetlifyToken();
       if (!netlifyToken) {
-        throw new Error('Netlify API key not available');
+        throw new Error('Netlify API key not available in Supabase tables');
       }
 
       // Create site

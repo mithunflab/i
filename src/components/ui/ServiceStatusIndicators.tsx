@@ -26,7 +26,7 @@ const ServiceStatusIndicators = () => {
     // Check service status immediately
     checkServiceStatus();
     
-    // Set up real-time updates for shared keys
+    // Set up real-time updates for keys
     if (user?.id) {
       setupRealTimeUpdates();
     }
@@ -53,10 +53,10 @@ const ServiceStatusIndicators = () => {
     
     if (!user?.id) return;
     
-    console.log('🔄 Setting up real-time updates for shared service status');
+    console.log('🔄 Setting up real-time updates for service status');
     
     channelRef.current = supabase
-      .channel('shared-service-status')
+      .channel('service-status')
       .on(
         'postgres_changes',
         {
@@ -117,26 +117,14 @@ const ServiceStatusIndicators = () => {
           setTimeout(checkServiceStatus, 1000);
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'api_keys'
-        },
-        (payload) => {
-          console.log('🗂️ Real-time general API key update:', payload.eventType);
-          setTimeout(checkServiceStatus, 1000);
-        }
-      )
       .subscribe((status) => {
-        console.log('📡 Shared service status real-time subscription status:', status);
+        console.log('📡 Service status real-time subscription status:', status);
       });
   };
 
   const checkServiceStatus = async () => {
     try {
-      console.log('🔍 Checking shared service status...');
+      console.log('🔍 Checking service status from Supabase tables...');
 
       // Clear cache to get fresh data
       apiKeyManager.clearCache();
@@ -151,10 +139,10 @@ const ServiceStatusIndicators = () => {
         github: availability.github
       };
 
-      console.log('📊 Shared service status updated:', statusWithAI);
+      console.log('📊 Service status updated from Supabase tables:', statusWithAI);
       setServiceStatus(statusWithAI);
     } catch (error) {
-      console.error('❌ Error checking shared service status:', error);
+      console.error('❌ Error checking service status:', error);
       // Set all to false on error
       setServiceStatus({
         ai: false,
@@ -187,7 +175,7 @@ const ServiceStatusIndicators = () => {
           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 border border-gray-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-lg">
             <div className="flex items-center gap-2">
               <span>{service.emoji}</span>
-              <span>{service.name}: {serviceStatus[service.key] ? '✅ Connected (Shared)' : '❌ Not Connected'}</span>
+              <span>{service.name}: {serviceStatus[service.key] ? '✅ Connected' : '❌ Not Connected'}</span>
             </div>
           </div>
         </div>

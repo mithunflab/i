@@ -34,20 +34,20 @@ export class OpenRouterService {
     const startTime = Date.now();
     
     try {
-      console.log('🔄 Attempting to get shared OpenRouter API key...');
+      console.log('🔄 Getting OpenRouter API key from Supabase tables...');
       
       // Clear cache to ensure fresh data
       apiKeyManager.clearCache('openrouter');
       
-      // Try to get OpenRouter key from shared pool
+      // Get OpenRouter key from Supabase tables
       const apiKey = await apiKeyManager.getOpenRouterKey();
       
       if (!apiKey) {
-        console.error('❌ No OpenRouter API key found in shared pool');
-        throw new Error('No active OpenRouter API keys found in shared pool. Please contact admin to add API keys.');
+        console.error('❌ No OpenRouter API key found in Supabase tables');
+        throw new Error('No active OpenRouter API keys found. Please contact admin to add API keys.');
       }
 
-      console.log('✅ Found shared OpenRouter API key, making request...');
+      console.log('✅ Found OpenRouter API key, making request...');
 
       const pricing = await this.getModelPricing(model);
 
