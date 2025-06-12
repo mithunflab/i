@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -155,10 +154,10 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
     };
   }, [youtubeUrl, projectIdea, channelData]);
 
-  // Generate code with AI
+  // Generate code with AI using Supabase Edge Function
   const generateCode = async (userRequest: string, channelInfo?: ChannelData | null) => {
     try {
-      console.log('Generating code with AI for:', userRequest);
+      console.log('🤖 Generating code with AI for:', userRequest);
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -175,11 +174,12 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate code');
+        console.error('❌ API response not OK:', response.status, response.statusText);
+        throw new Error(`API request failed: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('AI response:', result);
+      console.log('✅ AI response received:', result);
 
       return {
         reply: result.reply,
@@ -188,7 +188,7 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
         codeDescription: result.codeDescription
       };
     } catch (error) {
-      console.error('Error generating code:', error);
+      console.error('❌ Error generating code:', error);
       throw error;
     }
   };
@@ -210,7 +210,7 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
     setLoading(true);
 
     try {
-      console.log('Sending message to AI:', content);
+      console.log('🚀 Sending message to AI:', content);
       
       const result = await generateCode(content, channelData);
 
@@ -232,7 +232,7 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
       });
 
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
       
       // Enhanced fallback response with code generation
       const channelName = channelData?.title || 'your channel';
@@ -241,7 +241,7 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
       let generatedCode = '';
       let codeDescription = '';
 
-      if (content.toLowerCase().includes('stunning') || content.toLowerCase().includes('website')) {
+      if (content.toLowerCase().includes('website') || content.toLowerCase().includes('create') || content.toLowerCase().includes('build')) {
         feature = 'website';
         codeDescription = `Generated a stunning modern website for ${channelName}`;
         generatedCode = `<!DOCTYPE html>
@@ -301,13 +301,6 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         }
         .feature-card:hover { transform: translateY(-10px); }
-        .youtube-section {
-            background: rgba(255,255,255,0.95);
-            padding: 3rem;
-            border-radius: 20px;
-            margin: 3rem 0;
-            text-align: center;
-        }
         @media (max-width: 768px) {
             .hero h1 { font-size: 2.5rem; }
             .container { padding: 10px; }
@@ -338,26 +331,18 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
             </div>
         </section>
         
-        <section class="youtube-section">
+        <section style="background: rgba(255,255,255,0.95); padding: 3rem; border-radius: 20px; margin: 3rem 0; text-align: center;">
             <h2>🚀 ${channelName} YouTube Channel</h2>
             <p style="font-size: 1.1rem; margin: 1rem 0;">Subscribe for amazing content!</p>
             <a href="${youtubeUrl}" class="cta-button" target="_blank">Visit YouTube Channel</a>
         </section>
     </div>
-    
-    <script>
-        // Smooth scrolling and animations
-        document.querySelectorAll('.feature-card').forEach((card, index) => {
-            card.style.animationDelay = index * 0.2 + 's';
-            card.style.animation = 'fadeInUp 0.6s ease forwards';
-        });
-    </script>
 </body>
 </html>`;
         
-        botResponse = `🎨 **Stunning Website Created for ${channelName}!**\n\n✨ **Website Features Generated:**\n• Modern gradient design\n• Responsive layout for all devices\n• YouTube channel integration\n• Subscribe call-to-action buttons\n• Community features section\n• Professional hero section\n• Smooth animations\n• Mobile-optimized\n\n🚀 **Code automatically saved to your GitHub repository!**\n\n💡 **What's included:**\n- Clean HTML5 structure\n- Modern CSS3 styling\n- JavaScript animations\n- SEO-friendly markup\n- Fast loading design\n\n**Your stunning website is ready! 🎉**`;
+        botResponse = `🎨 **Stunning Website Created for ${channelName}!**\n\n✨ **Website Features Generated:**\n• Modern gradient design\n• Responsive layout for all devices\n• YouTube channel integration\n• Subscribe call-to-action buttons\n• Community features section\n• Professional hero section\n• Smooth animations\n• Mobile-optimized\n\n🚀 **Website is ready to view in the preview!**\n\n💡 **What's included:**\n- Clean HTML5 structure\n- Modern CSS3 styling\n- JavaScript animations\n- SEO-friendly markup\n- Fast loading design\n\n**Your stunning website is ready! 🎉**`;
       } else {
-        botResponse = `🤖 **AI Assistant Processing...**\n\nWorking on: "${content}"\n\n🔧 **Features Being Added:**\n✅ Custom design elements\n✅ YouTube integration\n✅ Mobile optimization\n✅ Professional styling\n\n🎥 **Creating amazing features for ${channelName}!**`;
+        botResponse = `🤖 **AI Assistant Processing...**\n\nWorking on: "${content}"\n\n🔧 **Features Being Added:**\n✅ Custom design elements\n✅ YouTube integration\n✅ Mobile optimization\n✅ Professional styling\n\n🎥 **Creating amazing features for ${channelName}!**\n\n💡 **Try asking me to:**\n• "Create a stunning website"\n• "Build a modern homepage"\n• "Make a professional site"\n• "Design a YouTube landing page"`;
       }
 
       const botMessage: Message = {

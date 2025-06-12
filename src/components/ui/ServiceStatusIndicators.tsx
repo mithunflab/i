@@ -42,7 +42,7 @@ const ServiceStatusIndicators = () => {
 
   const cleanupRealTimeUpdates = () => {
     if (channelRef.current) {
-      console.log('Cleaning up service status real-time subscription');
+      console.log('🧹 Cleaning up service status real-time subscription');
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
@@ -53,10 +53,10 @@ const ServiceStatusIndicators = () => {
     
     if (!user?.id) return;
     
-    console.log('Setting up real-time updates for shared service status');
+    console.log('🔄 Setting up real-time updates for shared service status');
     
     channelRef.current = supabase
-      .channel(`shared-service-status`)
+      .channel('shared-service-status')
       .on(
         'postgres_changes',
         {
@@ -65,7 +65,7 @@ const ServiceStatusIndicators = () => {
           table: 'youtube_api_keys'
         },
         (payload) => {
-          console.log('Real-time YouTube API key update:', payload);
+          console.log('📺 Real-time YouTube API key update:', payload.eventType);
           setTimeout(checkServiceStatus, 1000);
         }
       )
@@ -77,7 +77,7 @@ const ServiceStatusIndicators = () => {
           table: 'openrouter_api_keys'
         },
         (payload) => {
-          console.log('Real-time AI API key update:', payload);
+          console.log('🤖 Real-time OpenRouter API key update:', payload.eventType);
           setTimeout(checkServiceStatus, 1000);
         }
       )
@@ -89,7 +89,7 @@ const ServiceStatusIndicators = () => {
           table: 'github_api_keys'
         },
         (payload) => {
-          console.log('Real-time GitHub API key update:', payload);
+          console.log('🐙 Real-time GitHub API key update:', payload.eventType);
           setTimeout(checkServiceStatus, 1000);
         }
       )
@@ -101,7 +101,7 @@ const ServiceStatusIndicators = () => {
           table: 'netlify_api_keys'
         },
         (payload) => {
-          console.log('Real-time Netlify API key update:', payload);
+          console.log('🌐 Real-time Netlify API key update:', payload.eventType);
           setTimeout(checkServiceStatus, 1000);
         }
       )
@@ -113,7 +113,7 @@ const ServiceStatusIndicators = () => {
           table: 'deployment_tokens'
         },
         (payload) => {
-          console.log('Real-time deployment token update:', payload);
+          console.log('🔑 Real-time deployment token update:', payload.eventType);
           setTimeout(checkServiceStatus, 1000);
         }
       )
@@ -125,18 +125,18 @@ const ServiceStatusIndicators = () => {
           table: 'api_keys'
         },
         (payload) => {
-          console.log('Real-time general API key update:', payload);
+          console.log('🗂️ Real-time general API key update:', payload.eventType);
           setTimeout(checkServiceStatus, 1000);
         }
       )
       .subscribe((status) => {
-        console.log('Shared service status real-time subscription status:', status);
+        console.log('📡 Shared service status real-time subscription status:', status);
       });
   };
 
   const checkServiceStatus = async () => {
     try {
-      console.log('Checking shared service status...');
+      console.log('🔍 Checking shared service status...');
 
       // Clear cache to get fresh data
       apiKeyManager.clearCache();
@@ -151,10 +151,10 @@ const ServiceStatusIndicators = () => {
         github: availability.github
       };
 
-      console.log('Shared service status updated:', statusWithAI);
+      console.log('📊 Shared service status updated:', statusWithAI);
       setServiceStatus(statusWithAI);
     } catch (error) {
-      console.error('Error checking shared service status:', error);
+      console.error('❌ Error checking shared service status:', error);
       // Set all to false on error
       setServiceStatus({
         ai: false,
@@ -166,10 +166,10 @@ const ServiceStatusIndicators = () => {
   };
 
   const services = [
-    { name: 'AI', key: 'ai' as keyof ServiceStatus },
-    { name: 'YouTube', key: 'youtube' as keyof ServiceStatus },
-    { name: 'GitHub', key: 'github' as keyof ServiceStatus },
-    { name: 'Netlify', key: 'netlify' as keyof ServiceStatus }
+    { name: 'AI', key: 'ai' as keyof ServiceStatus, emoji: '🤖' },
+    { name: 'YouTube', key: 'youtube' as keyof ServiceStatus, emoji: '📺' },
+    { name: 'GitHub', key: 'github' as keyof ServiceStatus, emoji: '🐙' },
+    { name: 'Netlify', key: 'netlify' as keyof ServiceStatus, emoji: '🌐' }
   ];
 
   return (
@@ -184,8 +184,11 @@ const ServiceStatusIndicators = () => {
                 : 'text-red-400 fill-red-400'
             }`}
           />
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-            {service.name}: {serviceStatus[service.key] ? 'Connected (Shared)' : 'Not Connected'}
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 border border-gray-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-lg">
+            <div className="flex items-center gap-2">
+              <span>{service.emoji}</span>
+              <span>{service.name}: {serviceStatus[service.key] ? '✅ Connected (Shared)' : '❌ Not Connected'}</span>
+            </div>
           </div>
         </div>
       ))}

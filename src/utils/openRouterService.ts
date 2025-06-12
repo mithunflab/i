@@ -33,18 +33,24 @@ export class OpenRouterService {
   static async makeRequest(model: string, messages: any[], userId: string) {
     const startTime = Date.now();
     
-    // Get shared OpenRouter API key
-    const apiKey = await apiKeyManager.getOpenRouterKey();
-    
-    if (!apiKey) {
-      throw new Error('No active OpenRouter API keys found in shared pool. Please contact admin to add API keys.');
-    }
-
-    const pricing = await this.getModelPricing(model);
-
     try {
-      console.log('Making OpenRouter request with shared API key...');
+      console.log('🔄 Attempting to get shared OpenRouter API key...');
       
+      // Clear cache to ensure fresh data
+      apiKeyManager.clearCache('openrouter');
+      
+      // Try to get OpenRouter key from shared pool
+      const apiKey = await apiKeyManager.getOpenRouterKey();
+      
+      if (!apiKey) {
+        console.error('❌ No OpenRouter API key found in shared pool');
+        throw new Error('No active OpenRouter API keys found in shared pool. Please contact admin to add API keys.');
+      }
+
+      console.log('✅ Found shared OpenRouter API key, making request...');
+
+      const pricing = await this.getModelPricing(model);
+
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -54,7 +60,7 @@ export class OpenRouterService {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model,
+          model: model || 'gpt-3.5-turbo',
           messages,
           max_tokens: 2000,
           temperature: 0.7
@@ -62,18 +68,25 @@ export class OpenRouterService {
       });
 
       const responseTime = Date.now() - startTime;
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('OpenRouter API error:', response.status, errorText);
+        throw new Error(`OpenRouter API request failed: ${response.status} - ${errorText}`);
+      }
+
       const data: OpenRouterResponse = await response.json();
 
-      if (!response.ok) {
-        console.error('OpenRouter API error:', data);
-        throw new Error(data.error?.message || `API request failed with status ${response.status}`);
+      if (data.error) {
+        console.error('OpenRouter API error in response:', data.error);
+        throw new Error(data.error.message || 'OpenRouter API returned an error');
       }
 
       const tokensUsed = data.usage?.total_tokens || 0;
       const cost = (data.usage?.prompt_tokens || 0) * pricing.input_cost_per_token + 
                    (data.usage?.completion_tokens || 0) * pricing.output_cost_per_token;
 
-      console.log('OpenRouter request successful:', {
+      console.log('✅ OpenRouter request successful:', {
         model,
         tokensUsed,
         cost,
@@ -84,8 +97,8 @@ export class OpenRouterService {
     } catch (error) {
       const responseTime = Date.now() - startTime;
       
-      console.error('OpenRouter request failed:', {
-        error: error.message,
+      console.error('❌ OpenRouter request failed:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
         model,
         responseTime
       });
