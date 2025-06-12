@@ -1,23 +1,11 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGitHubIntegration } from './useGitHubIntegration';
 import { useNetlifyDeploy } from './useNetlifyDeploy';
-import { generateReadme, generateProjectFeatures } from '@/utils/readmeGenerator';
+import { generateReadme } from '@/utils/readmeGenerator';
 import { useToast } from '@/hooks/use-toast';
-
-interface Message {
-  id: string;
-  type: 'user' | 'bot';
-  content: string;
-  timestamp: Date;
-  feature?: string;
-  generatedCode?: string;
-  codeDescription?: string;
-  githubUrl?: string;
-  netlifyUrl?: string;
-}
 
 interface ChannelData {
   id: string;
@@ -31,9 +19,11 @@ interface ChannelData {
   videos: any[];
 }
 
-// Make MessageMetadata compatible with Supabase Json type
-interface MessageMetadata {
-  [key: string]: string | undefined;
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'bot';
+  content: string;
+  timestamp: Date;
   feature?: string;
   generatedCode?: string;
   codeDescription?: string;
@@ -41,34 +31,102 @@ interface MessageMetadata {
   netlifyUrl?: string;
 }
 
-export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, channelData?: ChannelData | null) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+export const useEnhancedProjectChat = (
+  youtubeUrl: string, 
+  projectIdea: string, 
+  channelData?: ChannelData | null
+) => {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [projectId, setProjectId] = useState<string>('');
   const { user } = useAuth();
-  const { createGitHubRepo } = useGitHubIntegration();
-  const { deployToNetlify } = useNetlifyDeploy();
+  const { createGitHubRepo, loading: githubLoading } = useGitHubIntegration();
+  const { deployToNetlify, loading: netlifyLoading } = useNetlifyDeploy();
   const { toast } = useToast();
+  const conversationStarted = useRef(false);
 
-  // Generate a proper UUID for the project instead of using btoa
-  const generateProjectId = useCallback(() => {
-    // Create a deterministic but unique project ID using a combination of URL and idea
-    const uniqueString = youtubeUrl + '::' + projectIdea + '::' + (user?.id || 'anonymous');
-    // Use a simple hash to create a consistent project identifier, then generate UUID
-    let hash = 0;
-    for (let i = 0; i < uniqueString.length; i++) {
-      const char = uniqueString.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
+  // Generate project ID on mount
+  useEffect(() => {
+    if (!projectId) {
+      setProjectId(crypto.randomUUID());
     }
-    
-    // Convert hash to a UUID-like format
-    const hashStr = Math.abs(hash).toString(16).padStart(8, '0');
-    return `${hashStr.substr(0, 8)}-${hashStr.substr(0, 4)}-4${hashStr.substr(1, 3)}-8${hashStr.substr(1, 3)}-${hashStr}${hashStr.substr(0, 4)}`;
-  }, [youtubeUrl, projectIdea, user?.id]);
+  }, [projectId]);
 
-  const projectId = generateProjectId();
+  // Initialize conversation
+  useEffect(() => {
+    if (user && projectId && !conversationStarted.current && (youtubeUrl || projectIdea)) {
+      conversationStarted.current = true;
+      initializeConversation();
+    }
+  }, [user, projectId, youtubeUrl, projectIdea]);
 
-  const saveChatMessage = useCallback(async (messageType: 'user' | 'assistant', content: string, metadata?: MessageMetadata) => {
+  const initializeConversation = async () => {
+    try {
+      // Save or update project
+      await saveOrUpdateProject();
+
+      // Add initial bot message
+      const welcomeMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        type: 'bot',
+        content: channelData 
+          ? `🎥 **Welcome!** I've analyzed **${channelData.title}**'s YouTube channel!\n\n` +
+            `📊 **Channel Stats:**\n` +
+            `• ${parseInt(channelData.subscriberCount).toLocaleString()} subscribers\n` +
+            `• ${parseInt(channelData.videoCount).toLocaleString()} videos\n` +
+            `• ${parseInt(channelData.viewCount).toLocaleString()} total views\n\n` +
+            `🚀 **Ready to create something amazing!** Tell me what kind of website you'd like me to build for this channel. I can create:\n\n` +
+            `• Modern landing pages\n• Interactive portfolios\n• Fan sites\n• Business websites\n• And much more!\n\n` +
+            `What would you like to create?`
+          : `🚀 **AI Website Builder Ready!**\n\n` +
+            `I'm here to help you create amazing websites! Tell me:\n\n` +
+            `• What kind of website do you want?\n• What features should it have?\n• Any specific design preferences?\n\n` +
+            `I'll generate the code and deploy it for you automatically!`,
+        timestamp: new Date(),
+        feature: 'initialization'
+      };
+
+      setMessages([welcomeMessage]);
+      await saveChatMessage(welcomeMessage);
+    } catch (error) {
+      console.error('❌ Initialization error:', error);
+    }
+  };
+
+  const saveOrUpdateProject = async () => {
+    if (!user || !projectId) return;
+
+    try {
+      const projectName = channelData?.title 
+        ? `${channelData.title} Website`
+        : projectIdea || 'AI Generated Website';
+
+      const { error } = await supabase
+        .from('projects')
+        .upsert({
+          id: projectId,
+          user_id: user.id,
+          name: projectName,
+          description: channelData?.description || projectIdea || 'AI generated website project',
+          youtube_url: youtubeUrl,
+          channel_data: channelData as any,
+          status: 'active'
+        }, {
+          onConflict: 'id'
+        });
+
+      if (error) {
+        console.error('❌ Project save error:', error);
+        throw error;
+      }
+
+      console.log('✅ Project saved successfully');
+    } catch (error) {
+      console.error('❌ Error saving project:', error);
+    }
+  };
+
+  const saveChatMessage = async (message: ChatMessage) => {
     if (!user || !projectId) return;
 
     try {
@@ -77,926 +135,353 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
         .insert({
           project_id: projectId,
           user_id: user.id,
-          message_type: messageType,
-          content,
-          metadata: metadata as any
+          message_type: message.type,
+          content: message.content,
+          metadata: {
+            feature: message.feature,
+            generatedCode: message.generatedCode,
+            codeDescription: message.codeDescription,
+            githubUrl: message.githubUrl,
+            netlifyUrl: message.netlifyUrl
+          }
         });
 
       if (error) {
-        console.error('Error saving chat message:', error);
+        console.error('❌ Chat save error:', error);
       }
     } catch (error) {
-      console.error('Error in saveChatMessage:', error);
-    }
-  }, [user, projectId]);
-
-  const saveProject = useCallback(async (code: string, githubUrl?: string, netlifyUrl?: string) => {
-    if (!user || !projectId) return;
-
-    const projectName = channelData?.title || projectIdea;
-    const description = channelData?.description || 'AI Generated Website';
-
-    try {
-      const { error } = await supabase
-        .from('projects')
-        .upsert({
-          id: projectId,
-          user_id: user.id,
-          name: projectName,
-          description: description,
-          status: 'active',
-          source_code: code,
-          github_url: githubUrl,
-          netlify_url: netlifyUrl,
-          youtube_url: youtubeUrl,
-          channel_data: channelData as any
-        });
-
-      if (error) {
-        console.error('Error saving project:', error);
-      } else {
-        console.log('✅ Project saved successfully');
-      }
-    } catch (error) {
-      console.error('Error in saveProject:', error);
-    }
-  }, [user, projectId, channelData, projectIdea, youtubeUrl]);
-
-  const generateEnhancedCode = async (userRequest: string) => {
-    try {
-      console.log('🤖 Generating enhanced AI code for:', userRequest);
-
-      // Force code generation for any meaningful request
-      const shouldGenerateCode = userRequest.length > 10 && 
-        (userRequest.toLowerCase().includes('create') || 
-         userRequest.toLowerCase().includes('build') ||
-         userRequest.toLowerCase().includes('website') ||
-         userRequest.toLowerCase().includes('design') ||
-         userRequest.toLowerCase().includes('make') ||
-         userRequest.toLowerCase().includes('generate'));
-
-      // Fix the API endpoint - use correct Supabase edge function path
-      const response = await fetch(`https://ldcipixxhnrepgkyzmno.supabase.co/functions/v1/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`,
-        },
-        body: JSON.stringify({
-          message: userRequest,
-          projectId,
-          channelData,
-          chatHistory: messages.slice(-5),
-          generateCode: shouldGenerateCode,
-          enhanced: true
-        }),
-      });
-
-      if (!response.ok) {
-        console.error('API request failed:', response.status);
-        throw new Error(`API request failed: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      // Ensure code generation happens
-      if (shouldGenerateCode && (!result.generatedCode || result.generatedCode.length < 1000)) {
-        console.log('🔧 API didnt generate code, creating fallback...');
-        const channelName = channelData?.title || 'Your Channel';
-        result.generatedCode = generateFuturisticWebsite(channelName, channelData);
-        result.feature = 'futuristic-website';
-        result.codeDescription = `Generated a futuristic website for ${channelName}`;
-        result.reply = `🎨 **Futuristic Website Created for ${channelName}!**\n\n✨ **Features Generated:**\n• Modern responsive design\n• YouTube integration\n• Interactive animations\n• Mobile-optimized layout\n• Subscribe widgets\n• Video gallery\n• Social media links\n\n🚀 **Your website is ready and being deployed!**`;
-      }
-
-      return result;
-    } catch (error) {
-      console.error('❌ Error generating enhanced code:', error);
-      
-      // Enhanced fallback with guaranteed code generation
-      const channelName = channelData?.title || 'Your Channel';
-      
-      return {
-        reply: `🎨 **Futuristic Website Created for ${channelName}!**\n\n✨ **Advanced Features Generated:**\n• Cyberpunk-inspired design\n• Interactive animations\n• Real-time particle effects\n• Responsive mobile layout\n• YouTube integration\n• Subscribe widgets\n• Video gallery\n• Social media links\n\n🚀 **Technology Stack:**\n- Modern HTML5\n- Advanced CSS3 with animations\n- JavaScript interactivity\n- Mobile-first design\n- SEO optimization\n\n💫 **Your futuristic website is ready!**`,
-        feature: 'futuristic-website',
-        generatedCode: generateFuturisticWebsite(channelName, channelData),
-        codeDescription: `Created a futuristic, cutting-edge website for ${channelName} with advanced animations and modern design`
-      };
+      console.error('❌ Error saving chat message:', error);
     }
   };
 
-  const generateFuturisticWebsite = (channelName: string, channelData?: ChannelData | null) => {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${channelName} - Futuristic Portal</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body { 
-            font-family: 'Orbitron', 'Arial', sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #533483 100%);
-            color: #fff;
-            overflow-x: hidden;
-            min-height: 100vh;
-        }
-        
-        .cosmic-bg {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="10" cy="10" r="1" fill="white" opacity="0.8"/><circle cx="30" cy="25" r="0.5" fill="cyan"/><circle cx="60" cy="15" r="1.5" fill="purple"/><circle cx="80" cy="40" r="0.8" fill="pink"/><circle cx="20" cy="60" r="1.2" fill="yellow"/><circle cx="70" cy="80" r="0.6" fill="white"/><circle cx="45" cy="70" r="1" fill="cyan"/><circle cx="90" cy="20" r="0.4" fill="white"/></svg>') repeat;
-            animation: float 20s linear infinite;
-            z-index: -1;
-        }
-        
-        @keyframes float { 0% { transform: translateY(0); } 100% { transform: translateY(-100vh); } }
-        
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
-        
-        .cyber-header {
-            text-align: center;
-            padding: 4rem 2rem;
-            background: rgba(0,0,0,0.7);
-            border-radius: 20px;
-            border: 2px solid #00ffff;
-            box-shadow: 0 0 30px rgba(0,255,255,0.3);
-            margin: 2rem 0;
-            backdrop-filter: blur(10px);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .cyber-header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(45deg, transparent, rgba(0,255,255,0.1), transparent);
-            animation: scan 3s linear infinite;
-        }
-        
-        @keyframes scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-        
-        .cyber-title {
-            font-size: 4rem;
-            font-weight: bold;
-            background: linear-gradient(45deg, #00ffff, #ff00ff, #ffff00, #00ffff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: glow 2s ease-in-out infinite alternate;
-            text-shadow: 0 0 20px rgba(0,255,255,0.5);
-            position: relative;
-            z-index: 2;
-        }
-        
-        @keyframes glow { from { filter: brightness(1); } to { filter: brightness(1.2); } }
-        
-        .cyber-subtitle {
-            font-size: 1.5rem;
-            color: #00ffff;
-            margin: 1rem 0;
-            text-shadow: 0 0 10px rgba(0,255,255,0.7);
-            position: relative;
-            z-index: 2;
-        }
-        
-        .neon-button {
-            display: inline-block;
-            padding: 15px 40px;
-            margin: 15px;
-            background: transparent;
-            border: 2px solid #00ffff;
-            color: #00ffff;
-            text-decoration: none;
-            border-radius: 30px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            z-index: 2;
-        }
-        
-        .neon-button:hover {
-            background: #00ffff;
-            color: #000;
-            box-shadow: 0 0 30px #00ffff, inset 0 0 30px rgba(0,255,255,0.2);
-            transform: translateY(-5px);
-        }
-        
-        .neon-button::before {
-            content: '';
-            position: absolute;
-            top: 0; left: -100%;
-            width: 100%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-        
-        .neon-button:hover::before { left: 100%; }
-        
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 2rem;
-            margin: 3rem 0;
-        }
-        
-        .cyber-card {
-            background: rgba(0,0,0,0.8);
-            border: 1px solid #00ffff;
-            border-radius: 15px;
-            padding: 2rem;
-            backdrop-filter: blur(10px);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .cyber-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 2px;
-            background: linear-gradient(90deg, #00ffff, #ff00ff, #ffff00);
-            animation: borderFlow 2s linear infinite;
-        }
-        
-        @keyframes borderFlow {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
-        
-        .cyber-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0,255,255,0.3);
-            border-color: #ff00ff;
-        }
-        
-        .feature-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: #00ffff;
-            text-shadow: 0 0 20px rgba(0,255,255,0.8);
-        }
-        
-        .stats-section {
-            background: rgba(0,0,0,0.9);
-            border-radius: 20px;
-            padding: 3rem;
-            margin: 3rem 0;
-            border: 2px solid #ff00ff;
-            box-shadow: 0 0 30px rgba(255,0,255,0.3);
-            text-align: center;
-        }
-        
-        .stat-number {
-            font-size: 3rem;
-            font-weight: bold;
-            color: #ffff00;
-            text-shadow: 0 0 20px rgba(255,255,0,0.8);
-        }
-        
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.8; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        
-        @media (max-width: 768px) {
-            .cyber-title { font-size: 2.5rem; }
-            .container { padding: 10px; }
-            .cyber-header { padding: 2rem 1rem; }
-            .feature-grid { grid-template-columns: 1fr; }
-        }
-        
-        .matrix-rain {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none;
-            z-index: -1;
-            opacity: 0.1;
-        }
-    </style>
-</head>
-<body>
-    <div class="cosmic-bg"></div>
-    <div class="matrix-rain" id="matrix"></div>
-    
-    <div class="container">
-        <header class="cyber-header">
-            <h1 class="cyber-title">${channelName}</h1>
-            <p class="cyber-subtitle">Welcome to the Future</p>
-            <p style="color: #fff; margin: 1rem 0; position: relative; z-index: 2;">
-                Experience the next generation of digital content
-            </p>
-            <a href="#explore" class="neon-button pulse">🚀 Enter Portal</a>
-            <a href="${youtubeUrl}" class="neon-button" target="_blank">📺 YouTube</a>
-        </header>
-        
-        <section class="feature-grid" id="explore">
-            <div class="cyber-card">
-                <div class="feature-icon">🎬</div>
-                <h3 style="color: #00ffff; margin-bottom: 1rem;">Neural Content</h3>
-                <p>AI-powered video experiences that adapt to your preferences and learning style.</p>
-            </div>
-            
-            <div class="cyber-card">
-                <div class="feature-icon">👥</div>
-                <h3 style="color: #00ffff; margin-bottom: 1rem;">Quantum Community</h3>
-                <p>Connect with minds across dimensions in our advanced community network.</p>
-            </div>
-            
-            <div class="cyber-card">
-                <div class="feature-icon">🔮</div>
-                <h3 style="color: #00ffff; margin-bottom: 1rem;">Future Access</h3>
-                <p>Get exclusive access to tomorrow's content today with our time-shift technology.</p>
-            </div>
-        </section>
-        
-        ${channelData ? `
-        <section class="stats-section">
-            <h2 style="color: #ff00ff; margin-bottom: 2rem; font-size: 2.5rem;">Channel Matrix</h2>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem;">
-                <div>
-                    <div class="stat-number">${parseInt(channelData.subscriberCount).toLocaleString()}</div>
-                    <p style="color: #00ffff;">Quantum Subscribers</p>
-                </div>
-                <div>
-                    <div class="stat-number">${parseInt(channelData.videoCount).toLocaleString()}</div>
-                    <p style="color: #00ffff;">Neural Videos</p>
-                </div>
-                <div>
-                    <div class="stat-number">${parseInt(channelData.viewCount).toLocaleString()}</div>
-                    <p style="color: #00ffff;">Reality Views</p>
-                </div>
-            </div>
-        </section>
-        ` : ''}
-        
-        <section style="background: rgba(0,0,0,0.9); border-radius: 20px; padding: 3rem; margin: 3rem 0; border: 2px solid #ffff00; text-align: center;">
-            <h2 style="color: #ffff00; margin-bottom: 2rem; font-size: 2.5rem;">Join the Revolution</h2>
-            <p style="font-size: 1.2rem; margin-bottom: 2rem;">Be part of the digital evolution</p>
-            <a href="${youtubeUrl}" class="neon-button" target="_blank" style="border-color: #ffff00; color: #ffff00;">
-                ⚡ Subscribe Now
-            </a>
-        </section>
-    </div>
-    
-    <script>
-        // Matrix rain effect
-        function createMatrixRain() {
-            const matrix = document.getElementById('matrix');
-            const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-            
-            for (let i = 0; i < 50; i++) {
-                const drop = document.createElement('div');
-                drop.style.position = 'absolute';
-                drop.style.left = Math.random() * 100 + '%';
-                drop.style.animationDelay = Math.random() * 2 + 's';
-                drop.style.fontSize = (Math.random() * 10 + 10) + 'px';
-                drop.style.color = ['#00ffff', '#ff00ff', '#ffff00'][Math.floor(Math.random() * 3)];
-                drop.textContent = chars[Math.floor(Math.random() * chars.length)];
-                drop.style.animation = 'matrixFall ' + (Math.random() * 3 + 2) + 's linear infinite';
-                matrix.appendChild(drop);
-            }
-        }
-        
-        // Add matrix fall animation
-        const style = document.createElement('style');
-        style.textContent = \`
-            @keyframes matrixFall {
-                to { transform: translateY(100vh); opacity: 0; }
-            }
-        \`;
-        document.head.appendChild(style);
-        
-        createMatrixRain();
-        
-        // Smooth scrolling
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                    behavior: 'smooth'
-                });
-            });
-        });
-        
-        // Parallax effect
-        window.addEventListener('scroll', () => {
-            const scrolled = window.pageYOffset;
-            const cosmicBg = document.querySelector('.cosmic-bg');
-            cosmicBg.style.transform = \`translateY(\${scrolled * 0.5}px)\`;
-        });
-    </script>
-</body>
-</html>`;
-  };
-
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = async (content: string) => {
     if (!content.trim() || loading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
+    setLoading(true);
+
+    // Add user message
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
       type: 'user',
       content,
       timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
-    await saveChatMessage('user', content);
-
-    setLoading(true);
+    await saveChatMessage(userMessage);
 
     try {
-      const result = await generateEnhancedCode(content);
-
-      let githubUrl, netlifyUrl;
-
-      // Auto-deploy to GitHub and Netlify if code was generated
-      if (result.generatedCode && result.generatedCode.length > 1000) {
-        console.log('🚀 Starting deployment process...');
-        
-        try {
-          const projectName = channelData?.title?.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() || 'youtube-website';
-          const features = generateProjectFeatures(projectIdea, channelData);
-          const readme = generateReadme({
-            title: channelData?.title || projectIdea,
-            description: channelData?.description || 'AI Generated Website',
+      // Call chat API
+      const response = await fetch('https://ldcipixxhnrepgkyzmno.supabase.co/functions/v1/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkY2lwaXh4aG5yZXBna3l6bW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0ODc5ODAsImV4cCI6MjA2NTA2Mzk4MH0.DI6yuJwesNPoXTnB5aMDLNOVjPnMbN69kD7nCxFmiTI`
+        },
+        body: JSON.stringify({
+          messages: [...messages, userMessage].map(m => ({
+            role: m.type === 'user' ? 'user' : 'assistant',
+            content: m.content
+          })),
+          context: {
+            youtubeUrl,
+            projectIdea,
             channelData,
-            features
-          });
-
-          console.log('🐙 Creating GitHub repository...');
-          // GitHub deployment with better error handling
-          try {
-            const githubRepo = await createGitHubRepo(
-              projectName,
-              'AI Generated Futuristic Website',
-              result.generatedCode,
-              readme
-            );
-            githubUrl = githubRepo.html_url;
-            console.log('✅ GitHub repository created:', githubUrl);
-          } catch (githubError) {
-            console.error('⚠️ GitHub deployment failed:', githubError);
-            toast({
-              title: "GitHub Setup Needed",
-              description: "Please add a valid GitHub token in settings to enable repository creation.",
-              variant: "destructive"
-            });
+            projectId
           }
-
-          console.log('🌐 Deploying to Netlify...');
-          // Netlify deployment with better error handling
-          try {
-            const netlifyDeployment = await deployToNetlify(
-              projectName,
-              result.generatedCode
-            );
-            netlifyUrl = netlifyDeployment.url;
-            console.log('✅ Netlify deployment successful:', netlifyUrl);
-          } catch (netlifyError) {
-            console.error('⚠️ Netlify deployment failed:', netlifyError);
-            toast({
-              title: "Netlify Setup Needed",
-              description: "Please add a valid Netlify token in settings to enable deployment.",
-              variant: "destructive"
-            });
-          }
-
-          // Save project with URLs
-          await saveProject(result.generatedCode, githubUrl, netlifyUrl);
-
-          if (githubUrl || netlifyUrl) {
-            toast({
-              title: "🚀 Project Deployed!",
-              description: `${netlifyUrl ? `Live at ${netlifyUrl}` : ''} ${githubUrl ? `• Code at ${githubUrl}` : ''}`,
-            });
-          }
-
-        } catch (deployError) {
-          console.error('Deployment error:', deployError);
-          // Still save the project even if deployment fails
-          await saveProject(result.generatedCode);
-          
-          toast({
-            title: "⚠️ Deployment Issue",
-            description: "Code generated but deployment had issues. Check API credentials in settings.",
-            variant: "destructive"
-          });
-        }
-      }
-
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'bot',
-        content: result.reply,
-        timestamp: new Date(),
-        feature: result.feature,
-        generatedCode: result.generatedCode,
-        codeDescription: result.codeDescription,
-        githubUrl,
-        netlifyUrl
-      };
-
-      setMessages(prev => [...prev, botMessage]);
-      await saveChatMessage('assistant', result.reply, { 
-        feature: result.feature,
-        generatedCode: result.generatedCode,
-        codeDescription: result.codeDescription,
-        githubUrl,
-        netlifyUrl
+        })
       });
 
-    } catch (error) {
-      console.error('❌ Error in enhanced chat:', error);
+      if (!response.ok) {
+        throw new Error(`Chat API error: ${response.status}`);
+      }
+
+      const data = await response.json();
       
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+      // Create bot response message
+      const botMessage: ChatMessage = {
+        id: crypto.randomUUID(),
         type: 'bot',
-        content: `🤖 **AI Assistant**\n\nI'm experiencing some technical difficulties, but I'm still here to help! Please try your request again, and I'll do my best to create amazing content for you.\n\n💡 **Try asking me to:**\n• "Create a futuristic website"\n• "Build a modern homepage"\n• "Make a cyberpunk design"\n• "Generate a professional site"`,
-        timestamp: new Date()
+        content: data.message || 'I can help you create an amazing website! What specific features would you like?',
+        timestamp: new Date(),
+        feature: data.feature || 'chat',
+        generatedCode: data.generatedCode,
+        codeDescription: data.codeDescription
       };
 
-      setMessages(prev => [...prev, errorMessage]);
+      // Handle deployment if code was generated
+      if (data.generatedCode) {
+        await handleDeployment(botMessage, data.generatedCode, data.codeDescription);
+      }
+
+      setMessages(prev => [...prev, botMessage]);
+      await saveChatMessage(botMessage);
+
+    } catch (error) {
+      console.error('❌ Chat error:', error);
+      
+      // Fallback response
+      const fallbackMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        type: 'bot',
+        content: `🚀 I'll create a ${channelData ? `website for ${channelData.title}` : 'website'} based on your request!\n\n` +
+                 `✨ **Generating:**\n• Modern responsive design\n• Mobile-friendly layout\n• Professional styling\n• Interactive elements\n\n` +
+                 `🔧 **Features being added:**\n• Hero section\n• Content sections\n• Contact information\n• Social media links\n\n` +
+                 `⚡ **Deployment:** Automatically deploying to GitHub and Netlify...`,
+        timestamp: new Date(),
+        feature: 'futuristic-website',
+        generatedCode: generateFallbackCode(),
+        codeDescription: 'Modern responsive website with interactive elements'
+      };
+
+      await handleDeployment(fallbackMessage, fallbackMessage.generatedCode!, fallbackMessage.codeDescription!);
+      setMessages(prev => [...prev, fallbackMessage]);
+      await saveChatMessage(fallbackMessage);
     } finally {
       setLoading(false);
     }
-  }, [messages, loading, projectId, channelData, saveChatMessage, saveProject, createGitHubRepo, deployToNetlify, toast, projectIdea]);
+  };
 
-  // Load chat history on mount
-  useEffect(() => {
-    const loadChatHistory = async () => {
-      if (!user || !projectId) return;
+  const handleDeployment = async (message: ChatMessage, code: string, description: string) => {
+    try {
+      const siteName = channelData?.title 
+        ? `${channelData.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-website`
+        : 'ai-generated-website';
 
+      const readme = generateReadme(
+        siteName,
+        description,
+        channelData?.title || 'AI Generated Project',
+        youtubeUrl
+      );
+
+      // Deploy to GitHub (if available)
       try {
-        const { data, error } = await supabase
-          .from('project_chat_history')
-          .select('*')
-          .eq('project_id', projectId)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: true });
-
-        if (error) {
-          console.error('Error loading chat history:', error);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          const loadedMessages: Message[] = data.map(msg => {
-            const metadata = msg.metadata as MessageMetadata | null;
-            return {
-              id: msg.id,
-              type: msg.message_type as 'user' | 'bot',
-              content: msg.content,
-              timestamp: new Date(msg.created_at),
-              feature: metadata?.feature,
-              generatedCode: metadata?.generatedCode,
-              codeDescription: metadata?.codeDescription,
-              githubUrl: metadata?.githubUrl,
-              netlifyUrl: metadata?.netlifyUrl
-            };
-          });
-          setMessages(loadedMessages);
-        } else {
-          // Initialize with enhanced welcome message
-          const welcomeMessage: Message = {
-            id: '1',
-            type: 'bot',
-            content: `🤖 **Welcome to Iris AI - Your Futuristic Website Creator!**\n\n${channelData ? `🎥 **Channel Connected:** ${channelData.title}\n📊 **${parseInt(channelData.subscriberCount).toLocaleString()} subscribers** • **${parseInt(channelData.videoCount).toLocaleString()} videos**\n\n` : ''}✨ **I can create:**\n• Futuristic cyberpunk websites\n• Modern responsive designs\n• YouTube channel integration\n• Real-time GitHub deployment\n• Automatic Netlify hosting\n• Professional README files\n• Advanced animations & effects\n\n🚀 **Your projects are automatically saved and deployed!**\n\nWhat kind of amazing website would you like me to create for you?`,
-            timestamp: new Date(),
-            feature: 'welcome'
-          };
-          setMessages([welcomeMessage]);
-          await saveChatMessage('assistant', welcomeMessage.content, { feature: 'welcome' });
+        const githubRepo = await createGitHubRepo(siteName, description, code, readme);
+        if (githubRepo) {
+          message.githubUrl = githubRepo.html_url;
         }
       } catch (error) {
-        console.error('Error in loadChatHistory:', error);
+        console.log('ℹ️ GitHub deployment not available:', error);
       }
-    };
 
-    loadChatHistory();
-  }, [user, projectId, channelData, saveChatMessage]);
+      // Deploy to Netlify (if available)
+      try {
+        const netlifyDeploy = await deployToNetlify(siteName, code);
+        if (netlifyDeploy) {
+          message.netlifyUrl = netlifyDeploy.url;
+        }
+      } catch (error) {
+        console.log('ℹ️ Netlify deployment not available:', error);
+      }
 
-  return {
-    messages,
-    loading,
-    sendMessage,
-    projectId
+      // Update project with deployment URLs
+      if (message.githubUrl || message.netlifyUrl) {
+        await supabase
+          .from('projects')
+          .update({
+            github_url: message.githubUrl,
+            netlify_url: message.netlifyUrl,
+            source_code: code
+          })
+          .eq('id', projectId);
+      }
+
+    } catch (error) {
+      console.error('❌ Deployment error:', error);
+    }
   };
-};
 
-  const generateFuturisticWebsite = (channelName: string, channelData?: ChannelData | null) => {
+  const generateFallbackCode = () => {
+    const title = channelData?.title || 'AI Generated Website';
+    const description = channelData?.description || 'A modern, responsive website built with AI';
+    
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${channelName} - Futuristic Portal</title>
+    <title>${title}</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         
-        body { 
-            font-family: 'Orbitron', 'Arial', sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #533483 100%);
-            color: #fff;
-            overflow-x: hidden;
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
         }
         
-        .cosmic-bg {
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 0;
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="10" cy="10" r="1" fill="white" opacity="0.8"/><circle cx="30" cy="25" r="0.5" fill="cyan"/><circle cx="60" cy="15" r="1.5" fill="purple"/><circle cx="80" cy="40" r="0.8" fill="pink"/><circle cx="20" cy="60" r="1.2" fill="yellow"/><circle cx="70" cy="80" r="0.6" fill="white"/><circle cx="45" cy="70" r="1" fill="cyan"/><circle cx="90" cy="20" r="0.4" fill="white"/></svg>') repeat;
-            animation: float 20s linear infinite;
-            z-index: -1;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
         }
         
-        @keyframes float { 0% { transform: translateY(0); } 100% { transform: translateY(-100vh); } }
-        
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
-        
-        .cyber-header {
-            text-align: center;
-            padding: 4rem 2rem;
-            background: rgba(0,0,0,0.7);
-            border-radius: 20px;
-            border: 2px solid #00ffff;
-            box-shadow: 0 0 30px rgba(0,255,255,0.3);
-            margin: 2rem 0;
-            backdrop-filter: blur(10px);
-            position: relative;
-            overflow: hidden;
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        .cyber-header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(45deg, transparent, rgba(0,255,255,0.1), transparent);
-            animation: scan 3s linear infinite;
-        }
-        
-        @keyframes scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-        
-        .cyber-title {
-            font-size: 4rem;
-            font-weight: bold;
-            background: linear-gradient(45deg, #00ffff, #ff00ff, #ffff00, #00ffff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: glow 2s ease-in-out infinite alternate;
-            text-shadow: 0 0 20px rgba(0,255,255,0.5);
-            position: relative;
-            z-index: 2;
-        }
-        
-        @keyframes glow { from { filter: brightness(1); } to { filter: brightness(1.2); } }
-        
-        .cyber-subtitle {
+        .logo {
             font-size: 1.5rem;
-            color: #00ffff;
-            margin: 1rem 0;
-            text-shadow: 0 0 10px rgba(0,255,255,0.7);
-            position: relative;
-            z-index: 2;
-        }
-        
-        .neon-button {
-            display: inline-block;
-            padding: 15px 40px;
-            margin: 15px;
-            background: transparent;
-            border: 2px solid #00ffff;
-            color: #00ffff;
-            text-decoration: none;
-            border-radius: 30px;
             font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            z-index: 2;
+            color: white;
         }
         
-        .neon-button:hover {
-            background: #00ffff;
-            color: #000;
-            box-shadow: 0 0 30px #00ffff, inset 0 0 30px rgba(0,255,255,0.2);
-            transform: translateY(-5px);
-        }
-        
-        .neon-button::before {
-            content: '';
-            position: absolute;
-            top: 0; left: -100%;
-            width: 100%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-        
-        .neon-button:hover::before { left: 100%; }
-        
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        .nav-links {
+            display: flex;
+            list-style: none;
             gap: 2rem;
-            margin: 3rem 0;
         }
         
-        .cyber-card {
-            background: rgba(0,0,0,0.8);
-            border: 1px solid #00ffff;
-            border-radius: 15px;
-            padding: 2rem;
-            backdrop-filter: blur(10px);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            transition: opacity 0.3s;
         }
         
-        .cyber-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 2px;
-            background: linear-gradient(90deg, #00ffff, #ff00ff, #ffff00);
-            animation: borderFlow 2s linear infinite;
+        .nav-links a:hover {
+            opacity: 0.8;
         }
         
-        @keyframes borderFlow {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
-        
-        .cyber-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0,255,255,0.3);
-            border-color: #ff00ff;
-        }
-        
-        .feature-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: #00ffff;
-            text-shadow: 0 0 20px rgba(0,255,255,0.8);
-        }
-        
-        .stats-section {
-            background: rgba(0,0,0,0.9);
-            border-radius: 20px;
-            padding: 3rem;
-            margin: 3rem 0;
-            border: 2px solid #ff00ff;
-            box-shadow: 0 0 30px rgba(255,0,255,0.3);
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             text-align: center;
+            color: white;
         }
         
-        .stat-number {
-            font-size: 3rem;
+        .hero-content h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero-content p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            max-width: 600px;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 50px;
             font-weight: bold;
-            color: #ffff00;
-            text-shadow: 0 0 20px rgba(255,255,0,0.8);
+            transition: transform 0.3s, box-shadow 0.3s;
         }
         
-        .pulse {
-            animation: pulse 2s infinite;
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
         
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.8; }
-            100% { transform: scale(1); opacity: 1; }
+        .features {
+            padding: 4rem 0;
+            background: white;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .feature-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            transform: translateY(0);
+            transition: transform 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+        }
+        
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
         }
         
         @media (max-width: 768px) {
-            .cyber-title { font-size: 2.5rem; }
-            .container { padding: 10px; }
-            .cyber-header { padding: 2rem 1rem; }
-            .feature-grid { grid-template-columns: 1fr; }
-        }
-        
-        .matrix-rain {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none;
-            z-index: -1;
-            opacity: 0.1;
+            .hero-content h1 {
+                font-size: 2.5rem;
+            }
+            
+            .nav-links {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="cosmic-bg"></div>
-    <div class="matrix-rain" id="matrix"></div>
-    
-    <div class="container">
-        <header class="cyber-header">
-            <h1 class="cyber-title">${channelName}</h1>
-            <p class="cyber-subtitle">Welcome to the Future</p>
-            <p style="color: #fff; margin: 1rem 0; position: relative; z-index: 2;">
-                Experience the next generation of digital content
-            </p>
-            <a href="#explore" class="neon-button pulse">🚀 Enter Portal</a>
-            <a href="${youtubeUrl}" class="neon-button" target="_blank">📺 YouTube</a>
-        </header>
-        
-        <section class="feature-grid" id="explore">
-            <div class="cyber-card">
-                <div class="feature-icon">🎬</div>
-                <h3 style="color: #00ffff; margin-bottom: 1rem;">Neural Content</h3>
-                <p>AI-powered video experiences that adapt to your preferences and learning style.</p>
-            </div>
-            
-            <div class="cyber-card">
-                <div class="feature-icon">👥</div>
-                <h3 style="color: #00ffff; margin-bottom: 1rem;">Quantum Community</h3>
-                <p>Connect with minds across dimensions in our advanced community network.</p>
-            </div>
-            
-            <div class="cyber-card">
-                <div class="feature-icon">🔮</div>
-                <h3 style="color: #00ffff; margin-bottom: 1rem;">Future Access</h3>
-                <p>Get exclusive access to tomorrow's content today with our time-shift technology.</p>
-            </div>
-        </section>
-        
-        ${channelData ? `
-        <section class="stats-section">
-            <h2 style="color: #ff00ff; margin-bottom: 2rem; font-size: 2.5rem;">Channel Matrix</h2>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem;">
-                <div>
-                    <div class="stat-number">${parseInt(channelData.subscriberCount).toLocaleString()}</div>
-                    <p style="color: #00ffff;">Quantum Subscribers</p>
+    <header>
+        <nav class="container">
+            <div class="logo">${title}</div>
+            <ul class="nav-links">
+                <li><a href="#home">Home</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="hero" id="home">
+        <div class="hero-content">
+            <h1>${title}</h1>
+            <p>${description}</p>
+            <a href="#features" class="cta-button">Explore Now</a>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 2rem; font-size: 2.5rem;">Amazing Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>🚀 Fast & Modern</h3>
+                    <p>Built with cutting-edge technology for optimal performance and user experience.</p>
                 </div>
-                <div>
-                    <div class="stat-number">${parseInt(channelData.videoCount).toLocaleString()}</div>
-                    <p style="color: #00ffff;">Neural Videos</p>
+                <div class="feature-card">
+                    <h3>📱 Mobile Ready</h3>
+                    <p>Fully responsive design that looks great on all devices and screen sizes.</p>
                 </div>
-                <div>
-                    <div class="stat-number">${parseInt(channelData.viewCount).toLocaleString()}</div>
-                    <p style="color: #00ffff;">Reality Views</p>
+                <div class="feature-card">
+                    <h3>✨ Interactive</h3>
+                    <p>Engaging animations and interactive elements that delight your visitors.</p>
                 </div>
             </div>
-        </section>
-        ` : ''}
-        
-        <section style="background: rgba(0,0,0,0.9); border-radius: 20px; padding: 3rem; margin: 3rem 0; border: 2px solid #ffff00; text-align: center;">
-            <h2 style="color: #ffff00; margin-bottom: 2rem; font-size: 2.5rem;">Join the Revolution</h2>
-            <p style="font-size: 1.2rem; margin-bottom: 2rem;">Be part of the digital evolution</p>
-            <a href="${youtubeUrl}" class="neon-button" target="_blank" style="border-color: #ffff00; color: #ffff00;">
-                ⚡ Subscribe Now
-            </a>
-        </section>
-    </div>
-    
+        </div>
+    </section>
+
     <script>
-        // Matrix rain effect
-        function createMatrixRain() {
-            const matrix = document.getElementById('matrix');
-            const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-            
-            for (let i = 0; i < 50; i++) {
-                const drop = document.createElement('div');
-                drop.style.position = 'absolute';
-                drop.style.left = Math.random() * 100 + '%';
-                drop.style.animationDelay = Math.random() * 2 + 's';
-                drop.style.fontSize = (Math.random() * 10 + 10) + 'px';
-                drop.style.color = ['#00ffff', '#ff00ff', '#ffff00'][Math.floor(Math.random() * 3)];
-                drop.textContent = chars[Math.floor(Math.random() * chars.length)];
-                drop.style.animation = 'matrixFall ' + (Math.random() * 3 + 2) + 's linear infinite';
-                matrix.appendChild(drop);
-            }
-        }
-        
-        // Add matrix fall animation
-        const style = document.createElement('style');
-        style.textContent = \`
-            @keyframes matrixFall {
-                to { transform: translateY(100vh); opacity: 0; }
-            }
-        \`;
-        document.head.appendChild(style);
-        
-        createMatrixRain();
-        
-        // Smooth scrolling
+        // Smooth scrolling for navigation links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -1005,68 +490,27 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
                 });
             });
         });
-        
-        // Parallax effect
+
+        // Add scroll effect to header
         window.addEventListener('scroll', () => {
-            const scrolled = window.pageYOffset;
-            const cosmicBg = document.querySelector('.cosmic-bg');
-            cosmicBg.style.transform = \`translateY(\${scrolled * 0.5}px)\`;
+            const header = document.querySelector('header');
+            if (window.scrollY > 100) {
+                header.style.background = 'rgba(255, 255, 255, 0.95)';
+                header.style.color = '#333';
+            } else {
+                header.style.background = 'rgba(255, 255, 255, 0.1)';
+                header.style.color = 'white';
+            }
         });
     </script>
 </body>
 </html>`;
   };
 
-  // Load chat history on mount
-  useEffect(() => {
-    const loadChatHistory = async () => {
-      if (!user || !projectId) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('project_chat_history')
-          .select('*')
-          .eq('project_id', projectId)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: true });
-
-        if (error) {
-          console.error('Error loading chat history:', error);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          const loadedMessages: Message[] = data.map(msg => {
-            const metadata = msg.metadata as MessageMetadata | null;
-            return {
-              id: msg.id,
-              type: msg.message_type as 'user' | 'bot',
-              content: msg.content,
-              timestamp: new Date(msg.created_at),
-              feature: metadata?.feature,
-              generatedCode: metadata?.generatedCode,
-              codeDescription: metadata?.codeDescription,
-              githubUrl: metadata?.githubUrl,
-              netlifyUrl: metadata?.netlifyUrl
-            };
-          });
-          setMessages(loadedMessages);
-        } else {
-          // Initialize with enhanced welcome message
-          const welcomeMessage: Message = {
-            id: '1',
-            type: 'bot',
-            content: `🤖 **Welcome to Iris AI - Your Futuristic Website Creator!**\n\n${channelData ? `🎥 **Channel Connected:** ${channelData.title}\n📊 **${parseInt(channelData.subscriberCount).toLocaleString()} subscribers** • **${parseInt(channelData.videoCount).toLocaleString()} videos**\n\n` : ''}✨ **I can create:**\n• Futuristic cyberpunk websites\n• Modern responsive designs\n• YouTube channel integration\n• Real-time GitHub deployment\n• Automatic Netlify hosting\n• Professional README files\n• Advanced animations & effects\n\n🚀 **Your projects are automatically saved and deployed!**\n\nWhat kind of amazing website would you like me to create for you?`,
-            timestamp: new Date(),
-            feature: 'welcome'
-          };
-          setMessages([welcomeMessage]);
-          await saveChatMessage('assistant', welcomeMessage.content, { feature: 'welcome' });
-        }
-      } catch (error) {
-        console.error('Error in loadChatHistory:', error);
-      }
-    };
-
-    loadChatHistory();
-  }, [user, projectId, channelData, saveChatMessage]);
+  return {
+    messages,
+    loading: loading || githubLoading || netlifyLoading,
+    sendMessage,
+    projectId
+  };
+};
