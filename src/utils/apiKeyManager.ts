@@ -52,6 +52,25 @@ class ApiKeyManager {
     this.cacheExpiry.set(provider, Date.now() + this.CACHE_DURATION);
   }
 
+  // Get all provider keys (method that was missing)
+  async getAllProviderKeys(): Promise<AllKeysResponse> {
+    console.log('🔍 Getting all provider keys...');
+    
+    const [youtube, openrouter, github, netlify] = await Promise.all([
+      this.getProviderSpecificKeys('youtube'),
+      this.getProviderSpecificKeys('openrouter'),
+      this.getProviderSpecificKeys('github'),
+      this.getProviderSpecificKeys('netlify')
+    ]);
+
+    return {
+      youtube,
+      openrouter,
+      github,
+      netlify
+    };
+  }
+
   // Get all active API keys from shared pool (accessible to all authenticated users)
   async getPlatformApiKeys(provider: string): Promise<ApiKey[]> {
     console.log(`🔍 Getting shared platform API keys for provider: ${provider}`);
