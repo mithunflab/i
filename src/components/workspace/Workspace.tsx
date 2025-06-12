@@ -2,9 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, MessageSquare, Code, Eye, Rocket, Settings, Smartphone, Monitor, Tablet, Zap, Palette, Database, Cloud, Shield, Globe, Image, FileText, Download, Share2, Youtube, Play, Bell, TrendingUp, DollarSign, Radio, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Code, Eye, Rocket, Smartphone, Monitor, Tablet, Zap, Palette, Youtube, Play, Bell, TrendingUp, DollarSign, Radio, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
 import Chatbot from './Chatbot';
 import CodePreview from './CodePreview';
 import ElementSelector from './ElementSelector';
@@ -136,184 +135,164 @@ const Workspace = () => {
 
   return (
     <div className="min-h-screen bg-background animated-gradient overflow-hidden">
-      {/* Header - Responsive */}
+      {/* Compact Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm glass">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <div className="flex items-center gap-4">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate('/user-dashboard')}
-                  className="flex items-center gap-2 cyber-button"
-                >
-                  <ArrowLeft size={16} />
-                  <span className="hidden sm:inline">Back</span>
-                </Button>
-                <div className="flex items-center gap-3">
-                  <div>
-                    <h1 className="text-lg sm:text-xl font-bold neon-text flex items-center gap-2">
-                      <Youtube className="w-5 h-5 text-red-500" />
-                      {channelData ? `${channelData.title} Website` : 'Creator Website Builder'}
-                    </h1>
-                  </div>
-                  <ServiceStatusIndicators />
-                </div>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-                {/* Device Preview Toggle */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={previewMode === 'mobile' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPreviewMode('mobile')}
-                    className="flex items-center gap-1"
-                  >
-                    <Smartphone size={14} />
-                    <span className="hidden sm:inline">Mobile</span>
-                  </Button>
-                  <Button
-                    variant={previewMode === 'tablet' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPreviewMode('tablet')}
-                    className="flex items-center gap-1"
-                  >
-                    <Tablet size={14} />
-                    <span className="hidden sm:inline">Tablet</span>
-                  </Button>
-                  <Button
-                    variant={previewMode === 'desktop' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPreviewMode('desktop')}
-                    className="flex items-center gap-1"
-                  >
-                    <Monitor size={14} />
-                    <span className="hidden sm:inline">Desktop</span>
-                  </Button>
-                </div>
-
-                <Tabs value={activeView} onValueChange={setActiveView}>
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="preview" className="flex items-center gap-2">
-                      <Eye size={14} />
-                      <span className="hidden sm:inline">Preview</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="code" className="flex items-center gap-2">
-                      <Code size={14} />
-                      <span className="hidden sm:inline">Code</span>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                
-                <Button onClick={handleDeploy} className="cyber-button flex items-center gap-2 w-full sm:w-auto">
-                  <Rocket size={16} />
-                  <span>Publish Website</span>
-                </Button>
-              </div>
+        <div className="container mx-auto px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => navigate('/user-dashboard')}
+                className="flex items-center gap-2 cyber-button"
+              >
+                <ArrowLeft size={16} />
+                <span className="hidden sm:inline">Back</span>
+              </Button>
+              <ServiceStatusIndicators />
             </div>
+            
+            <div className="flex items-center gap-3">
+              {/* Edit Button */}
+              <Button
+                variant={isElementSelectorActive ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setIsElementSelectorActive(!isElementSelectorActive);
+                  if (!isElementSelectorActive) {
+                    alert('🎯 Element Selector activated! Click any element to customize it for your YouTube brand.');
+                  }
+                }}
+                className="flex items-center gap-1"
+              >
+                <Zap size={14} />
+                <span className="hidden sm:inline">Edit</span>
+              </Button>
 
-            {/* Collapsible Creator Feature Toolbar */}
-            <div className="pt-2 border-t border-border/30">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={isElementSelectorActive ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => {
-                      setIsElementSelectorActive(!isElementSelectorActive);
-                      if (!isElementSelectorActive) {
-                        alert('🎯 Element Selector activated! Click any element to customize it for your YouTube brand.');
-                      }
-                    }}
-                    className="flex items-center gap-1 text-xs"
-                  >
-                    <Zap size={12} />
-                    <span className="hidden sm:inline">Edit</span>
-                  </Button>
-
-                  {/* Ideas Button with Quick Actions */}
-                  <div className="relative">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowQuickActions(!showQuickActions)}
-                      className="flex items-center gap-1 text-xs"
-                    >
-                      <Lightbulb size={12} />
-                      <span className="hidden sm:inline">Ideas</span>
-                    </Button>
-                    
-                    {showQuickActions && (
-                      <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-lg shadow-lg p-3 min-w-64">
-                        <div className="grid grid-cols-1 gap-2">
-                          {quickActions.map((action) => (
-                            <Button
-                              key={action.label}
-                              variant="ghost"
-                              size="sm"
-                              className="justify-start text-left"
-                              onClick={() => {
-                                handleFeature(action.label);
-                                setShowQuickActions(false);
-                              }}
-                            >
-                              <span className="mr-2">{action.icon}</span>
-                              {action.label}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
+              {/* Ideas Button */}
+              <div className="relative">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={() => setShowToolbar(!showToolbar)}
-                  className="flex items-center gap-1 text-xs"
+                  onClick={() => setShowQuickActions(!showQuickActions)}
+                  className="flex items-center gap-1"
                 >
-                  <span className="hidden sm:inline">Features</span>
-                  {showToolbar ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  <Lightbulb size={14} />
+                  <span className="hidden sm:inline">Ideas</span>
+                </Button>
+                
+                {showQuickActions && (
+                  <div className="absolute top-full right-0 mt-2 z-50 bg-card border border-border rounded-lg shadow-lg p-3 min-w-64">
+                    <div className="grid grid-cols-1 gap-2">
+                      {quickActions.map((action) => (
+                        <Button
+                          key={action.label}
+                          variant="ghost"
+                          size="sm"
+                          className="justify-start text-left"
+                          onClick={() => {
+                            handleFeature(action.label);
+                            setShowQuickActions(false);
+                          }}
+                        >
+                          <span className="mr-2">{action.icon}</span>
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Features Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowToolbar(!showToolbar)}
+                className="flex items-center gap-1"
+              >
+                <span className="hidden sm:inline">Features</span>
+                {showToolbar ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </Button>
+
+              {/* Device Preview Toggle */}
+              <div className="hidden sm:flex items-center gap-1">
+                <Button
+                  variant={previewMode === 'mobile' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPreviewMode('mobile')}
+                >
+                  <Smartphone size={14} />
+                </Button>
+                <Button
+                  variant={previewMode === 'tablet' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPreviewMode('tablet')}
+                >
+                  <Tablet size={14} />
+                </Button>
+                <Button
+                  variant={previewMode === 'desktop' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPreviewMode('desktop')}
+                >
+                  <Monitor size={14} />
                 </Button>
               </div>
 
-              {showToolbar && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 pt-2">
-                  {[
-                    { icon: Youtube, name: 'YT Sync', feature: 'YouTube Sync' },
-                    { icon: Palette, name: 'Branding', feature: 'Channel Branding' },
-                    { icon: Play, name: 'Videos', feature: 'Video Gallery' },
-                    { icon: Bell, name: 'Subscribe', feature: 'Subscribe Widget' },
-                    { icon: TrendingUp, name: 'Analytics', feature: 'Analytics' },
-                    { icon: Globe, name: 'SEO', feature: 'SEO Boost' },
-                    { icon: DollarSign, name: 'Monetize', feature: 'Monetization' },
-                    { icon: Smartphone, name: 'Mobile', feature: 'Mobile Optimize' },
-                    { icon: Radio, name: 'Live', feature: 'Live Stream' }
-                  ].map((item, index) => (
-                    <Button
-                      key={index}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleFeature(item.feature)}
-                      className="flex items-center gap-1 text-xs"
-                    >
-                      <item.icon size={12} className={item.icon === Youtube ? 'text-red-500' : ''} />
-                      <span className="hidden sm:inline">{item.name}</span>
-                    </Button>
-                  ))}
-                </div>
-              )}
+              <Tabs value={activeView} onValueChange={setActiveView}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="preview" className="flex items-center gap-2">
+                    <Eye size={14} />
+                    <span className="hidden sm:inline">Preview</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="code" className="flex items-center gap-2">
+                    <Code size={14} />
+                    <span className="hidden sm:inline">Code</span>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              
+              <Button onClick={handleDeploy} className="cyber-button flex items-center gap-2">
+                <Rocket size={16} />
+                <span>Publish</span>
+              </Button>
             </div>
           </div>
+
+          {/* Collapsible Features Toolbar */}
+          {showToolbar && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 pt-3 mt-3 border-t border-border/30">
+              {[
+                { icon: Youtube, name: 'YT Sync', feature: 'YouTube Sync' },
+                { icon: Palette, name: 'Branding', feature: 'Channel Branding' },
+                { icon: Play, name: 'Videos', feature: 'Video Gallery' },
+                { icon: Bell, name: 'Subscribe', feature: 'Subscribe Widget' },
+                { icon: TrendingUp, name: 'Analytics', feature: 'Analytics' },
+                { icon: Rocket, name: 'SEO', feature: 'SEO Boost' },
+                { icon: DollarSign, name: 'Monetize', feature: 'Monetization' },
+                { icon: Smartphone, name: 'Mobile', feature: 'Mobile Optimize' },
+                { icon: Radio, name: 'Live', feature: 'Live Stream' }
+              ].map((item, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleFeature(item.feature)}
+                  className="flex items-center gap-1 text-xs"
+                >
+                  <item.icon size={12} className={item.icon === Youtube ? 'text-red-500' : ''} />
+                  <span className="hidden sm:inline">{item.name}</span>
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Main Layout - Fully Responsive */}
-      <div className={`flex ${getLayoutStyle()}`} style={{ height: `calc(100vh - ${deviceType === 'mobile' ? '180px' : '160px'})` }}>
-        {/* Chatbot Sidebar - Responsive */}
+      {/* Main Layout - Full Height */}
+      <div className={`flex ${getLayoutStyle()}`} style={{ height: `calc(100vh - ${showToolbar ? '140px' : '80px'})` }}>
+        {/* Chatbot Sidebar */}
         <div className={`${getSidebarStyle()} border-border bg-card/30 glass overflow-hidden`}>
           <div className="h-full flex flex-col">
             <Chatbot 
@@ -324,7 +303,7 @@ const Workspace = () => {
           </div>
         </div>
 
-        {/* Main Content Area - Responsive */}
+        {/* Main Content Area */}
         <div className={`${getMainContentStyle()} overflow-hidden`}>
           <Tabs value={activeView} onValueChange={setActiveView} className="h-full flex flex-col">
             <TabsContent value="preview" className="flex-1 m-0 overflow-hidden">

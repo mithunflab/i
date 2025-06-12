@@ -6,16 +6,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { apiKeyManager } from '@/utils/apiKeyManager';
 
 interface ServiceStatus {
+  ai: boolean;
   youtube: boolean;
-  openrouter: boolean;
   netlify: boolean;
   github: boolean;
 }
 
 const ServiceStatusIndicators = () => {
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus>({
+    ai: false,
     youtube: false,
-    openrouter: false,
     netlify: false,
     github: false
   });
@@ -23,10 +23,8 @@ const ServiceStatusIndicators = () => {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    // Check service status immediately when component mounts
     checkServiceStatus();
     
-    // Set up real-time updates only if user is available
     if (user?.id) {
       setupRealTimeUpdates();
     }
@@ -75,7 +73,7 @@ const ServiceStatusIndicators = () => {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Real-time OpenRouter API key update:', payload);
+          console.log('Real-time AI API key update:', payload);
           checkServiceStatus();
         }
       )
@@ -112,23 +110,30 @@ const ServiceStatusIndicators = () => {
 
   const checkServiceStatus = async () => {
     try {
-      console.log('Checking service status (global access)...');
+      console.log('Checking service status...');
 
-      // Use the apiKeyManager to check availability (now works globally for all users)
       const availability = await apiKeyManager.checkKeyAvailability();
 
-      console.log('Service status updated (global):', availability);
-      setServiceStatus(availability);
+      // Map openrouter to ai for display
+      const statusWithAI = {
+        ai: availability.openrouter,
+        youtube: availability.youtube,
+        netlify: availability.netlify,
+        github: availability.github
+      };
+
+      console.log('Service status updated:', statusWithAI);
+      setServiceStatus(statusWithAI);
     } catch (error) {
       console.error('Error checking service status:', error);
     }
   };
 
   const services = [
+    { name: 'AI', key: 'ai' as keyof ServiceStatus },
     { name: 'YouTube', key: 'youtube' as keyof ServiceStatus },
-    { name: 'OpenRouter', key: 'openrouter' as keyof ServiceStatus },
-    { name: 'Netlify', key: 'netlify' as keyof ServiceStatus },
-    { name: 'GitHub', key: 'github' as keyof ServiceStatus }
+    { name: 'GitHub', key: 'github' as keyof ServiceStatus },
+    { name: 'Netlify', key: 'netlify' as keyof ServiceStatus }
   ];
 
   return (
