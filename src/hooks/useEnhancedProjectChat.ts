@@ -250,12 +250,12 @@ export const useEnhancedProjectChat = (
         ? `${channelData.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-website`
         : 'ai-generated-website';
 
-      const readme = generateReadme(
+      const readme = generateReadme({
         siteName,
-        message.codeDescription || 'AI Generated Website',
-        channelData?.title || 'AI Generated Project',
+        description: message.codeDescription || 'AI Generated Website',
+        channelTitle: channelData?.title || 'AI Generated Project',
         youtubeUrl
-      );
+      });
 
       // Deploy to GitHub (if available)
       try {
