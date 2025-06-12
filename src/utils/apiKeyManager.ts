@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 interface ApiKey {
@@ -51,19 +52,20 @@ class ApiKeyManager {
     this.cacheExpiry.set(provider, Date.now() + this.CACHE_DURATION);
   }
 
-  // Log real-time API usage
+  // Log API usage using existing api_usage_logs table
   private async logApiUsage(provider: string, endpoint: string, success: boolean, responseTime?: number, projectId?: string) {
     try {
       await supabase
-        .from('real_time_api_usage')
+        .from('api_usage_logs')
         .insert({
           provider,
-          endpoint,
-          success_count: success ? 1 : 0,
-          error_count: success ? 0 : 1,
-          response_time_ms: responseTime,
-          project_id: projectId,
-          usage_timestamp: new Date().toISOString()
+          model: endpoint,
+          status: success ? 'success' : 'error',
+          response_time_ms: responseTime || 0,
+          tokens_used: 1,
+          cost_usd: 0.01,
+          request_data: { project_id: projectId },
+          response_data: { timestamp: new Date().toISOString() }
         });
     } catch (error) {
       console.error('Failed to log API usage:', error);

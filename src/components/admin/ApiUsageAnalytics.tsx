@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -20,15 +19,15 @@ const ApiUsageAnalytics = () => {
   const loadAnalyticsData = async () => {
     setLoading(true);
     try {
-      // Load real API usage data from last 24 hours
+      // Load real API usage data from last 24 hours using existing api_usage_logs table
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
 
       const { data: usageData, error } = await supabase
-        .from('real_time_api_usage')
+        .from('api_usage_logs')
         .select('*')
-        .gte('usage_timestamp', yesterday.toISOString())
-        .order('usage_timestamp', { ascending: true });
+        .gte('created_at', yesterday.toISOString())
+        .order('created_at', { ascending: true });
 
       if (error) {
         console.error('Error loading analytics data:', error);
@@ -61,7 +60,7 @@ const ApiUsageAnalytics = () => {
     const hourlyMap = new Map();
     
     data.forEach(item => {
-      const hour = new Date(item.usage_timestamp).getHours();
+      const hour = new Date(item.created_at).getHours();
       const timeKey = `${hour.toString().padStart(2, '0')}:00`;
       
       if (!hourlyMap.has(timeKey)) {
@@ -75,9 +74,9 @@ const ApiUsageAnalytics = () => {
       }
       
       const entry = hourlyMap.get(timeKey);
-      entry.calls += item.requests_count || 1;
+      entry.calls += 1;
       entry.latency += item.response_time_ms || 0;
-      entry.errors += item.error_count || 0;
+      entry.errors += item.status === 'error' ? 1 : 0;
       entry.count += 1;
     });
 
@@ -106,8 +105,8 @@ const ApiUsageAnalytics = () => {
       }
       
       const entry = providerMap.get(provider);
-      entry.usage += item.requests_count || 1;
-      entry.revenue += (item.requests_count || 1) * 0.01; // Estimated cost
+      entry.usage += 1;
+      entry.revenue += item.cost_usd || 0.01; // Use actual cost or estimate
     });
 
     return Array.from(providerMap.values());

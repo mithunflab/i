@@ -8,13 +8,13 @@ import { supabase } from '@/integrations/supabase/client';
 interface ApiUsage {
   id: string;
   provider: string;
-  endpoint: string;
-  requests_count: number;
-  success_count: number;
-  error_count: number;
+  model: string;
+  status: string;
   response_time_ms: number;
-  usage_timestamp: string;
-  project_id: string;
+  tokens_used: number;
+  cost_usd: number;
+  created_at: string;
+  user_id?: string;
 }
 
 const RealTimeApiAnalytics = () => {
@@ -30,7 +30,7 @@ const RealTimeApiAnalytics = () => {
     // Load initial data
     loadRealtimeUsage();
 
-    // Set up real-time subscription
+    // Set up real-time subscription using existing api_usage_logs table
     const channel = supabase
       .channel('api-usage-updates')
       .on(
@@ -38,11 +38,12 @@ const RealTimeApiAnalytics = () => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'real_time_api_usage'
+          table: 'api_usage_logs'
         },
         (payload) => {
           console.log('New API usage:', payload);
-          setRealtimeUsage(prev => [payload.new as ApiUsage, ...prev.slice(0, 49)]);
+          const newUsage = payload.new as ApiUsage;
+          setRealtimeUsage(prev => [newUsage, ...prev.slice(0, 49)]);
           updateStats();
         }
       )
@@ -56,7 +57,7 @@ const RealTimeApiAnalytics = () => {
   const loadRealtimeUsage = async () => {
     try {
       const { data, error } = await supabase
-        .from('real_time_api_usage')
+        .from('api_usage_logs')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50);
@@ -66,7 +67,8 @@ const RealTimeApiAnalytics = () => {
         return;
       }
 
-      setRealtimeUsage(data || []);
+      const usage = (data || []) as ApiUsage[];
+      setRealtimeUsage(usage);
       updateStats();
     } catch (error) {
       console.error('Exception loading real-time API usage:', error);
@@ -80,22 +82,21 @@ const RealTimeApiAnalytics = () => {
       yesterday.setDate(yesterday.getDate() - 1);
 
       const { data, error } = await supabase
-        .from('real_time_api_usage')
+        .from('api_usage_logs')
         .select('*')
-        .gte('usage_timestamp', yesterday.toISOString());
+        .gte('created_at', yesterday.toISOString());
 
       if (error) {
         console.error('Error loading stats:', error);
         return;
       }
 
-      const usage = data || [];
-      const totalRequests = usage.reduce((sum, item) => sum + item.requests_count, 0);
-      const totalSuccess = usage.reduce((sum, item) => sum + item.success_count, 0);
-      const totalErrors = usage.reduce((sum, item) => sum + item.error_count, 0);
+      const usage = (data || []) as ApiUsage[];
+      const totalRequests = usage.length;
+      const successfulRequests = usage.filter(item => item.status === 'success').length;
       const totalTime = usage.reduce((sum, item) => sum + (item.response_time_ms || 0), 0);
       const avgResponseTime = usage.length > 0 ? totalTime / usage.length : 0;
-      const successRate = totalRequests > 0 ? (totalSuccess / (totalSuccess + totalErrors)) * 100 : 0;
+      const successRate = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
       const activeProviders = new Set(usage.map(item => item.provider)).size;
 
       setStats({
@@ -119,9 +120,9 @@ const RealTimeApiAnalytics = () => {
     return colors[provider as keyof typeof colors] || 'bg-gray-500';
   };
 
-  const getStatusIcon = (success: number, error: number) => {
-    if (error > 0) return <AlertCircle className="w-4 h-4 text-red-400" />;
-    if (success > 0) return <CheckCircle className="w-4 h-4 text-green-400" />;
+  const getStatusIcon = (status: string) => {
+    if (status === 'error') return <AlertCircle className="w-4 h-4 text-red-400" />;
+    if (status === 'success') return <CheckCircle className="w-4 h-4 text-green-400" />;
     return <Clock className="w-4 h-4 text-yellow-400" />;
   };
 
@@ -205,11 +206,11 @@ const RealTimeApiAnalytics = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-white font-medium capitalize">{usage.provider}</span>
                         <Badge variant="outline" className="text-xs">
-                          {usage.endpoint}
+                          {usage.model}
                         </Badge>
                       </div>
                       <p className="text-xs text-gray-400">
-                        {new Date(usage.usage_timestamp).toLocaleTimeString()}
+                        {new Date(usage.created_at).toLocaleTimeString()}
                       </p>
                     </div>
                   </div>
@@ -217,15 +218,13 @@ const RealTimeApiAnalytics = () => {
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <p className="text-sm text-white">
-                        {usage.requests_count} req
+                        {usage.tokens_used} tokens
                       </p>
-                      {usage.response_time_ms && (
-                        <p className="text-xs text-gray-400">
-                          {usage.response_time_ms}ms
-                        </p>
-                      )}
+                      <p className="text-xs text-gray-400">
+                        {usage.response_time_ms}ms
+                      </p>
                     </div>
-                    {getStatusIcon(usage.success_count, usage.error_count)}
+                    {getStatusIcon(usage.status)}
                   </div>
                 </div>
               ))
