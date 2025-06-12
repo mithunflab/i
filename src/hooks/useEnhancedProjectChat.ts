@@ -119,7 +119,7 @@ export const useEnhancedProjectChat = (
           name: projectName,
           description: channelData?.description || projectIdea || 'AI generated website project',
           youtube_url: youtubeUrl,
-          channel_data: channelData,
+          channel_data: channelData as any, // Cast to any for Json type compatibility
           status: 'active'
         }, {
           onConflict: 'id'
@@ -189,12 +189,12 @@ export const useEnhancedProjectChat = (
     await saveChatMessage(userMessage);
 
     try {
-      // Use the correct Supabase edge function endpoint
+      // Use the correct Supabase edge function endpoint with anon key
       const response = await fetch('https://ldcipixxhnrepgkyzmno.supabase.co/functions/v1/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkY2lwaXh4aG5yZXBna3l6bW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0ODc5ODAsImV4cCI6MjA2NTA2Mzk4MH0.DI6yuJwesNPoXTnB5aMDLNOVjPnMbN69kD7nCxFmiTI`
         },
         body: JSON.stringify({
           message: content,
