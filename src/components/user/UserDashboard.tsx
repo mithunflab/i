@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import {
   Palette
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import UserProjects from './UserProjects';
+import EnhancedUserProjects from './EnhancedUserProjects';
 import YouTubeWebsiteBuilder from './YouTubeWebsiteBuilder';
 import ServiceStatusIndicators from '../ui/ServiceStatusIndicators';
 
@@ -42,7 +43,7 @@ const UserDashboard = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'projects':
-        return <UserProjects />;
+        return <EnhancedUserProjects />;
       case 'youtube':
         return <YouTubeWebsiteBuilder />;
       case 'analytics':

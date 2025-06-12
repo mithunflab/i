@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, MessageSquare, Code, Eye, Rocket, Smartphone, Monitor, Tablet, Zap, Palette, Youtube, Play, Bell, TrendingUp, DollarSign, Radio, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
-import Chatbot from './Chatbot';
+import EnhancedChatbot from './EnhancedChatbot';
 import CodePreview from './CodePreview';
 import ElementSelector from './ElementSelector';
 import PreviewFrame from './PreviewFrame';
@@ -132,6 +131,14 @@ const Workspace = () => {
     }
     return 'flex-1 h-full order-2';
   };
+
+  const renderChatbot = () => (
+    <EnhancedChatbot 
+      youtubeUrl={youtubeUrl} 
+      projectIdea={projectIdea}
+      channelData={channelData}
+    />
+  );
 
   return (
     <div className="min-h-screen bg-background animated-gradient overflow-hidden">
@@ -295,11 +302,7 @@ const Workspace = () => {
         {/* Chatbot Sidebar */}
         <div className={`${getSidebarStyle()} border-border bg-card/30 glass overflow-hidden`}>
           <div className="h-full flex flex-col">
-            <Chatbot 
-              youtubeUrl={youtubeUrl} 
-              projectIdea={projectIdea}
-              channelData={channelData}
-            />
+            {renderChatbot()}
           </div>
         </div>
 
