@@ -34,7 +34,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
   const [showQuickIdeas, setShowQuickIdeas] = useState(false);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [currentFiles, setCurrentFiles] = useState<string[]>([]);
-  const { messages, loading, sendMessage, projectId, currentProject } = useEnhancedProjectChat(youtubeUrl, projectIdea, channelData);
+  const { messages, loading, sendMessage, projectId, currentProject, isProcessing } = useEnhancedProjectChat(youtubeUrl, projectIdea, channelData);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || loading) return;
@@ -52,36 +52,12 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
   };
 
   const quickIdeas = [
-    { label: 'Create stunning modern website', icon: '🚀' },
-    { label: 'Build professional portfolio', icon: '💼' },
-    { label: 'Make YouTube channel site', icon: '📺' },
-    { label: 'Design landing page', icon: '🎨' },
-    { label: 'Create interactive gallery', icon: '🖼️' },
-    { label: 'Build business website', icon: '🏢' }
-  ];
-
-  // Mock latest videos for Chitti - Tamil channel
-  const latestVideos = [
-    {
-      title: "Message with LASER 🤯 | How it works",
-      thumbnail: "https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=120&h=90&fit=crop",
-      url: "https://youtube.com/watch?v=example1"
-    },
-    {
-      title: "Ask Chitti: Floating Fire?! The Butane Velocity Secret! 🔥💨",
-      thumbnail: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=120&h=90&fit=crop",
-      url: "https://youtube.com/watch?v=example2"
-    },
-    {
-      title: "Chitti at School: Blow Out a Candle With Your PHONE?!",
-      thumbnail: "https://images.unsplash.com/photo-1556075798-4825dfaaf498?w=120&h=90&fit=crop",
-      url: "https://youtube.com/watch?v=example3"
-    },
-    {
-      title: "Amazing Science Experiment You Won't Believe!",
-      thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=90&fit=crop",
-      url: "https://youtube.com/watch?v=example4"
-    }
+    { label: 'Change hero section title', icon: '✏️' },
+    { label: 'Update navigation menu', icon: '🧭' },
+    { label: 'Modify subscriber count display', icon: '📊' },
+    { label: 'Change video gallery layout', icon: '🎬' },
+    { label: 'Update footer information', icon: '📝' },
+    { label: 'Customize call-to-action button', icon: '🔔' }
   ];
 
   const getChannelThumbnail = (channelData: ChannelData | null) => {
@@ -118,7 +94,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Compact Expandable Header */}
+      {/* Enhanced Header */}
       <div className="border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
         <div 
           className="p-3 cursor-pointer hover:bg-black/20 transition-colors"
@@ -128,7 +104,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <img 
-                  src={getChannelThumbnail(channelData)} 
+                  src={channelData.thumbnail} 
                   alt={channelData.title}
                   className="w-10 h-10 rounded-full object-cover border-2 border-cyan-400 shadow-lg shadow-cyan-400/50 flex-shrink-0"
                   onError={(e) => {
@@ -141,14 +117,17 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                     {channelData.title}
                   </h3>
                   <p className="text-xs text-purple-300 truncate">
-                    {parseInt(channelData.subscriberCount).toLocaleString()} subscribers
+                    {parseInt(channelData.subscriberCount).toLocaleString()} subscribers • {parseInt(channelData.videoCount).toLocaleString()} videos
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs text-gray-400">
-                  {parseInt(channelData.videoCount).toLocaleString()} videos
-                </span>
+                {currentProject && (
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-400">Project Active</span>
+                  </div>
+                )}
                 {isHeaderExpanded ? <ChevronUp size={16} className="text-cyan-400" /> : <ChevronDown size={16} className="text-cyan-400" />}
               </div>
             </div>
@@ -158,19 +137,19 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-purple-500">
                   <Bot className="text-white" size={16} />
                 </div>
-                <h3 className="font-semibold text-cyan-400 text-sm">Professional AI Builder</h3>
+                <h3 className="font-semibold text-cyan-400 text-sm">Enhanced AI Builder</h3>
               </div>
               {isHeaderExpanded ? <ChevronUp size={16} className="text-cyan-400" /> : <ChevronDown size={16} className="text-cyan-400" />}
             </div>
           )}
         </div>
 
-        {/* Expanded Content - Project Files */}
+        {/* Enhanced Expanded Content */}
         {isHeaderExpanded && (
           <div className="px-3 pb-3 border-t border-purple-500/20">
             <div className="mt-3">
               <p className="text-xs font-medium text-cyan-400 mb-2">
-                {currentProject ? 'Active Project:' : 'Generated Files:'}
+                {currentProject ? 'Project Status:' : 'Ready to Create:'}
               </p>
               {currentProject && (
                 <div className="bg-black/30 rounded-lg p-2 mb-3">
@@ -182,9 +161,9 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                         href={currentProject.github_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded border border-gray-600 transition-colors"
+                        className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded border border-gray-600 transition-colors flex items-center gap-1"
                       >
-                        <Github size={10} className="inline mr-1" />
+                        <Github size={10} />
                         GitHub
                       </a>
                     )}
@@ -193,36 +172,46 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                         href={currentProject.netlify_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition-colors"
+                        className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition-colors flex items-center gap-1"
                       >
-                        <Globe size={10} className="inline mr-1" />
+                        <Globe size={10} />
                         Live Site
                       </a>
                     )}
                   </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Last updated: {new Date(currentProject.updated_at).toLocaleDateString()}
+                  </div>
                 </div>
               )}
-              <div className="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto">
-                {currentFiles.length > 0 ? (
-                  currentFiles.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-2 p-2 rounded-lg bg-black/30 hover:bg-black/50 transition-colors text-xs text-white"
-                    >
-                      <FileText size={12} />
-                      <span className="truncate">{file}</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-gray-400 italic">No files generated yet - start creating!</p>
-                )}
+              
+              <div className="space-y-2">
+                <div className="text-xs text-gray-400">🎯 Intelligent Features Active:</div>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <div className="flex items-center gap-1 text-green-400">
+                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                    Targeted Changes
+                  </div>
+                  <div className="flex items-center gap-1 text-blue-400">
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                    Project Memory
+                  </div>
+                  <div className="flex items-center gap-1 text-purple-400">
+                    <div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div>
+                    Real YouTube Data
+                  </div>
+                  <div className="flex items-center gap-1 text-orange-400">
+                    <div className="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                    Auto Deploy
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Messages - Enhanced for professional generation */}
+      {/* Enhanced Messages */}
       <ScrollArea className="flex-1 p-4" style={{ height: 'calc(100vh - 200px)' }}>
         <div className="space-y-4">
           {messages.map((message) => (
@@ -232,10 +221,10 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
             >
               {message.type === 'bot' && (
                 <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-400/50">
-                  {message.feature === 'professional-website' ? (
+                  {message.feature === 'processing' ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : message.feature === 'targeted-modification' ? (
                     <Zap size={14} className="text-white" />
-                  ) : message.feature === 'video' ? (
-                    <Youtube size={14} className="text-white" />
                   ) : (
                     <Sparkles size={14} className="text-white" />
                   )}
@@ -246,6 +235,8 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                 className={`max-w-[85%] p-3 rounded-lg ${
                   message.type === 'user'
                     ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                    : message.feature === 'processing'
+                    ? 'bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30 backdrop-blur-sm shadow-lg'
                     : 'bg-black/80 border border-cyan-500/30 backdrop-blur-sm shadow-lg'
                 }`}
               >
@@ -257,13 +248,13 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                     <div className="p-3 bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-500/30 rounded-lg">
                       <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
                         <Zap size={14} />
-                        <span>🌟 Professional Website Generated!</span>
+                        <span>🎯 Targeted Changes Applied!</span>
                       </div>
                       {message.codeDescription && (
                         <p className="text-xs text-green-300 mt-1">{message.codeDescription}</p>
                       )}
                       <div className="text-xs text-gray-300 mt-2">
-                        ✨ Modern design • 📱 Responsive • 🎨 YouTube integration • ⚡ Interactive
+                        ✨ Design preserved • 📱 Responsive • 🎨 Real YouTube data • ⚡ Live deployment
                       </div>
                     </div>
                     
@@ -277,7 +268,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                             className="flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg border border-gray-600 transition-colors"
                           >
                             <Github size={12} />
-                            <span className="text-white">View Source</span>
+                            <span className="text-white">Updated Repo</span>
                           </a>
                         )}
                         {message.netlifyUrl && (
@@ -288,7 +279,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                             className="flex items-center gap-1 text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-3 py-2 rounded-lg transition-colors"
                           >
                             <Globe size={12} />
-                            <span className="text-white">Live Website</span>
+                            <span className="text-white">Live Changes</span>
                           </a>
                         )}
                       </div>
@@ -309,10 +300,10 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
             </div>
           ))}
           
-          {loading && (
+          {(loading || isProcessing) && (
             <div className="flex gap-3 justify-start">
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center flex-shrink-0 animate-pulse shadow-lg shadow-cyan-400/50">
-                <Zap size={14} className="text-white" />
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               </div>
               <div className="bg-black/80 border border-cyan-500/30 backdrop-blur-sm p-4 rounded-lg shadow-lg">
                 <div className="flex items-center gap-3">
@@ -322,11 +313,11 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                     <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
                   <span className="text-sm text-cyan-400 font-medium">
-                    🚀 Creating professional website with YouTube integration...
+                    🎯 Making targeted changes with project memory...
                   </span>
                 </div>
                 <div className="text-xs text-gray-400 mt-2">
-                  Modern design • Responsive layout • Interactive elements
+                  Preserving design • Using real channel data • Updating repository
                 </div>
               </div>
             </div>
@@ -340,12 +331,12 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Input
-                placeholder={`Create ${currentProject ? 'updates for' : 'a stunning website for'} ${channelData?.title || 'your project'}...`}
+                placeholder={`Make targeted changes to ${channelData?.title || 'your project'}... (e.g., "change hero title" or "update subscriber count")`}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
                 className="bg-black/80 border-cyan-500/50 backdrop-blur-sm pr-10 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/50"
-                disabled={loading}
+                disabled={loading || isProcessing}
               />
               <Button
                 type="button"
@@ -353,7 +344,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                 variant="ghost"
                 onClick={() => setShowQuickIdeas(!showQuickIdeas)}
                 className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-yellow-500/20"
-                disabled={loading}
+                disabled={loading || isProcessing}
               >
                 <Lightbulb size={14} className="text-yellow-400" />
               </Button>
@@ -362,7 +353,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
               onClick={handleSendMessage} 
               size="sm" 
               className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 shadow-lg shadow-cyan-400/50" 
-              disabled={loading || !inputValue.trim()}
+              disabled={loading || isProcessing || !inputValue.trim()}
             >
               <Send size={16} />
             </Button>
@@ -371,7 +362,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
           {/* Enhanced Quick Ideas */}
           {showQuickIdeas && (
             <div className="absolute bottom-full left-0 right-0 mb-2 bg-black/90 border border-cyan-500/30 rounded-lg shadow-2xl shadow-cyan-400/20 p-3 z-50 backdrop-blur-sm">
-              <h4 className="text-sm font-medium text-cyan-400 mb-2">💡 Professional Ideas:</h4>
+              <h4 className="text-sm font-medium text-cyan-400 mb-2">🎯 Quick Targeted Changes:</h4>
               <div className="grid grid-cols-1 gap-2">
                 {quickIdeas.map((idea) => (
                   <Button
@@ -383,7 +374,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
                       setInputValue(idea.label);
                       setShowQuickIdeas(false);
                     }}
-                    disabled={loading}
+                    disabled={loading || isProcessing}
                   >
                     <span className="mr-2">{idea.icon}</span>
                     {idea.label}

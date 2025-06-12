@@ -51,6 +51,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
   const [loading, setLoading] = useState(false);
   const [projectId] = useState(() => crypto.randomUUID());
   const [currentProject, setCurrentProject] = useState<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -65,6 +66,8 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     if (!user) return;
     
     try {
+      console.log('🔍 Loading existing project for URL:', youtubeUrl);
+      
       const { data: existingProject } = await supabase
         .from('projects')
         .select('*')
@@ -99,11 +102,16 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
             };
           });
           setMessages(loadedMessages);
+          console.log('💬 Loaded chat history:', loadedMessages.length, 'messages');
         } else {
           // Add welcome message if no history
           const welcomeMessage = createWelcomeMessage();
           setMessages([welcomeMessage]);
         }
+      } else {
+        console.log('ℹ️ No existing project found, will create new one');
+        const welcomeMessage = createWelcomeMessage();
+        setMessages([welcomeMessage]);
       }
     } catch (error) {
       console.log('ℹ️ No existing project found, will create new one');
@@ -118,21 +126,23 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
         id: crypto.randomUUID(),
         type: 'bot',
         content: `🎥 **Welcome back to ${channelData.title} Website Builder!**\n\n` +
-          `I have your project context and chat history loaded. I can make targeted changes to specific elements without affecting your entire website.\n\n` +
-          `**🧠 What I remember:**\n` +
-          `• Your channel: ${channelData.title}\n` +
+          `I'm your AI assistant with complete project memory. I can make targeted changes to specific elements without affecting your entire website.\n\n` +
+          `**🧠 Project Context Loaded:**\n` +
+          `• Channel: ${channelData.title}\n` +
           `• Subscribers: ${parseInt(channelData.subscriberCount).toLocaleString()}\n` +
-          `• Current design and layout\n` +
-          `• Previous conversations\n\n` +
+          `• Videos: ${parseInt(channelData.videoCount).toLocaleString()}\n` +
+          `• Current design and layout preserved\n` +
+          `• Previous conversations remembered\n\n` +
           `**🎯 I can make targeted changes to:**\n` +
           `• Hero section (main title area)\n` +
           `• Navigation menu\n` +
-          `• Video gallery\n` +
-          `• Statistics section\n` +
+          `• Video gallery with real thumbnails\n` +
+          `• Statistics section with live data\n` +
           `• Call-to-action buttons\n` +
           `• Footer content\n` +
           `• Colors and styling\n\n` +
-          `**💡 Tell me specifically what you'd like to change**, and I'll modify only that element while preserving everything else!`,
+          `**💡 Tell me specifically what you'd like to change**, and I'll modify only that element while preserving everything else!\n\n` +
+          `✨ **Real-time features active:** Live deployment, GitHub sync, project memory`,
         timestamp: new Date(),
         feature: 'welcome'
       };
@@ -141,8 +151,8 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     return {
       id: crypto.randomUUID(),
       type: 'bot',
-      content: `🎥 **Welcome to Enhanced AI Website Builder!**\n\n` +
-        `I can create targeted changes to your website without affecting the entire page.\n\n` +
+      content: `🎥 **Enhanced AI Website Builder Ready!**\n\n` +
+        `I can create targeted changes to your website with complete project memory.\n\n` +
         `**🎯 Just tell me what specific element you'd like to modify!**`,
       timestamp: new Date(),
       feature: 'welcome'
@@ -169,9 +179,20 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
 
     setMessages(prev => [...prev, userMessage]);
     setLoading(true);
+    setIsProcessing(true);
+
+    // Add processing message
+    const processingMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      type: 'bot',
+      content: `🔄 **Processing your request...**\n\nAnalyzing: "${content}"\n\n✨ Making targeted changes while preserving your design...`,
+      timestamp: new Date(),
+      feature: 'processing'
+    };
+    setMessages(prev => [...prev, processingMessage]);
 
     try {
-      console.log('🤖 Processing targeted request with project context...');
+      console.log('🤖 Processing targeted request with enhanced context...');
       
       // Generate targeted prompt based on project context
       const targetedPrompt = generateTargetedPrompt(
@@ -181,16 +202,20 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
         channelData
       );
 
-      // Call the AI with enhanced context
+      console.log('📝 Generated targeted prompt for AI');
+
+      // Call the AI with enhanced context and real channel data
       const { data: aiResponse, error: aiError } = await supabase.functions.invoke('chat', {
         body: {
           message: targetedPrompt,
           projectId: currentProject?.id || projectId,
           channelData: channelData,
-          chatHistory: messages.slice(-10), // More context for better responses
+          chatHistory: messages.slice(-10),
           generateCode: true,
           projectContext: projectContext,
-          isTargetedChange: true
+          isTargetedChange: true,
+          currentCode: currentProject?.source_code || '',
+          preserveDesign: true
         }
       });
 
@@ -199,7 +224,10 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
         throw new Error(`AI API Error: ${aiError.message}`);
       }
 
-      console.log('✅ AI Response received with project context');
+      console.log('✅ AI Response received with enhanced context');
+
+      // Remove processing message and add real response
+      setMessages(prev => prev.filter(msg => msg.feature !== 'processing'));
 
       // Create enhanced AI response message
       const botMessage: ChatMessage = {
@@ -214,11 +242,11 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
 
       // Handle repository and deployment management
       if (aiResponse.generatedCode) {
-        console.log('🚀 Processing targeted changes with repository management...');
+        console.log('🚀 Processing targeted changes with enhanced project management...');
         
         try {
           const projectName = currentProject?.name || `${channelData?.title || 'AI'}-website-${Date.now()}`.replace(/\s+/g, '-');
-          const projectDescription = `AI-generated website for ${channelData?.title || 'custom project'}`;
+          const projectDescription = `AI-generated website for ${channelData?.title || 'custom project'} with real-time features`;
           
           // Get or create repository (only creates if none exists)
           const repoInfo = await getOrCreateRepository(
@@ -235,7 +263,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
               channelData: channelData,
               features: generateProjectFeatures(projectIdea, channelData, aiResponse.generatedCode),
               designPrinciples: projectContext?.designPrinciples || [],
-              currentStructure: projectContext?.currentStructure || { components: [], styling: {}, layout: 'default' },
+              currentStructure: projectContext?.currentStructure || { components: [], styling: { colors: [] }, layout: 'default' },
               githubUrl: repoInfo.githubUrl,
               netlifyUrl: repoInfo.netlifyUrl,
               lastModified: new Date()
@@ -246,12 +274,12 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
               { 
                 path: 'index.html', 
                 content: aiResponse.generatedCode,
-                message: `Targeted modification: ${content.substring(0, 50)}...`
+                message: `🎯 Targeted modification: ${content.substring(0, 50)}...`
               },
               { 
                 path: 'README.md', 
                 content: readmeContent,
-                message: 'Update project documentation'
+                message: '📝 Update project documentation with latest changes'
               }
             ];
 
@@ -286,26 +314,32 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
             if (currentProject) {
               await supabase
                 .from('projects')
-                .update(projectData)
+                .update({
+                  ...projectData,
+                  updated_at: new Date().toISOString()
+                })
                 .eq('id', currentProject.id);
               
               console.log('✅ Project updated with targeted changes');
             } else {
               const { data: newProject } = await supabase
                 .from('projects')
-                .insert(projectData)
+                .insert({
+                  ...projectData,
+                  id: projectId
+                })
                 .select()
                 .single();
 
               if (newProject) {
                 setCurrentProject(newProject);
-                console.log('✅ New project created');
+                console.log('✅ New project created with enhanced features');
               }
             }
 
             // Update project context
             await updateProjectContext({
-              currentStructure: projectContext?.currentStructure || { components: [], styling: {}, layout: 'default' }
+              currentStructure: projectContext?.currentStructure || { components: [], styling: { colors: [] }, layout: 'default' }
             });
 
             toast({
@@ -327,40 +361,45 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
       setMessages(prev => [...prev, botMessage]);
 
       // Save chat message to history
-      if (currentProject?.id) {
-        await supabase
-          .from('project_chat_history')
-          .insert({
-            project_id: currentProject.id,
-            user_id: user.id,
-            message_type: 'user',
-            content: content
-          });
+      const projectIdToUse = currentProject?.id || projectId;
+      
+      await supabase
+        .from('project_chat_history')
+        .insert({
+          project_id: projectIdToUse,
+          user_id: user.id,
+          message_type: 'user',
+          content: content
+        });
 
-        await supabase
-          .from('project_chat_history')
-          .insert({
-            project_id: currentProject.id,
-            user_id: user.id,
-            message_type: 'assistant',
-            content: botMessage.content,
-            metadata: {
-              feature: botMessage.feature,
-              generatedCode: botMessage.generatedCode,
-              codeDescription: botMessage.codeDescription,
-              githubUrl: botMessage.githubUrl,
-              netlifyUrl: botMessage.netlifyUrl
-            }
-          });
-      }
+      await supabase
+        .from('project_chat_history')
+        .insert({
+          project_id: projectIdToUse,
+          user_id: user.id,
+          message_type: 'assistant',
+          content: botMessage.content,
+          metadata: {
+            feature: botMessage.feature,
+            generatedCode: botMessage.generatedCode,
+            codeDescription: botMessage.codeDescription,
+            githubUrl: botMessage.githubUrl,
+            netlifyUrl: botMessage.netlifyUrl
+          }
+        });
+
+      console.log('💾 Chat history saved to database');
 
     } catch (error) {
       console.error('❌ Error in enhanced sendMessage:', error);
       
+      // Remove processing message
+      setMessages(prev => prev.filter(msg => msg.feature !== 'processing'));
+      
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         type: 'bot',
-        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+        content: `❌ **Error Processing Request**\n\nSorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}\n\n🔄 Please try again with a more specific request.`,
         timestamp: new Date()
       };
       
@@ -373,6 +412,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
       });
     } finally {
       setLoading(false);
+      setIsProcessing(false);
     }
   }, [user, projectId, channelData, youtubeUrl, toast, generateTargetedPrompt, getOrCreateRepository, updateRepository, deployToNetlify, currentProject, projectContext, updateProjectContext, messages]);
 
@@ -387,6 +427,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     sendMessage,
     projectId: currentProject?.id || projectId,
     currentProject,
-    deploymentStatus
+    deploymentStatus,
+    isProcessing
   };
 };

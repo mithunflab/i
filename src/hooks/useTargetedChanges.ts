@@ -23,42 +23,51 @@ export const useTargetedChanges = () => {
     
     // Generate targeted modification prompt
     const targetedPrompt = `
-# TARGETED MODIFICATION REQUEST
+# TARGETED MODIFICATION REQUEST - CRITICAL INSTRUCTIONS
 
-## Context
-- Project: ${projectContext?.name || 'YouTube Channel Website'}
-- Channel: ${channelData?.title || 'Content Creator'}
+## IMPORTANT: ONLY MODIFY THE SPECIFIC ELEMENT REQUESTED
 - Target Component: ${targetComponent}
-- Modification Type: ${identifyModificationType(userRequest)}
+- User Request: "${userRequest}"
+- DO NOT rewrite the entire page
+- DO NOT change any other sections
+- PRESERVE all existing styling, colors, and layout
+- MAINTAIN all YouTube integration and branding
 
-## Current Component Structure
-${componentStructure}
+## Current Page Context
+- Channel: ${channelData?.title || 'Content Creator'}
+- Subscribers: ${channelData?.subscriberCount || 'N/A'}
+- Channel Thumbnail: ${channelData?.thumbnail || 'N/A'}
+- Current Structure: ${componentStructure}
 
-## Design Principles to Maintain
-${projectContext?.designPrinciples?.join('\n- ') || '- Professional and clean design\n- YouTube branding consistency\n- Mobile responsiveness'}
+## STRICT MODIFICATION RULES
+1. **ONLY CHANGE THE ${targetComponent} SECTION**
+2. **KEEP ALL OTHER HTML/CSS EXACTLY THE SAME**
+3. **PRESERVE YouTube branding and channel data**
+4. **MAINTAIN responsive design**
+5. **DO NOT change colors, fonts, or overall layout**
+6. **USE REAL CHANNEL DATA**: 
+   - Channel Title: ${channelData?.title}
+   - Subscriber Count: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
+   - Channel Thumbnail: ${channelData?.thumbnail}
+   - Custom URL: ${channelData?.customUrl || ''}
 
-## User Request
-${userRequest}
-
-## CRITICAL INSTRUCTIONS
-1. **ONLY MODIFY THE TARGETED COMPONENT**: ${targetComponent}
-2. **PRESERVE ALL OTHER ELEMENTS**: Do not change any other sections of the website
-3. **MAINTAIN DESIGN CONSISTENCY**: Keep the same color scheme, fonts, and overall styling
-4. **PRESERVE FUNCTIONALITY**: All existing buttons, links, and interactions must continue working
-5. **MAINTAIN RESPONSIVE DESIGN**: Ensure changes work on all device sizes
-6. **KEEP YOUTUBE INTEGRATION**: Preserve all channel-related elements and branding
-
-## Required Output Format
-- Only modify the specific HTML/CSS for the ${targetComponent} component
-- Keep all other code exactly the same
-- Maintain existing class names and structure where possible
-- Preserve all YouTube integration elements
-- Keep the same color scheme and design language
-
-## Component Modification Guidelines
+## Component-Specific Guidelines
 ${generateComponentGuidelines(targetComponent, channelData)}
 
-Make ONLY the requested changes to the ${targetComponent} component while preserving everything else exactly as it currently exists.
+## Required Output
+- Provide ONLY the modified HTML for the ${targetComponent} section
+- Keep everything else exactly the same
+- Include real YouTube channel data where relevant
+- Maintain existing design consistency
+
+## Real Channel Data Integration
+- Use actual channel thumbnail: ${channelData?.thumbnail}
+- Display real subscriber count: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
+- Include channel title: ${channelData?.title}
+- Add real video thumbnails if available
+- Maintain YouTube brand colors (#FF0000 for buttons)
+
+CRITICAL: Make ONLY the requested change to ${targetComponent}. Do not modify anything else.
 `;
 
     return targetedPrompt;
@@ -67,7 +76,7 @@ Make ONLY the requested changes to the ${targetComponent} component while preser
   const identifyTargetComponent = (userRequest: string): string => {
     const request = userRequest.toLowerCase();
     
-    if (request.includes('header') || request.includes('top') || request.includes('title')) {
+    if (request.includes('header') || request.includes('top') || request.includes('title') || request.includes('hero')) {
       return 'hero-section';
     }
     if (request.includes('navigation') || request.includes('menu') || request.includes('nav')) {
@@ -76,7 +85,7 @@ Make ONLY the requested changes to the ${targetComponent} component while preser
     if (request.includes('video') || request.includes('gallery') || request.includes('content')) {
       return 'video-gallery';
     }
-    if (request.includes('stat') || request.includes('number') || request.includes('count')) {
+    if (request.includes('stat') || request.includes('number') || request.includes('count') || request.includes('subscriber')) {
       return 'stats-section';
     }
     if (request.includes('footer') || request.includes('bottom') || request.includes('contact')) {
@@ -90,22 +99,6 @@ Make ONLY the requested changes to the ${targetComponent} component while preser
     }
     
     return 'general-content';
-  };
-
-  const identifyModificationType = (userRequest: string): string => {
-    const request = userRequest.toLowerCase();
-    
-    if (request.includes('color') || request.includes('style') || request.includes('design')) {
-      return 'styling';
-    }
-    if (request.includes('text') || request.includes('content') || request.includes('wording')) {
-      return 'content';
-    }
-    if (request.includes('add') || request.includes('remove') || request.includes('layout')) {
-      return 'structure';
-    }
-    
-    return 'enhancement';
   };
 
   const extractComponentStructure = (currentCode: string, targetComponent: string): string => {
@@ -139,43 +132,49 @@ Make ONLY the requested changes to the ${targetComponent} component while preser
   const generateComponentGuidelines = (component: string, channelData: any): string => {
     const guidelines = {
       'hero-section': `
-- Maintain the channel title "${channelData?.title || 'Channel Name'}"
-- Preserve primary call-to-action button
-- Keep hero background and styling
-- Maintain responsive text sizing`,
+- Keep channel title "${channelData?.title || 'Channel Name'}" prominent
+- Use real subscriber count: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
+- Maintain hero background and styling
+- Preserve responsive text sizing
+- Include channel thumbnail: ${channelData?.thumbnail}`,
       
       'navigation': `
 - Keep all existing navigation links functional
 - Maintain responsive mobile menu
 - Preserve navigation styling and hover effects
-- Keep brand logo/title in navigation`,
+- Keep brand logo/title in navigation
+- Use channel name: ${channelData?.title}`,
       
       'video-gallery': `
-- Preserve YouTube video integration
-- Maintain video thumbnail quality
-- Keep video grid/layout structure
-- Preserve video click functionality`,
+- Use real video thumbnails from channel data
+- Maintain video grid/layout structure
+- Preserve video click functionality
+- Include real video titles and descriptions
+- Keep YouTube branding consistent`,
       
       'stats-section': `
-- Keep subscriber count: ${channelData?.subscriberCount || 'N/A'}
-- Maintain video count: ${channelData?.videoCount || 'N/A'}
+- Display real subscriber count: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
+- Show actual video count: ${parseInt(channelData?.videoCount || '0').toLocaleString()}
+- Include real view count: ${parseInt(channelData?.viewCount || '0').toLocaleString()}
 - Preserve stats layout and formatting
 - Keep counter animations if present`,
       
       'footer': `
+- Include real channel URL: ${channelData?.customUrl || ''}
 - Maintain all social media links
 - Preserve contact information
 - Keep footer layout structure
 - Maintain footer background and styling`,
       
       'call-to-action': `
-- Preserve "Subscribe" button functionality
+- Use YouTube subscribe URL for channel
 - Maintain button hover effects
-- Keep YouTube red color scheme for buttons
-- Preserve button positioning and sizing`
+- Keep YouTube red color (#FF0000) for buttons
+- Preserve button positioning and sizing
+- Include real channel subscription link`
     };
 
-    return guidelines[component] || 'Maintain component functionality and design consistency';
+    return guidelines[component] || 'Maintain component functionality and design consistency with real channel data';
   };
 
   return {
