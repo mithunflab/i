@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Youtube, Users, Smartphone, Palette, Play, Eye } from 'lucide-react';
+import { Send, Bot, User, Youtube, Users, Smartphone, Palette, Play, Eye, Lightbulb } from 'lucide-react';
 import { useProjectChat } from '@/hooks/useProjectChat';
 
 interface ChannelData {
@@ -26,6 +26,7 @@ interface ChatbotProps {
 
 const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData }) => {
   const [inputValue, setInputValue] = useState('');
+  const [showQuickIdeas, setShowQuickIdeas] = useState(false);
   const { messages, loading, sendMessage, projectId } = useProjectChat(youtubeUrl, projectIdea, channelData);
 
   const handleSendMessage = async () => {
@@ -43,7 +44,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
     }
   };
 
-  const quickActions = [
+  const quickIdeas = [
     { label: 'Add subscribe button', icon: '🔔' },
     { label: 'Import latest videos', icon: '📺' },
     { label: 'Match channel colors', icon: '🎨' },
@@ -168,40 +169,62 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
         </div>
       </ScrollArea>
 
-      {/* Input */}
+      {/* Input with Ideas Button */}
       <div className="p-4 border-t border-border glass">
-        <div className="flex gap-2 mb-3">
-          <Input
-            placeholder={`Describe what you want for ${channelData?.title || 'your YouTube'} website...`}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="bg-input/80 border-border backdrop-blur-sm"
-            disabled={loading}
-          />
-          <Button onClick={handleSendMessage} size="sm" className="cyber-button" disabled={loading || !inputValue.trim()}>
-            <Send size={16} />
-          </Button>
-        </div>
-        
-        {/* Quick Actions */}
-        <div className="flex flex-wrap gap-1">
-          {quickActions.map((action) => (
-            <Button
-              key={action.label}
-              variant="outline"
-              size="sm"
-              className="text-xs h-7 glass border-border/30"
-              onClick={() => setInputValue(action.label)}
-              disabled={loading}
-            >
-              {action.icon} {action.label}
+        <div className="relative">
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <Input
+                placeholder={`Describe what you want for ${channelData?.title || 'your YouTube'} website...`}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="bg-input/80 border-border backdrop-blur-sm pr-10"
+                disabled={loading}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowQuickIdeas(!showQuickIdeas)}
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-yellow-500/20"
+                disabled={loading}
+              >
+                <Lightbulb size={14} className="text-yellow-500" />
+              </Button>
+            </div>
+            <Button onClick={handleSendMessage} size="sm" className="cyber-button" disabled={loading || !inputValue.trim()}>
+              <Send size={16} />
             </Button>
-          ))}
+          </div>
+
+          {/* Quick Ideas Dropdown */}
+          {showQuickIdeas && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-lg shadow-lg p-3 z-50">
+              <div className="grid grid-cols-1 gap-2">
+                {quickIdeas.map((idea) => (
+                  <Button
+                    key={idea.label}
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-left"
+                    onClick={() => {
+                      setInputValue(idea.label);
+                      setShowQuickIdeas(false);
+                    }}
+                    disabled={loading}
+                  >
+                    <span className="mr-2">{idea.icon}</span>
+                    {idea.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Feature Status */}
-        <div className="mt-2 text-xs text-muted-foreground text-center">
+        <div className="text-xs text-muted-foreground text-center">
           🎥 YouTube tools active • Creator-focused features ready • Chat history saved
           {channelData && ` • ${channelData.title} data loaded`}
         </div>
