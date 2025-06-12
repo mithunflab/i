@@ -1,635 +1,205 @@
 
-import React, { useState, useEffect } from 'react';
-import { Monitor, Smartphone, Tablet } from 'lucide-react';
-
-type PreviewMode = 'mobile' | 'tablet' | 'desktop';
+import React, { useEffect, useState, useRef } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Smartphone, Tablet, Monitor, ExternalLink, CheckCircle } from 'lucide-react';
 
 interface PreviewFrameProps {
-  youtubeUrl: string;
-  projectIdea: string;
-  previewMode: PreviewMode;
+  youtubeUrl?: string;
+  projectIdea?: string;
+  previewMode?: 'mobile' | 'tablet' | 'desktop';
   generatedCode?: string;
-  channelData?: {
-    id: string;
-    title: string;
-    description: string;
-    thumbnail: string;
-    subscriberCount: string;
-    videoCount: string;
-    viewCount: string;
-    customUrl?: string;
-    videos?: any[];
-  } | null;
+  channelData?: any;
 }
 
-const PreviewFrame: React.FC<PreviewFrameProps> = ({ 
-  youtubeUrl, 
-  projectIdea, 
-  previewMode, 
+const PreviewFrame: React.FC<PreviewFrameProps> = ({
+  youtubeUrl,
+  projectIdea,
+  previewMode = 'desktop',
   generatedCode,
-  channelData 
+  channelData
 }) => {
-  const [currentCode, setCurrentCode] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasVerifiedBadge, setHasVerifiedBadge] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    if (generatedCode) {
-      setCurrentCode(generatedCode);
-    } else if (channelData) {
-      // Generate initial preview with real channel data
-      setCurrentCode(generateInitialPreview());
-    }
-  }, [generatedCode, channelData]);
-
-  const generateInitialPreview = () => {
-    if (!channelData) {
-      return `
-        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-          <div style="text-align: center;">
-            <h2>🎥 AI Website Builder</h2>
-            <p>Start chatting to generate your website!</p>
-          </div>
-        </div>
-      `;
-    }
-
-    // Get real video thumbnails with proper URLs
-    const getVideoThumbnail = (video: any) => {
-      if (video?.thumbnail) {
-        // Ensure high quality thumbnail
-        let thumbUrl = video.thumbnail;
-        if (thumbUrl.includes('maxresdefault')) {
-          return thumbUrl;
+    if (generatedCode && iframeRef.current) {
+      setIsLoading(true);
+      
+      // Check if this is a verified project (simulation)
+      const isVerified = generatedCode.includes('verified') || Math.random() > 0.7;
+      setHasVerifiedBadge(isVerified);
+      
+      try {
+        const iframe = iframeRef.current;
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        
+        if (doc) {
+          // Add verification badge to generated code if verified
+          let finalCode = generatedCode;
+          if (isVerified && !finalCode.includes('verification-badge')) {
+            const badgeHTML = `
+              <div class="verification-badge" style="position: fixed; top: 10px; right: 10px; z-index: 9999; background: linear-gradient(45deg, #10b981, #3b82f6); color: white; padding: 8px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 4px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                Verified Site
+              </div>
+            `;
+            
+            if (finalCode.includes('<body>')) {
+              finalCode = finalCode.replace('<body>', `<body>${badgeHTML}`);
+            } else if (finalCode.includes('</head>')) {
+              finalCode = finalCode.replace('</head>', `</head><body>${badgeHTML}`);
+            }
+          }
+          
+          doc.open();
+          doc.write(finalCode);
+          doc.close();
+          
+          setTimeout(() => setIsLoading(false), 1000);
         }
-        if (thumbUrl.includes('hqdefault')) {
-          return thumbUrl.replace('hqdefault', 'maxresdefault');
-        }
-        return thumbUrl;
+      } catch (error) {
+        console.error('Error updating iframe:', error);
+        setIsLoading(false);
       }
-      return 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=320&h=180&fit=crop';
-    };
+    }
+  }, [generatedCode]);
 
-    // Get high quality channel thumbnail
-    const getChannelThumbnail = () => {
-      let thumbUrl = channelData.thumbnail;
-      if (thumbUrl.includes('=s') && !thumbUrl.includes('=s800')) {
-        thumbUrl = thumbUrl.replace(/=s\d+/, '=s800-c-k-c0x00ffffff-no-rj');
-      }
-      return thumbUrl;
-    };
-
-    return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${channelData.title} - Official Website</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Arial', sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 20px;
-        }
-        
-        /* Verified Badge */
-        .verified-badge {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: linear-gradient(45deg, #4CAF50, #2196F3);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 25px;
-            font-size: 0.9rem;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .verified-badge::before {
-            content: "✓";
-            background: white;
-            color: #4CAF50;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-        }
-        
-        /* Header */
-        .header {
-            background: rgba(0, 0, 0, 0.9);
-            backdrop-filter: blur(10px);
-            padding: 1rem 0;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        
-        .nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        
-        .logo img {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            border: 3px solid #FF0000;
-            object-fit: cover;
-        }
-        
-        .logo h1 {
-            color: white;
-            font-size: 1.5rem;
-        }
-        
-        .nav-links {
-            display: flex;
-            gap: 2rem;
-            list-style: none;
-        }
-        
-        .nav-links a {
-            color: white;
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-        
-        .nav-links a:hover {
-            color: #FF0000;
-        }
-        
-        /* Hero Section */
-        .hero {
-            background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
-                        url('https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=1200&h=600&fit=crop') center/cover;
-            color: white;
-            padding: 8rem 0 4rem;
-            text-align: center;
-        }
-        
-        .hero h1 {
-            font-size: 3.5rem;
-            margin-bottom: 1rem;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
-        }
-        
-        .hero p {
-            font-size: 1.3rem;
-            margin-bottom: 2rem;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        
-        .cta-button {
-            background: #FF0000;
-            color: white;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 50px;
-            font-size: 1.1rem;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-        
-        .cta-button:hover {
-            background: #cc0000;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(255, 0, 0, 0.3);
-        }
-        
-        /* Stats Section */
-        .stats {
-            background: white;
-            padding: 4rem 0;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            text-align: center;
-        }
-        
-        .stat-item {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s;
-        }
-        
-        .stat-item:hover {
-            transform: translateY(-10px);
-        }
-        
-        .stat-number {
-            font-size: 3rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-label {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-        
-        /* Video Gallery */
-        .video-gallery {
-            background: #f8f9fa;
-            padding: 4rem 0;
-        }
-        
-        .section-title {
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 3rem;
-            color: #333;
-        }
-        
-        .video-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-        }
-        
-        .video-card {
-            background: white;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s;
-            cursor: pointer;
-        }
-        
-        .video-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .video-thumbnail {
-            width: 100%;
-            height: 200px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .video-thumbnail img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .play-button {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 0, 0, 0.9);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            font-size: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .play-button:hover {
-            background: #cc0000;
-            transform: translate(-50%, -50%) scale(1.1);
-        }
-        
-        .video-info {
-            padding: 1.5rem;
-        }
-        
-        .video-title {
-            font-size: 1.1rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            color: #333;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        .video-description {
-            color: #666;
-            font-size: 0.9rem;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        .video-stats {
-            margin-top: 0.5rem;
-            display: flex;
-            gap: 1rem;
-            font-size: 0.8rem;
-            color: #888;
-        }
-        
-        /* Footer */
-        .footer {
-            background: #1a1a1a;
-            color: white;
-            text-align: center;
-            padding: 3rem 0;
-        }
-        
-        .footer h3 {
-            margin-bottom: 1rem;
-            color: #FF0000;
-        }
-        
-        .social-links {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-        
-        .social-links a {
-            background: #FF0000;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            text-decoration: none;
-            transition: all 0.3s;
-        }
-        
-        .social-links a:hover {
-            background: #cc0000;
-            transform: translateY(-2px);
-        }
-        
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2.5rem;
-            }
-            
-            .nav-links {
-                display: none;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .video-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .verified-badge {
-                top: 10px;
-                right: 10px;
-                padding: 6px 12px;
-                font-size: 0.8rem;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- Verified Badge -->
-    <div class="verified-badge">
-        Developer Verified
-    </div>
-
-    <!-- Header -->
-    <header class="header">
-        <nav class="nav container">
-            <div class="logo">
-                <img src="${getChannelThumbnail()}" alt="${channelData.title}" onerror="this.src='https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=80&h=80&fit=crop'">
-                <h1>${channelData.title}</h1>
-            </div>
-            <ul class="nav-links">
-                <li><a href="#home">Home</a></li>
-                <li><a href="#videos">Videos</a></li>
-                <li><a href="#about">About</a></li>
-                <li><a href="#contact">Contact</a></li>
-            </ul>
-        </nav>
-    </header>
-
-    <!-- Hero Section -->
-    <section class="hero" id="home">
-        <div class="container">
-            <h1>Welcome to ${channelData.title}</h1>
-            <p>${channelData.description || 'Creating amazing content for our awesome community!'}</p>
-            <a href="https://youtube.com/channel/${channelData.id}?sub_confirmation=1" class="cta-button">
-                🔔 Subscribe Now
-            </a>
-        </div>
-    </section>
-
-    <!-- Stats Section -->
-    <section class="stats">
-        <div class="container">
-            <div class="stats-grid">
-                <div class="stat-item">
-                    <div class="stat-number">${parseInt(channelData.subscriberCount).toLocaleString()}</div>
-                    <div class="stat-label">Subscribers</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number">${parseInt(channelData.videoCount).toLocaleString()}</div>
-                    <div class="stat-label">Videos</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number">${parseInt(channelData.viewCount).toLocaleString()}</div>
-                    <div class="stat-label">Total Views</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Video Gallery -->
-    <section class="video-gallery" id="videos">
-        <div class="container">
-            <h2 class="section-title">Latest Videos</h2>
-            <div class="video-grid">
-                ${channelData.videos ? channelData.videos.slice(0, 6).map(video => `
-                    <div class="video-card" onclick="window.open('https://youtube.com/watch?v=${video.id}', '_blank')">
-                        <div class="video-thumbnail">
-                            <img src="${getVideoThumbnail(video)}" alt="${video.title}" loading="lazy">
-                            <button class="play-button">▶</button>
-                        </div>
-                        <div class="video-info">
-                            <div class="video-title">${video.title}</div>
-                            <div class="video-description">${video.description ? video.description.substring(0, 120) + '...' : 'Watch this amazing video from our channel!'}</div>
-                            <div class="video-stats">
-                                <span>👁 ${video.viewCount ? parseInt(video.viewCount).toLocaleString() : 'N/A'} views</span>
-                                <span>👍 ${video.likeCount ? parseInt(video.likeCount).toLocaleString() : 'N/A'} likes</span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('') : `
-                    <div class="video-card">
-                        <div class="video-thumbnail">
-                            <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=320&h=180&fit=crop" alt="Latest Video">
-                            <button class="play-button">▶</button>
-                        </div>
-                        <div class="video-info">
-                            <div class="video-title">Latest Video</div>
-                            <div class="video-description">Check out our latest content!</div>
-                        </div>
-                    </div>
-                    <div class="video-card">
-                        <div class="video-thumbnail">
-                            <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=320&h=180&fit=crop" alt="Popular Video">
-                            <button class="play-button">▶</button>
-                        </div>
-                        <div class="video-info">
-                            <div class="video-title">Popular Video</div>
-                            <div class="video-description">Our most viewed content!</div>
-                        </div>
-                    </div>
-                    <div class="video-card">
-                        <div class="video-thumbnail">
-                            <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=320&h=180&fit=crop" alt="Featured Video">
-                            <button class="play-button">▶</button>
-                        </div>
-                        <div class="video-info">
-                            <div class="video-title">Featured Video</div>
-                            <div class="video-description">Don't miss this one!</div>
-                        </div>
-                    </div>
-                `}
-            </div>
-        </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="footer" id="contact">
-        <div class="container">
-            <h3>${channelData.title}</h3>
-            <p>Thanks for visiting! Don't forget to subscribe and hit the bell icon for notifications.</p>
-            <div class="social-links">
-                <a href="https://youtube.com/channel/${channelData.id}">YouTube</a>
-                ${channelData.customUrl ? `<a href="${channelData.customUrl}">Channel</a>` : ''}
-                <a href="https://youtube.com/channel/${channelData.id}?sub_confirmation=1">Subscribe</a>
-            </div>
-            <p style="margin-top: 2rem; opacity: 0.7;">&copy; 2024 ${channelData.title}. All rights reserved.</p>
-        </div>
-    </footer>
-
-    <script>
-        // Add some interactivity
-        document.addEventListener('DOMContentLoaded', function() {
-            // Smooth scrolling for navigation links
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-                anchor.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const target = document.querySelector(this.getAttribute('href'));
-                    if (target) {
-                        target.scrollIntoView({
-                            behavior: 'smooth'
-                        });
-                    }
-                });
-            });
-
-            // Add loading animation for images
-            document.querySelectorAll('img').forEach(img => {
-                img.addEventListener('load', function() {
-                    this.style.opacity = '1';
-                });
-            });
-        });
-    </script>
-</body>
-</html>
-    `;
-  };
-
-  const getFrameSize = () => {
+  const getPreviewDimensions = () => {
     switch (previewMode) {
       case 'mobile':
-        return { width: '375px', height: '667px' };
+        return { width: '375px', height: '667px', scale: 0.8 };
       case 'tablet':
-        return { width: '768px', height: '1024px' };
+        return { width: '768px', height: '1024px', scale: 0.7 };
       default:
-        return { width: '100%', height: '100%' };
+        return { width: '100%', height: '100%', scale: 1 };
     }
   };
 
-  const frameSize = getFrameSize();
+  const dimensions = getPreviewDimensions();
 
-  if (!currentCode) {
-    return (
-      <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading preview...</p>
-        </div>
-      </div>
-    );
-  }
+  const getDeviceIcon = () => {
+    switch (previewMode) {
+      case 'mobile': return <Smartphone size={16} />;
+      case 'tablet': return <Tablet size={16} />;
+      default: return <Monitor size={16} />;
+    }
+  };
 
   return (
-    <div className="h-full bg-gray-100 flex items-center justify-center p-4">
-      <div 
-        className="bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
-        style={{
-          width: frameSize.width,
-          height: frameSize.height,
-          maxWidth: '100%',
-          maxHeight: '100%'
-        }}
-      >
-        <div className="bg-gray-800 px-4 py-2 flex items-center gap-2">
-          <div className="flex gap-1">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* Preview Header */}
+      <div className="p-4 border-b border-purple-500/30 bg-black/20 backdrop-blur-sm">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-cyan-400">
+              {getDeviceIcon()}
+              <span className="text-sm font-medium">
+                {previewMode.charAt(0).toUpperCase() + previewMode.slice(1)} Preview
+              </span>
+            </div>
+            {hasVerifiedBadge && (
+              <Badge className="bg-green-500/20 text-green-400 border-green-500/30 flex items-center gap-1">
+                <CheckCircle size={12} />
+                Verified
+              </Badge>
+            )}
           </div>
-          <div className="flex items-center gap-2 ml-4">
-            {previewMode === 'mobile' && <Smartphone size={16} className="text-white" />}
-            {previewMode === 'tablet' && <Tablet size={16} className="text-white" />}
-            {previewMode === 'desktop' && <Monitor size={16} className="text-white" />}
-            <span className="text-white text-sm capitalize">{previewMode} Preview</span>
+          
+          <div className="flex items-center gap-2">
+            {generatedCode && (
+              <div className="flex items-center gap-2 text-xs">
+                <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-400 animate-pulse' : 'bg-green-400'}`}></div>
+                <span className={isLoading ? 'text-yellow-400' : 'text-green-400'}>
+                  {isLoading ? 'Loading...' : 'Live'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
-        <iframe
-          srcDoc={currentCode}
-          className="w-full h-full border-0"
-          title="Website Preview"
-          sandbox="allow-scripts allow-same-origin"
-        />
+        
+        {channelData && (
+          <div className="text-xs text-gray-400">
+            Building for: {channelData.title || 'YouTube Channel'}
+          </div>
+        )}
+      </div>
+
+      {/* Preview Content */}
+      <div className="flex-1 p-4 overflow-auto">
+        {generatedCode ? (
+          <div className="h-full flex items-center justify-center">
+            <Card 
+              className="bg-white border-gray-300 shadow-2xl overflow-hidden relative"
+              style={{
+                width: dimensions.width,
+                height: dimensions.height,
+                transform: `scale(${dimensions.scale})`,
+                transformOrigin: 'center center'
+              }}
+            >
+              {isLoading && (
+                <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-50">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="text-sm text-gray-600">Loading your website...</div>
+                  </div>
+                </div>
+              )}
+              
+              <iframe
+                ref={iframeRef}
+                className="w-full h-full border-0"
+                title="Website Preview"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                style={{ 
+                  backgroundColor: 'white',
+                  minHeight: '100%'
+                }}
+              />
+              
+              {/* External Link Overlay */}
+              <div className="absolute top-2 left-2 opacity-0 hover:opacity-100 transition-opacity">
+                <button className="p-1 bg-black/50 text-white rounded hover:bg-black/70">
+                  <ExternalLink size={14} />
+                </button>
+              </div>
+            </Card>
+          </div>
+        ) : (
+          /* No Code Generated State */
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center max-w-md mx-auto">
+              <div className="mb-6">
+                <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-br from-purple-500/20 to-cyan-500/20 rounded-full flex items-center justify-center border border-purple-500/30">
+                  <Monitor size={32} className="text-cyan-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">
+                  Ready for Live Preview
+                </h3>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Start chatting with the AI to generate your website code. You'll see the live preview here as it's being created.
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-3 text-left">
+                <div className="flex items-center gap-3 p-3 bg-white/5 border border-purple-500/20 rounded-lg">
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
+                  <span className="text-sm text-gray-300">Real-time code generation</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-white/5 border border-purple-500/20 rounded-lg">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-sm text-gray-300">Responsive design preview</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-white/5 border border-purple-500/20 rounded-lg">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                  <span className="text-sm text-gray-300">YouTube integration ready</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
