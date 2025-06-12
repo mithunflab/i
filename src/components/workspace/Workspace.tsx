@@ -22,6 +22,7 @@ const Workspace = () => {
   const [showToolbar, setShowToolbar] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string>('');
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const {
     youtubeUrl = 'https://youtube.com/@example',
