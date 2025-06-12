@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -10,6 +11,9 @@ const ConfigurationAnalytics = () => {
   const [configData, setConfigData] = useState({
     deploymentSettings: 0,
     youtubeApiKeys: 0,
+    openrouterApiKeys: 0,
+    githubApiKeys: 0,
+    netlifyApiKeys: 0,
     totalConfigurations: 0,
     recentActivity: []
   });
@@ -33,34 +37,62 @@ const ConfigurationAnalytics = () => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      console.log('Loading configuration analytics data...');
 
-      if (error) {
-        console.error('Error loading analytics:', error);
-        setIsLoading(false);
-        return;
-      }
+      // Fetch from all provider-specific tables
+      const [youtubeResult, openrouterResult, githubResult, netlifyResult] = await Promise.all([
+        supabase.from('youtube_api_keys').select('*').eq('is_active', true),
+        supabase.from('openrouter_api_keys').select('*').eq('is_active', true),
+        supabase.from('github_api_keys').select('*').eq('is_active', true),
+        supabase.from('netlify_api_keys').select('*').eq('is_active', true)
+      ]);
 
-      const deploymentCount = data?.filter(item => 
-        item.provider === 'Netlify' || item.provider === 'GitHub'
-      ).length || 0;
+      if (youtubeResult.error) console.error('YouTube keys error:', youtubeResult.error);
+      if (openrouterResult.error) console.error('OpenRouter keys error:', openrouterResult.error);
+      if (githubResult.error) console.error('GitHub keys error:', githubResult.error);
+      if (netlifyResult.error) console.error('Netlify keys error:', netlifyResult.error);
+
+      const youtubeCount = youtubeResult.data?.length || 0;
+      const openrouterCount = openrouterResult.data?.length || 0;
+      const githubCount = githubResult.data?.length || 0;
+      const netlifyCount = netlifyResult.data?.length || 0;
       
-      const youtubeCount = data?.filter(item => item.provider === 'YouTube').length || 0;
-      
-      const recentActivity = data?.slice(0, 10).map(item => ({
-        type: item.provider,
-        timestamp: new Date(item.created_at || '').toLocaleDateString(),
-        count: 1
-      })) || [];
+      const deploymentCount = githubCount + netlifyCount;
+      const totalCount = youtubeCount + openrouterCount + githubCount + netlifyCount;
+
+      // Create recent activity from all keys
+      const allKeys = [
+        ...(youtubeResult.data || []).map(key => ({ ...key, provider: 'YouTube' })),
+        ...(openrouterResult.data || []).map(key => ({ ...key, provider: 'OpenRouter' })),
+        ...(githubResult.data || []).map(key => ({ ...key, provider: 'GitHub' })),
+        ...(netlifyResult.data || []).map(key => ({ ...key, provider: 'Netlify' }))
+      ];
+
+      const recentActivity = allKeys
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 10)
+        .map(key => ({
+          type: key.provider,
+          timestamp: new Date(key.created_at).toLocaleDateString(),
+          count: 1
+        }));
+
+      console.log('Configuration counts:', {
+        youtube: youtubeCount,
+        openrouter: openrouterCount,
+        github: githubCount,
+        netlify: netlifyCount,
+        deployment: deploymentCount,
+        total: totalCount
+      });
 
       setConfigData({
         deploymentSettings: deploymentCount,
         youtubeApiKeys: youtubeCount,
-        totalConfigurations: deploymentCount + youtubeCount,
+        openrouterApiKeys: openrouterCount,
+        githubApiKeys: githubCount,
+        netlifyApiKeys: netlifyCount,
+        totalConfigurations: totalCount,
         recentActivity
       });
     } catch (err) {
@@ -73,6 +105,7 @@ const ConfigurationAnalytics = () => {
   const chartData = [
     { name: 'Deployment Settings', value: configData.deploymentSettings, color: '#8b5cf6' },
     { name: 'YouTube API Keys', value: configData.youtubeApiKeys, color: '#ef4444' },
+    { name: 'OpenRouter API Keys', value: configData.openrouterApiKeys, color: '#06b6d4' },
   ];
 
   const activityData = configData.recentActivity.reduce((acc, item) => {
@@ -234,9 +267,13 @@ const ConfigurationAnalytics = () => {
                 Deployment Settings
               </h3>
               <div className="bg-gray-800/50 rounded-lg p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-300">GitHub Tokens</span>
+                  <span className="text-white font-semibold">{configData.githubApiKeys}</span>
+                </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Netlify & GitHub Configurations</span>
-                  <span className="text-white font-semibold">{configData.deploymentSettings}</span>
+                  <span className="text-gray-300">Netlify Tokens</span>
+                  <span className="text-white font-semibold">{configData.netlifyApiKeys}</span>
                 </div>
                 <div className="mt-2 bg-gray-700 rounded-full h-2">
                   <div 
@@ -253,14 +290,18 @@ const ConfigurationAnalytics = () => {
                 API Integrations
               </h3>
               <div className="bg-gray-800/50 rounded-lg p-4">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center mb-2">
                   <span className="text-gray-300">YouTube API Keys</span>
                   <span className="text-white font-semibold">{configData.youtubeApiKeys}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300">OpenRouter API Keys</span>
+                  <span className="text-white font-semibold">{configData.openrouterApiKeys}</span>
                 </div>
                 <div className="mt-2 bg-gray-700 rounded-full h-2">
                   <div 
                     className="bg-red-500 h-2 rounded-full" 
-                    style={{ width: configData.youtubeApiKeys > 0 ? '100%' : '0%' }}
+                    style={{ width: (configData.youtubeApiKeys + configData.openrouterApiKeys) > 0 ? '100%' : '0%' }}
                   ></div>
                 </div>
               </div>
