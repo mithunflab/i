@@ -171,7 +171,7 @@ export const useEnhancedProjectChat = (
     await saveChatMessage(userMessage);
 
     try {
-      // Call chat API
+      // Call chat API using correct Supabase edge function endpoint
       const response = await fetch('https://ldcipixxhnrepgkyzmno.supabase.co/functions/v1/chat', {
         method: 'POST',
         headers: {
