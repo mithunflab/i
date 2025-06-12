@@ -4,9 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface NetlifyDeployment {
+  id: string;
   url: string;
   admin_url: string;
   site_id: string;
+  ssl_url?: string;
+  state?: string;
 }
 
 export const useNetlifyDeploy = () => {
