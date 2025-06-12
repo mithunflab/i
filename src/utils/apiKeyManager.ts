@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 interface ApiKey {
@@ -52,6 +51,25 @@ class ApiKeyManager {
     this.cacheExpiry.set(provider, Date.now() + this.CACHE_DURATION);
   }
 
+  // Log real-time API usage
+  private async logApiUsage(provider: string, endpoint: string, success: boolean, responseTime?: number, projectId?: string) {
+    try {
+      await supabase
+        .from('real_time_api_usage')
+        .insert({
+          provider,
+          endpoint,
+          success_count: success ? 1 : 0,
+          error_count: success ? 0 : 1,
+          response_time_ms: responseTime,
+          project_id: projectId,
+          usage_timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+      console.error('Failed to log API usage:', error);
+    }
+  }
+
   // Get shared platform API keys (not user-specific) - GLOBAL ACCESS
   async getPlatformApiKeys(provider: string): Promise<ApiKey[]> {
     console.log(`Getting platform API keys for provider: ${provider}`);
@@ -91,28 +109,37 @@ class ApiKeyManager {
     }
   }
 
-  async getActiveKey(provider: string): Promise<string | null> {
+  async getActiveKey(provider: string, projectId?: string): Promise<string | null> {
     console.log(`Getting active key for provider: ${provider}`);
+    const startTime = Date.now();
     
-    const keys = await this.getPlatformApiKeys(provider);
-    
-    if (keys.length === 0) {
-      console.log(`No keys found for provider: ${provider}`);
-      return null;
-    }
+    try {
+      const keys = await this.getPlatformApiKeys(provider);
+      
+      if (keys.length === 0) {
+        console.log(`No keys found for provider: ${provider}`);
+        await this.logApiUsage(provider, 'get_key', false, Date.now() - startTime, projectId);
+        return null;
+      }
 
-    // Get the first active key
-    const activeKey = keys.find(key => key.is_active);
-    if (!activeKey) {
-      console.log(`No active keys found for provider: ${provider}`);
-      return null;
-    }
+      // Get the first active key
+      const activeKey = keys.find(key => key.is_active);
+      if (!activeKey) {
+        console.log(`No active keys found for provider: ${provider}`);
+        await this.logApiUsage(provider, 'get_key', false, Date.now() - startTime, projectId);
+        return null;
+      }
 
-    console.log(`Found active key for ${provider}:`, activeKey.name);
-    return activeKey.key_value;
+      console.log(`Found active key for ${provider}:`, activeKey.name);
+      await this.logApiUsage(provider, 'get_key', true, Date.now() - startTime, projectId);
+      return activeKey.key_value;
+    } catch (error) {
+      await this.logApiUsage(provider, 'get_key', false, Date.now() - startTime, projectId);
+      throw error;
+    }
   }
 
-  // Get provider-specific keys (shared across all users)
+  // Get provider-specific keys including deployment tokens
   async getProviderSpecificKeys(provider: string): Promise<ProviderSpecificKey[]> {
     console.log(`Getting provider-specific keys for: ${provider}`);
     
@@ -155,39 +182,89 @@ class ApiKeyManager {
         }
         
         case 'github': {
-          const { data, error } = await supabase
+          // First try provider-specific table
+          const { data: providerData, error: providerError } = await supabase
             .from('github_api_keys')
             .select('*')
             .eq('is_active', true)
             .order('created_at', { ascending: false });
 
-          if (error) {
-            console.error(`Error fetching GitHub provider-specific keys:`, error);
-            return [];
+          if (providerError) {
+            console.error(`Error fetching GitHub provider-specific keys:`, providerError);
           }
 
-          return (data || []).map(key => ({
-            ...key,
-            api_token: key.api_token
-          }));
+          // Also get deployment tokens
+          const { data: deploymentData, error: deploymentError } = await supabase
+            .from('deployment_tokens')
+            .select('*')
+            .eq('provider', 'github')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+          if (deploymentError) {
+            console.error(`Error fetching GitHub deployment tokens:`, deploymentError);
+          }
+
+          const combinedData = [
+            ...(providerData || []).map(key => ({
+              ...key,
+              api_token: key.api_token
+            })),
+            ...(deploymentData || []).map(key => ({
+              id: key.id,
+              name: key.token_name,
+              api_token: key.token_value,
+              is_active: key.is_active,
+              created_at: key.created_at,
+              updated_at: key.updated_at,
+              user_id: key.user_id
+            }))
+          ];
+
+          return combinedData;
         }
         
         case 'netlify': {
-          const { data, error } = await supabase
+          // First try provider-specific table
+          const { data: providerData, error: providerError } = await supabase
             .from('netlify_api_keys')
             .select('*')
             .eq('is_active', true)
             .order('created_at', { ascending: false });
 
-          if (error) {
-            console.error(`Error fetching Netlify provider-specific keys:`, error);
-            return [];
+          if (providerError) {
+            console.error(`Error fetching Netlify provider-specific keys:`, providerError);
           }
 
-          return (data || []).map(key => ({
-            ...key,
-            api_token: key.api_token
-          }));
+          // Also get deployment tokens
+          const { data: deploymentData, error: deploymentError } = await supabase
+            .from('deployment_tokens')
+            .select('*')
+            .eq('provider', 'netlify')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+          if (deploymentError) {
+            console.error(`Error fetching Netlify deployment tokens:`, deploymentError);
+          }
+
+          const combinedData = [
+            ...(providerData || []).map(key => ({
+              ...key,
+              api_token: key.api_token
+            })),
+            ...(deploymentData || []).map(key => ({
+              id: key.id,
+              name: key.token_name,
+              api_token: key.token_value,
+              is_active: key.is_active,
+              created_at: key.created_at,
+              updated_at: key.updated_at,
+              user_id: key.user_id
+            }))
+          ];
+
+          return combinedData;
         }
         
         default:
@@ -228,7 +305,7 @@ class ApiKeyManager {
     }
   }
 
-  async getYouTubeKey(): Promise<string | null> {
+  async getYouTubeKey(projectId?: string): Promise<string | null> {
     console.log('Getting YouTube API key...');
     
     // First try provider-specific table
@@ -242,7 +319,7 @@ class ApiKeyManager {
     }
 
     // Fallback to general api_keys table
-    const generalKey = await this.getActiveKey('YouTube');
+    const generalKey = await this.getActiveKey('YouTube', projectId);
     if (generalKey) {
       console.log('Found YouTube key in general api_keys table');
       return generalKey;
@@ -252,7 +329,7 @@ class ApiKeyManager {
     return null;
   }
 
-  async getOpenRouterKey(): Promise<string | null> {
+  async getOpenRouterKey(projectId?: string): Promise<string | null> {
     console.log('Getting OpenRouter API key...');
     
     // First try provider-specific table
@@ -266,7 +343,7 @@ class ApiKeyManager {
     }
 
     // Fallback to general api_keys table
-    const generalKey = await this.getActiveKey('OpenRouter');
+    const generalKey = await this.getActiveKey('OpenRouter', projectId);
     if (generalKey) {
       console.log('Found OpenRouter key in general api_keys table');
       return generalKey;
@@ -276,10 +353,10 @@ class ApiKeyManager {
     return null;
   }
 
-  async getGitHubToken(): Promise<string | null> {
+  async getGitHubToken(projectId?: string): Promise<string | null> {
     console.log('Getting GitHub token...');
     
-    // First try provider-specific table
+    // First try provider-specific table including deployment tokens
     const providerKeys = await this.getProviderSpecificKeys('github');
     if (providerKeys.length > 0) {
       const activeKey = providerKeys.find(key => key.is_active && key.api_token);
@@ -290,7 +367,7 @@ class ApiKeyManager {
     }
 
     // Fallback to general api_keys table
-    const generalKey = await this.getActiveKey('GitHub');
+    const generalKey = await this.getActiveKey('GitHub', projectId);
     if (generalKey) {
       console.log('Found GitHub token in general api_keys table');
       return generalKey;
@@ -300,10 +377,10 @@ class ApiKeyManager {
     return null;
   }
 
-  async getNetlifyToken(): Promise<string | null> {
+  async getNetlifyToken(projectId?: string): Promise<string | null> {
     console.log('Getting Netlify token...');
     
-    // First try provider-specific table
+    // First try provider-specific table including deployment tokens
     const providerKeys = await this.getProviderSpecificKeys('netlify');
     if (providerKeys.length > 0) {
       const activeKey = providerKeys.find(key => key.is_active && key.api_token);
@@ -314,7 +391,7 @@ class ApiKeyManager {
     }
 
     // Fallback to general api_keys table
-    const generalKey = await this.getActiveKey('Netlify');
+    const generalKey = await this.getActiveKey('Netlify', projectId);
     if (generalKey) {
       console.log('Found Netlify token in general api_keys table');
       return generalKey;

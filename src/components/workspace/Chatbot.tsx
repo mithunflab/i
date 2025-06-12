@@ -1,18 +1,10 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Bot, User, Youtube, Users, Smartphone, Palette, Play, Eye } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-
-interface Message {
-  id: string;
-  type: 'user' | 'bot';
-  content: string;
-  timestamp: Date;
-  feature?: string;
-}
+import { useProjectChat } from '@/hooks/useProjectChat';
 
 interface ChannelData {
   id: string;
@@ -29,174 +21,19 @@ interface ChannelData {
 interface ChatbotProps {
   youtubeUrl: string;
   projectIdea: string;
-  projectId?: string;
   channelData?: ChannelData | null;
 }
 
-const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 'default-project', channelData }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData }) => {
   const [inputValue, setInputValue] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    // Load chat history from database
-    loadChatHistory();
-    
-    // Initialize with welcome message if no history
-    const welcomeMessage: Message = {
-      id: '1',
-      type: 'bot',
-      content: getWelcomeMessage(),
-      timestamp: new Date()
-    };
-
-    setMessages(prev => prev.length === 0 ? [welcomeMessage] : prev);
-  }, [projectId, user, channelData]);
-
-  const getWelcomeMessage = () => {
-    if (channelData) {
-      const subscriberCount = parseInt(channelData.subscriberCount).toLocaleString();
-      const videoCount = parseInt(channelData.videoCount).toLocaleString();
-      
-      let videoList = '';
-      if (channelData.videos && channelData.videos.length > 0) {
-        videoList = '\n\n**🎬 Latest Videos:**\n' + 
-          channelData.videos.slice(0, 3).map((video, index) => 
-            `${index + 1}. ${video.snippet.title}`
-          ).join('\n');
-      }
-
-      return `🎥 **Welcome to ${channelData.title} Website Builder!**\n\n` +
-        `I've analyzed your channel and I'm ready to help you create an amazing website!\n\n` +
-        `**📺 Channel Info:**\n` +
-        `• **${channelData.title}**\n` +
-        `• ${subscriberCount} subscribers\n` +
-        `• ${videoCount} videos\n` +
-        `• ${parseInt(channelData.viewCount).toLocaleString()} total views${videoList}\n\n` +
-        `**✨ Creator Features Available:**\n` +
-        `• YouTube Video Integration\n` +
-        `• Channel Branding Match\n` +
-        `• Subscribe Widgets\n` +
-        `• Mobile-First Design\n` +
-        `• SEO for Creators\n` +
-        `• Monetization Tools\n` +
-        `• Analytics Dashboard\n\n` +
-        `**🎯 Pro Tip:** Use "Edit" to click and customize any element for your brand!\n\n` +
-        `What would you like to add to your YouTube website first?`;
-    }
-
-    return `🎥 **Welcome to YouTube Website Builder!**\n\nI've analyzed your channel and I'm ready to help you create an amazing website!\n\n**📺 Channel:** ${youtubeUrl}\n**💡 Vision:** ${projectIdea}\n\n**✨ Creator Features Available:**\n• YouTube Video Integration\n• Channel Branding Match\n• Subscribe Widgets\n• Mobile-First Design\n• SEO for Creators\n• Monetization Tools\n• Analytics Dashboard\n\n**🎯 Pro Tip:** Use "Edit" to click and customize any element for your brand!\n\nWhat would you like to add to your YouTube website first?`;
-  };
-
-  const loadChatHistory = async () => {
-    if (!user || !projectId) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('project_chat_history')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Error loading chat history:', error);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const loadedMessages: Message[] = data.map(msg => ({
-          id: msg.id,
-          type: msg.message_type as 'user' | 'bot',
-          content: msg.content,
-          timestamp: new Date(msg.created_at),
-          feature: typeof msg.metadata === 'object' && msg.metadata !== null && 'feature' in msg.metadata 
-            ? (msg.metadata as any).feature 
-            : undefined
-        }));
-        setMessages(loadedMessages);
-      }
-    } catch (error) {
-      console.error('Error in loadChatHistory:', error);
-    }
-  };
-
-  const saveChatMessage = async (messageType: 'user' | 'assistant', content: string, metadata?: any) => {
-    if (!user || !projectId) return;
-
-    try {
-      await supabase
-        .from('project_chat_history')
-        .insert({
-          project_id: projectId,
-          user_id: user.id,
-          message_type: messageType,
-          content,
-          metadata
-        });
-    } catch (error) {
-      console.error('Error saving chat message:', error);
-    }
-  };
+  const { messages, loading, sendMessage, projectId } = useProjectChat(youtubeUrl, projectIdea, channelData);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || loading) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputValue,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
     
-    // Save user message
-    await saveChatMessage('user', inputValue);
-
-    setLoading(true);
-
-    // Enhanced AI response logic for YouTube creators with channel context
-    setTimeout(async () => {
-      let botResponse = '';
-      let feature = '';
-
-      const channelName = channelData?.title || 'your channel';
-
-      if (inputValue.toLowerCase().includes('video') || inputValue.toLowerCase().includes('youtube')) {
-        feature = 'video';
-        botResponse = `📺 **YouTube Video Integration Activated for ${channelName}!**\n\nSetting up video showcase for "${inputValue}"\n\n🔧 Processing:\n✅ Latest video imports from ${channelName}\n✅ Playlist organization\n✅ Thumbnail optimization\n✅ Subscribe button placement\n\n🎥 **Your ${channelData?.videoCount || 'videos'} videos will look amazing on your website!**`;
-      } else if (inputValue.toLowerCase().includes('brand') || inputValue.toLowerCase().includes('color') || inputValue.toLowerCase().includes('style')) {
-        feature = 'branding';
-        botResponse = `🎨 **${channelName} Branding Applied!**\n\nCustomizing design based on "${inputValue}"\n\n🔧 Branding Updates:\n✅ ${channelName} color extraction\n✅ Thumbnail style analysis\n✅ Font matching\n✅ Logo integration\n\n🌟 **Your website now matches ${channelName}'s YouTube brand perfectly!**`;
-      } else if (inputValue.toLowerCase().includes('subscribe') || inputValue.toLowerCase().includes('audience')) {
-        feature = 'audience';
-        botResponse = `🔔 **Audience Growth Tools Activated for ${channelName}!**\n\nOptimizing for "${inputValue}"\n\n🔧 Growth Features:\n✅ Subscribe buttons for ${channelName}\n✅ Social media links\n✅ Email capture forms\n✅ Content recommendations\n\n📈 **Ready to grow ${channelName}'s ${channelData?.subscriberCount || 'subscriber'} base through your website!**`;
-      } else if (inputValue.toLowerCase().includes('mobile') || inputValue.toLowerCase().includes('phone')) {
-        feature = 'mobile';
-        botResponse = `📱 **Mobile Creator Optimization for ${channelName}!**\n\nOptimizing for mobile viewers: "${inputValue}"\n\n🔧 Mobile Features:\n✅ Touch-friendly navigation\n✅ Fast video loading\n✅ Thumb-friendly buttons\n✅ Portrait video support\n\n📱 **Perfect for ${channelName}'s mobile YouTube audience!**`;
-      } else {
-        botResponse = `🤖 **${channelName} Website AI Processing...**\n\nWorking on: "${inputValue}"\n\n🔧 **Creator Tools Active:**\n✅ Content analysis for ${channelName}\n✅ Audience optimization\n✅ Mobile-first design\n✅ YouTube integration\n\n🎥 **${channelName}'s website is getting better!**\n\n💡 **Try these creator features:**\n• "Add subscribe button for ${channelName}"\n• "Import my latest videos"\n• "Match ${channelName}'s colors"\n• "Optimize for mobile viewers"`;
-      }
-
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'bot',
-        content: botResponse,
-        timestamp: new Date(),
-        feature
-      };
-      
-      setMessages(prev => [...prev, botMessage]);
-      
-      // Save bot message
-      await saveChatMessage('assistant', botResponse, { feature });
-      
-      setLoading(false);
-    }, 1000);
-
+    const messageContent = inputValue;
     setInputValue('');
+    await sendMessage(messageContent);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -263,6 +100,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 
             </div>
           </div>
         )}
+        <div className="mt-2 text-xs text-gray-500">
+          Project ID: {projectId}
+        </div>
       </div>
 
       {/* Messages */}
