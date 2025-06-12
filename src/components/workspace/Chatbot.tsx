@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Youtube, Users, Smartphone, Palette, Play, Eye, Lightbulb, Code, FileText } from 'lucide-react';
-import { useProjectChat } from '@/hooks/useProjectChat';
+import { Send, Bot, User, Youtube, Users, Smartphone, Palette, Play, Eye, Lightbulb, Code, FileText, Github, Globe, Zap } from 'lucide-react';
+import { useEnhancedProjectChat } from '@/hooks/useEnhancedProjectChat';
 
 interface ChannelData {
   id: string;
@@ -27,7 +27,7 @@ interface ChatbotProps {
 const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData }) => {
   const [inputValue, setInputValue] = useState('');
   const [showQuickIdeas, setShowQuickIdeas] = useState(false);
-  const { messages, loading, sendMessage, projectId } = useProjectChat(youtubeUrl, projectIdea, channelData);
+  const { messages, loading, sendMessage, projectId, currentProject, deploymentStatus } = useEnhancedProjectChat(youtubeUrl, projectIdea, channelData);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || loading) return;
@@ -45,17 +45,17 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
   };
 
   const quickIdeas = [
-    { label: 'Add subscribe button', icon: '🔔' },
-    { label: 'Import latest videos', icon: '📺' },
-    { label: 'Match channel colors', icon: '🎨' },
-    { label: 'Mobile optimize', icon: '📱' },
-    { label: 'Add video gallery', icon: '🎬' },
-    { label: 'Setup analytics', icon: '📊' }
+    { label: 'Change hero section colors', icon: '🎨' },
+    { label: 'Update navigation menu', icon: '🧭' },
+    { label: 'Modify video gallery layout', icon: '📺' },
+    { label: 'Edit call-to-action buttons', icon: '🔔' },
+    { label: 'Change footer content', icon: '📄' },
+    { label: 'Update statistics display', icon: '📊' }
   ];
 
   return (
     <div className="h-full flex flex-col bg-rough">
-      {/* Chat Header with Channel Info */}
+      {/* Enhanced Chat Header with Project Info */}
       <div className="p-4 border-b border-border glass">
         {channelData ? (
           <div className="space-y-3">
@@ -76,17 +76,63 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
               </div>
             </div>
             
-            {channelData.videos && channelData.videos.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-gray-300">Latest Videos:</p>
-                <div className="space-y-1 max-h-20 overflow-y-auto">
-                  {channelData.videos.slice(0, 3).map((video, index) => (
-                    <div key={index} className="flex items-center gap-2 text-xs">
-                      <Play size={10} className="text-red-400 flex-shrink-0" />
-                      <span className="truncate text-gray-400">{video.snippet.title}</span>
-                    </div>
-                  ))}
+            {/* Project Status */}
+            {currentProject && (
+              <div className="bg-black/30 rounded-lg p-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-cyan-400">Active Project</p>
+                    <p className="text-xs text-gray-300">{currentProject.name}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    {currentProject.github_url && (
+                      <a
+                        href={currentProject.github_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded"
+                      >
+                        <Github size={10} className="inline" />
+                      </a>
+                    )}
+                    {currentProject.netlify_url && (
+                      <a
+                        href={currentProject.netlify_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
+                      >
+                        <Globe size={10} className="inline" />
+                      </a>
+                    )}
+                  </div>
                 </div>
+              </div>
+            )}
+
+            {/* Deployment Status */}
+            {deploymentStatus.status !== 'idle' && (
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2">
+                <div className="flex items-center gap-2">
+                  {deploymentStatus.status === 'deploying' && (
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  )}
+                  {deploymentStatus.status === 'success' && (
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  )}
+                  {deploymentStatus.status === 'failed' && (
+                    <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                  )}
+                  <span className="text-xs text-blue-300">{deploymentStatus.message}</span>
+                </div>
+                {deploymentStatus.status === 'deploying' && (
+                  <div className="w-full bg-gray-700 rounded-full h-1 mt-2">
+                    <div 
+                      className="bg-blue-400 h-1 rounded-full transition-all duration-300" 
+                      style={{ width: `${deploymentStatus.progress}%` }}
+                    ></div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -96,8 +142,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
               <Youtube className="text-white" size={18} />
             </div>
             <div>
-              <h3 className="font-semibold neon-text">AI Website Builder</h3>
-              <p className="text-xs text-muted-foreground">Creator Assistant</p>
+              <h3 className="font-semibold neon-text">Enhanced AI Builder</h3>
+              <p className="text-xs text-muted-foreground">Targeted Modifications</p>
             </div>
           </div>
         )}
@@ -116,7 +162,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
             >
               {message.type === 'bot' && (
                 <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                  {message.feature === 'video' ? (
+                  {message.feature === 'targeted-modification' ? (
+                    <Zap size={14} className="text-white" />
+                  ) : message.feature === 'video' ? (
                     <Youtube size={14} className="text-white" />
                   ) : message.feature === 'branding' ? (
                     <Palette size={14} className="text-white" />
@@ -141,15 +189,47 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
               >
                 <p className="text-sm whitespace-pre-line leading-relaxed">{message.content}</p>
                 
-                {/* Show generated code info */}
+                {/* Enhanced code generation status */}
                 {message.generatedCode && (
-                  <div className="mt-3 p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <div className="flex items-center gap-2 text-green-400 text-xs">
-                      <FileText size={12} />
-                      <span>Code Generated & Saved</span>
+                  <div className="mt-3 space-y-2">
+                    <div className="p-3 bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+                        <Zap size={14} />
+                        <span>🎯 Targeted Changes Applied!</span>
+                      </div>
+                      {message.codeDescription && (
+                        <p className="text-xs text-green-300 mt-1">{message.codeDescription}</p>
+                      )}
+                      <div className="text-xs text-gray-300 mt-2">
+                        ✨ Preserved existing design • 🎯 Modified specific element • 📱 Maintained responsiveness
+                      </div>
                     </div>
-                    {message.codeDescription && (
-                      <p className="text-xs text-green-300 mt-1">{message.codeDescription}</p>
+                    
+                    {(message.githubUrl || message.netlifyUrl) && (
+                      <div className="flex gap-2">
+                        {message.githubUrl && (
+                          <a 
+                            href={message.githubUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg border border-gray-600 transition-colors"
+                          >
+                            <Github size={12} />
+                            <span className="text-white">Updated Code</span>
+                          </a>
+                        )}
+                        {message.netlifyUrl && (
+                          <a 
+                            href={message.netlifyUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-3 py-2 rounded-lg transition-colors"
+                          >
+                            <Globe size={12} />
+                            <span className="text-white">Live Changes</span>
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -170,7 +250,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
           {loading && (
             <div className="flex gap-3 justify-start">
               <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                <Bot size={14} className="text-white" />
+                <Zap size={14} className="text-white animate-pulse" />
               </div>
               <div className="bg-card/80 border border-border/50 glass p-3 rounded-lg">
                 <div className="flex items-center gap-2">
@@ -179,7 +259,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
                     <div className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
                     <div className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                   </div>
-                  <span className="text-sm text-muted-foreground ml-2">AI is generating code...</span>
+                  <span className="text-sm text-muted-foreground ml-2">Making targeted changes...</span>
                 </div>
               </div>
             </div>
@@ -187,13 +267,13 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
         </div>
       </ScrollArea>
 
-      {/* Input with Ideas Button */}
+      {/* Enhanced Input with Targeted Suggestions */}
       <div className="p-4 border-t border-border glass">
         <div className="relative">
           <div className="flex gap-2 mb-3">
             <div className="relative flex-1">
               <Input
-                placeholder={`Tell me what to create for ${channelData?.title || 'your'} website...`}
+                placeholder={`Tell me specifically what to change in ${channelData?.title || 'your'} website...`}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -216,9 +296,10 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
             </Button>
           </div>
 
-          {/* Quick Ideas Dropdown */}
+          {/* Targeted Quick Ideas */}
           {showQuickIdeas && (
             <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-lg shadow-lg p-3 z-50">
+              <h4 className="text-sm font-medium text-primary mb-2">🎯 Targeted Changes:</h4>
               <div className="grid grid-cols-1 gap-2">
                 {quickIdeas.map((idea) => (
                   <Button
@@ -241,10 +322,10 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
           )}
         </div>
         
-        {/* Feature Status */}
+        {/* Enhanced Feature Status */}
         <div className="text-xs text-muted-foreground text-center">
-          🤖 AI Code Generator • 📁 Auto GitHub Save • 🎥 YouTube Integration
-          {channelData && ` • ${channelData.title} Connected`}
+          🎯 Targeted AI Changes • 📁 Single Repository • 🚀 Real-time Deployment • 🧠 Project Memory
+          {channelData && ` • ${channelData.title} Context Loaded`}
         </div>
       </div>
     </div>

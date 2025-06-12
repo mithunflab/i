@@ -3,8 +3,11 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useGitHubIntegration } from './useGitHubIntegration';
-import { useNetlifyDeploy } from './useNetlifyDeploy';
+import { useProjectContext } from './useProjectContext';
+import { useTargetedChanges } from './useTargetedChanges';
+import { useRepositoryManager } from './useRepositoryManager';
+import { useRealTimeDeployment } from './useRealTimeDeployment';
+import { generateReadme, generateProjectFeatures } from '../utils/readmeGenerator';
 
 interface ChatMessage {
   id: string;
@@ -42,8 +45,12 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
   const [currentProject, setCurrentProject] = useState<any>(null);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { createGitHubRepo, updateGitHubRepo } = useGitHubIntegration();
-  const { deployToNetlify, updateNetlifyDeployment } = useNetlifyDeploy();
+  
+  // Enhanced hooks
+  const { context: projectContext, updateProjectContext } = useProjectContext(projectId, youtubeUrl);
+  const { generateTargetedPrompt } = useTargetedChanges();
+  const { getOrCreateRepository, updateRepository } = useRepositoryManager();
+  const { deployToNetlify, deploymentStatus } = useRealTimeDeployment();
 
   // Load existing project if it exists
   const loadExistingProject = useCallback(async () => {
@@ -60,11 +67,76 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
       if (existingProject) {
         setCurrentProject(existingProject);
         console.log('📂 Found existing project:', existingProject.name);
+        
+        // Load chat history
+        const { data: chatHistory } = await supabase
+          .from('project_chat_history')
+          .select('*')
+          .eq('project_id', existingProject.id)
+          .order('created_at', { ascending: true });
+
+        if (chatHistory && chatHistory.length > 0) {
+          const loadedMessages: ChatMessage[] = chatHistory.map(msg => ({
+            id: msg.id,
+            type: msg.message_type as 'user' | 'bot',
+            content: msg.content,
+            timestamp: new Date(msg.created_at),
+            feature: msg.metadata?.feature,
+            generatedCode: msg.metadata?.generatedCode,
+            codeDescription: msg.metadata?.codeDescription,
+            githubUrl: msg.metadata?.githubUrl,
+            netlifyUrl: msg.metadata?.netlifyUrl
+          }));
+          setMessages(loadedMessages);
+        } else {
+          // Add welcome message if no history
+          const welcomeMessage = createWelcomeMessage();
+          setMessages([welcomeMessage]);
+        }
       }
     } catch (error) {
       console.log('ℹ️ No existing project found, will create new one');
+      const welcomeMessage = createWelcomeMessage();
+      setMessages([welcomeMessage]);
     }
-  }, [user, youtubeUrl]);
+  }, [user, youtubeUrl, channelData]);
+
+  const createWelcomeMessage = (): ChatMessage => {
+    if (channelData) {
+      return {
+        id: crypto.randomUUID(),
+        type: 'bot',
+        content: `🎥 **Welcome back to ${channelData.title} Website Builder!**\n\n` +
+          `I have your project context and chat history loaded. I can make targeted changes to specific elements without affecting your entire website.\n\n` +
+          `**🧠 What I remember:**\n` +
+          `• Your channel: ${channelData.title}\n` +
+          `• Subscribers: ${parseInt(channelData.subscriberCount).toLocaleString()}\n` +
+          `• Current design and layout\n` +
+          `• Previous conversations\n\n` +
+          `**🎯 I can make targeted changes to:**\n` +
+          `• Hero section (main title area)\n` +
+          `• Navigation menu\n` +
+          `• Video gallery\n` +
+          `• Statistics section\n` +
+          `• Call-to-action buttons\n` +
+          `• Footer content\n` +
+          `• Colors and styling\n\n` +
+          `**💡 Tell me specifically what you'd like to change**, and I'll modify only that element while preserving everything else!`,
+        timestamp: new Date(),
+        feature: 'welcome'
+      };
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      type: 'bot',
+      content: `🎥 **Welcome to Enhanced AI Website Builder!**\n\n` +
+        `I can create targeted changes to your website without affecting the entire page.\n\n` +
+        `**🎯 Just tell me what specific element you'd like to modify!**`,
+      timestamp: new Date(),
+      feature: 'welcome'
+    };
+  };
 
   const sendMessage = useCallback(async (content: string) => {
     if (!user) {
@@ -88,16 +160,26 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     setLoading(true);
 
     try {
-      console.log('🤖 Calling real AI chat function...');
+      console.log('🤖 Processing targeted request with project context...');
       
-      // Call the actual Supabase edge function with real AI
+      // Generate targeted prompt based on project context
+      const targetedPrompt = generateTargetedPrompt(
+        content,
+        currentProject?.source_code || '',
+        projectContext,
+        channelData
+      );
+
+      // Call the AI with enhanced context
       const { data: aiResponse, error: aiError } = await supabase.functions.invoke('chat', {
         body: {
-          message: content,
+          message: targetedPrompt,
           projectId: currentProject?.id || projectId,
           channelData: channelData,
-          chatHistory: messages.slice(-5), // Last 5 messages for context
-          generateCode: true
+          chatHistory: messages.slice(-10), // More context for better responses
+          generateCode: true,
+          projectContext: projectContext,
+          isTargetedChange: true
         }
       });
 
@@ -106,115 +188,126 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
         throw new Error(`AI API Error: ${aiError.message}`);
       }
 
-      console.log('✅ AI Response received:', aiResponse);
+      console.log('✅ AI Response received with project context');
 
-      // Create AI response message
+      // Create enhanced AI response message
       const botMessage: ChatMessage = {
         id: crypto.randomUUID(),
         type: 'bot',
-        content: aiResponse.reply || 'I\'ve generated your code!',
+        content: aiResponse.reply || 'I\'ve made the targeted changes to your website!',
         timestamp: new Date(),
-        feature: aiResponse.feature || 'website',
+        feature: aiResponse.feature || 'targeted-modification',
         generatedCode: aiResponse.generatedCode,
-        codeDescription: aiResponse.codeDescription,
-        fileChanges: aiResponse.generatedCode ? [
-          { path: 'index.html', content: aiResponse.generatedCode, action: 'update' }
-        ] : undefined
+        codeDescription: aiResponse.codeDescription
       };
 
-      // Handle project creation/update with real generated code
+      // Handle repository and deployment management
       if (aiResponse.generatedCode) {
-        console.log('🚀 Real AI code generated, deploying...');
+        console.log('🚀 Processing targeted changes with repository management...');
         
         try {
           const projectName = currentProject?.name || `${channelData?.title || 'AI'}-website-${Date.now()}`.replace(/\s+/g, '-');
           const projectDescription = `AI-generated website for ${channelData?.title || 'custom project'}`;
           
-          let githubUrl = currentProject?.github_url;
-          let netlifyUrl = currentProject?.netlify_url;
+          // Get or create repository (only creates if none exists)
+          const repoInfo = await getOrCreateRepository(
+            currentProject?.id || projectId,
+            projectName,
+            channelData
+          );
 
-          if (currentProject && currentProject.github_url) {
-            // Update existing repository
-            console.log('📤 Updating existing GitHub repository...');
-            await updateGitHubRepo(currentProject.github_url, [
-              { path: 'index.html', content: aiResponse.generatedCode, action: 'update' }
-            ]);
-            
-            // Update existing Netlify deployment
-            if (currentProject.netlify_url) {
-              console.log('🌐 Updating existing Netlify deployment...');
-              await updateNetlifyDeployment(currentProject.netlify_url, aiResponse.generatedCode);
-              netlifyUrl = currentProject.netlify_url;
-            } else {
-              // Create new Netlify deployment if doesn't exist
-              console.log('🌐 Creating new Netlify deployment...');
-              const netlifyDeployment = await deployToNetlify(projectName, aiResponse.generatedCode);
-              netlifyUrl = netlifyDeployment.url;
+          if (repoInfo) {
+            // Generate enhanced README with project context
+            const readmeContent = generateReadme({
+              title: projectName,
+              description: projectDescription,
+              channelData: channelData,
+              features: generateProjectFeatures(projectIdea, channelData, aiResponse.generatedCode),
+              designPrinciples: projectContext?.designPrinciples || [],
+              currentStructure: projectContext?.currentStructure || { components: [], styling: {}, layout: 'default' },
+              githubUrl: repoInfo.githubUrl,
+              netlifyUrl: repoInfo.netlifyUrl,
+              lastModified: new Date()
+            });
+
+            // Update repository with new files (targeted changes)
+            const filesToUpdate = [
+              { 
+                path: 'index.html', 
+                content: aiResponse.generatedCode,
+                message: `Targeted modification: ${content.substring(0, 50)}...`
+              },
+              { 
+                path: 'README.md', 
+                content: readmeContent,
+                message: 'Update project documentation'
+              }
+            ];
+
+            await updateRepository(repoInfo.githubUrl, filesToUpdate);
+            botMessage.githubUrl = repoInfo.githubUrl;
+
+            // Deploy to Netlify (updates existing site or creates new one)
+            const netlifyUrl = await deployToNetlify(
+              currentProject?.id || projectId,
+              projectName,
+              aiResponse.generatedCode,
+              currentProject?.netlify_url
+            );
+
+            if (netlifyUrl) {
+              botMessage.netlifyUrl = netlifyUrl;
             }
-          } else {
-            // Create new repository and deployment
-            console.log('📤 Creating new GitHub repository...');
-            const githubRepo = await createGitHubRepo(projectName, projectDescription, aiResponse.generatedCode, generateREADME());
-            githubUrl = githubRepo.html_url;
-            
-            console.log('🌐 Creating new Netlify deployment...');
-            const netlifyDeployment = await deployToNetlify(projectName, aiResponse.generatedCode);
-            netlifyUrl = netlifyDeployment.url;
+
+            // Save/update project in database
+            const projectData = {
+              user_id: user.id,
+              name: projectName,
+              description: projectDescription,
+              youtube_url: youtubeUrl,
+              channel_data: channelData as any,
+              source_code: aiResponse.generatedCode,
+              github_url: repoInfo.githubUrl,
+              netlify_url: netlifyUrl || currentProject?.netlify_url,
+              status: 'active'
+            };
+
+            if (currentProject) {
+              await supabase
+                .from('projects')
+                .update(projectData)
+                .eq('id', currentProject.id);
+              
+              console.log('✅ Project updated with targeted changes');
+            } else {
+              const { data: newProject } = await supabase
+                .from('projects')
+                .insert(projectData)
+                .select()
+                .single();
+
+              if (newProject) {
+                setCurrentProject(newProject);
+                console.log('✅ New project created');
+              }
+            }
+
+            // Update project context
+            await updateProjectContext({
+              currentStructure: projectContext?.currentStructure || { components: [], styling: {}, layout: 'default' }
+            });
+
+            toast({
+              title: "🎯 Targeted Changes Applied!",
+              description: `Your specific modifications are live at ${netlifyUrl || repoInfo.netlifyUrl}`,
+            });
           }
-
-          botMessage.githubUrl = githubUrl;
-          botMessage.netlifyUrl = netlifyUrl;
-
-          // Save or update project in database
-          console.log('💾 Saving project to database...');
-          const projectData = {
-            user_id: user.id,
-            name: projectName,
-            description: projectDescription,
-            youtube_url: youtubeUrl,
-            channel_data: channelData as any,
-            source_code: aiResponse.generatedCode,
-            github_url: githubUrl,
-            netlify_url: netlifyUrl,
-            status: 'active'
-          };
-
-          if (currentProject) {
-            const { error: updateError } = await supabase
-              .from('projects')
-              .update(projectData)
-              .eq('id', currentProject.id);
-            
-            if (updateError) {
-              console.error('❌ Failed to update project:', updateError);
-            } else {
-              console.log('✅ Project updated in database');
-            }
-          } else {
-            const { data: newProject, error: insertError } = await supabase
-              .from('projects')
-              .insert(projectData)
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error('❌ Failed to create project:', insertError);
-            } else {
-              console.log('✅ Project created in database');
-              setCurrentProject(newProject);
-            }
-          }
-
-          toast({
-            title: "🎉 AI-Generated Website Deployed!",
-            description: `Your AI-powered website is live at ${netlifyUrl}`,
-          });
 
         } catch (deployError) {
           console.error('❌ Deployment failed:', deployError);
           toast({
             title: "Deployment Error",
-            description: "AI code generated but deployment failed. Check console for details.",
+            description: "Changes generated but deployment failed. Check console for details.",
             variant: "destructive"
           });
         }
@@ -222,8 +315,36 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
 
       setMessages(prev => [...prev, botMessage]);
 
+      // Save chat message to history
+      if (currentProject?.id) {
+        await supabase
+          .from('project_chat_history')
+          .insert({
+            project_id: currentProject.id,
+            user_id: user.id,
+            message_type: 'user',
+            content: content
+          });
+
+        await supabase
+          .from('project_chat_history')
+          .insert({
+            project_id: currentProject.id,
+            user_id: user.id,
+            message_type: 'assistant',
+            content: botMessage.content,
+            metadata: {
+              feature: botMessage.feature,
+              generatedCode: botMessage.generatedCode,
+              codeDescription: botMessage.codeDescription,
+              githubUrl: botMessage.githubUrl,
+              netlifyUrl: botMessage.netlifyUrl
+            }
+          });
+      }
+
     } catch (error) {
-      console.error('❌ Error in sendMessage:', error);
+      console.error('❌ Error in enhanced sendMessage:', error);
       
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -242,35 +363,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     } finally {
       setLoading(false);
     }
-  }, [user, projectId, channelData, youtubeUrl, toast, createGitHubRepo, deployToNetlify, currentProject, updateGitHubRepo, updateNetlifyDeployment]);
-
-  const generateREADME = () => {
-    return `# ${channelData?.title || 'AI Generated Website'}
-
-This website was automatically generated using AI technology with OpenRouter API.
-
-## Features
-- Real-time AI code generation
-- Responsive design
-- YouTube integration
-- Modern UI/UX
-- Mobile-optimized
-- AI-powered content creation
-
-## Technologies Used
-- HTML5, CSS3, JavaScript
-- OpenRouter AI API
-- GitHub Integration
-- Netlify Deployment
-- Real-time Generation
-
-## AI-Generated Content
-This project was created using advanced AI models that generate custom code based on user requirements and YouTube channel data.
-
-## Live Website
-Visit the live website to see the AI-generated content in action!
-`;
-  };
+  }, [user, projectId, channelData, youtubeUrl, toast, generateTargetedPrompt, getOrCreateRepository, updateRepository, deployToNetlify, currentProject, projectContext, updateProjectContext, messages]);
 
   // Load existing project on mount
   useEffect(() => {
@@ -282,6 +375,7 @@ Visit the live website to see the AI-generated content in action!
     loading,
     sendMessage,
     projectId: currentProject?.id || projectId,
-    currentProject
+    currentProject,
+    deploymentStatus
   };
 };
