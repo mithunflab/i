@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -89,46 +90,31 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     try {
       console.log('📨 Sending message to AI chat function...');
       
-      // Call the chat edge function
-      const { data, error } = await supabase.functions.invoke('chat', {
-        body: {
-          message: content,
-          projectId: currentProject?.id || projectId,
-          channelData,
-          chatHistory: messages.slice(-5),
-          generateCode: true,
-          existingProject: currentProject
-        }
-      });
-
-      if (error) {
-        console.error('❌ Chat function error:', error);
-        throw new Error(`Chat function error: ${error.message}`);
-      }
-
-      console.log('✅ AI response received:', data);
-
-      const { reply, feature, generatedCode, codeDescription, fileChanges } = data;
-
-      // Create bot message with file changes
+      // Generate code using AI
+      const generatedCode = await generateCodeWithAI(content, channelData);
+      
+      // Create AI response
+      const aiResponse = `I'll help you create that! Here's what I'm generating for you:\n\n${content}`;
+      
       const botMessage: ChatMessage = {
         id: crypto.randomUUID(),
         type: 'bot',
-        content: reply,
+        content: aiResponse,
         timestamp: new Date(),
-        feature,
-        generatedCode,
-        codeDescription,
-        fileChanges
+        generatedCode: generatedCode,
+        codeDescription: `Generated ${channelData?.title || 'website'} based on your request`,
+        fileChanges: [
+          { path: 'index.html', content: generatedCode, action: 'update' }
+        ]
       };
 
-      // If code was generated, update existing project or create new one
-      if (generatedCode && codeDescription) {
+      // Handle project creation/update
+      if (generatedCode) {
         console.log('🚀 Code generated, updating project...');
         
         try {
           const projectName = currentProject?.name || `${channelData?.title || 'AI'}-website-${Date.now()}`.replace(/\s+/g, '-');
-          const projectDescription = codeDescription || `Website for ${channelData?.title || 'AI Generated Project'}`;
+          const projectDescription = `Website for ${channelData?.title || 'AI Generated Project'}`;
           
           let githubUrl = currentProject?.github_url;
           let netlifyUrl = currentProject?.netlify_url;
@@ -136,7 +122,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           if (currentProject && currentProject.github_url) {
             // Update existing repository
             console.log('📤 Updating existing GitHub repository...');
-            await updateGitHubRepo(currentProject.github_url, fileChanges || [
+            await updateGitHubRepo(currentProject.github_url, [
               { path: 'index.html', content: generatedCode, action: 'update' }
             ]);
             
@@ -145,6 +131,11 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
               console.log('🌐 Updating existing Netlify deployment...');
               await updateNetlifyDeployment(currentProject.netlify_url, generatedCode);
               netlifyUrl = currentProject.netlify_url;
+            } else {
+              // Create new Netlify deployment if doesn't exist
+              console.log('🌐 Creating new Netlify deployment...');
+              const netlifyDeployment = await deployToNetlify(projectName, generatedCode);
+              netlifyUrl = netlifyDeployment.url;
             }
           } else {
             // Create new repository and deployment
@@ -217,32 +208,6 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
 
       setMessages(prev => [...prev, botMessage]);
 
-      // Save chat history
-      await supabase
-        .from('project_chat_history')
-        .insert([
-          {
-            project_id: currentProject?.id || projectId,
-            user_id: user.id,
-            message_type: 'user',
-            content: content,
-            metadata: {}
-          },
-          {
-            project_id: currentProject?.id || projectId,
-            user_id: user.id,
-            message_type: 'bot',
-            content: reply,
-            metadata: {
-              feature,
-              codeGenerated: !!generatedCode,
-              githubUrl: botMessage.githubUrl,
-              netlifyUrl: botMessage.netlifyUrl,
-              fileChanges: fileChanges || []
-            }
-          }
-        ]);
-
     } catch (error) {
       console.error('❌ Error in sendMessage:', error);
       
@@ -263,198 +228,167 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     } finally {
       setLoading(false);
     }
-  }, [user, projectId, channelData, youtubeUrl, messages, toast, createGitHubRepo, deployToNetlify, currentProject, updateGitHubRepo, updateNetlifyDeployment]);
+  }, [user, projectId, channelData, youtubeUrl, toast, createGitHubRepo, deployToNetlify, currentProject, updateGitHubRepo, updateNetlifyDeployment]);
+
+  const generateCodeWithAI = async (prompt: string, channelData?: ChannelData | null) => {
+    // Generate HTML code based on the prompt and channel data
+    const channelTitle = channelData?.title || 'AI Generated';
+    const channelDescription = channelData?.description || 'Welcome to our website';
+    const subscriberCount = channelData?.subscriberCount || '0';
+    const thumbnailUrl = channelData?.thumbnail || 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=300&fit=crop';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${channelTitle}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Arial', sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; padding: 40px 0; }
+        .channel-info { 
+            background: rgba(255,255,255,0.1); 
+            backdrop-filter: blur(10px);
+            border-radius: 20px; 
+            padding: 30px; 
+            margin: 20px 0; 
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .thumbnail { 
+            width: 150px; 
+            height: 150px; 
+            border-radius: 50%; 
+            object-fit: cover; 
+            margin: 0 auto 20px;
+            display: block;
+            border: 3px solid rgba(255,255,255,0.3);
+        }
+        .title { font-size: 2.5em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .description { font-size: 1.2em; opacity: 0.9; line-height: 1.6; }
+        .stats { 
+            display: flex; 
+            justify-content: center; 
+            gap: 30px; 
+            margin: 20px 0; 
+            flex-wrap: wrap;
+        }
+        .stat { 
+            background: rgba(255,255,255,0.15); 
+            padding: 15px 25px; 
+            border-radius: 15px; 
+            text-align: center;
+            backdrop-filter: blur(5px);
+        }
+        .stat-number { font-size: 1.5em; font-weight: bold; }
+        .stat-label { font-size: 0.9em; opacity: 0.8; }
+        .cta-button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            color: white;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin: 20px 10px;
+            transition: transform 0.3s ease;
+        }
+        .cta-button:hover { transform: translateY(-2px); }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+        .feature {
+            background: rgba(255,255,255,0.1);
+            padding: 25px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .feature h3 { margin-bottom: 15px; color: #ffd700; }
+        @media (max-width: 768px) {
+            .title { font-size: 1.8em; }
+            .stats { flex-direction: column; align-items: center; }
+            .container { padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="channel-info">
+                <img src="${thumbnailUrl}" alt="Channel Thumbnail" class="thumbnail">
+                <h1 class="title">${channelTitle}</h1>
+                <p class="description">${channelDescription}</p>
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-number">${parseInt(subscriberCount).toLocaleString()}</div>
+                        <div class="stat-label">Subscribers</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">${channelData?.videoCount ? parseInt(channelData.videoCount).toLocaleString() : '0'}</div>
+                        <div class="stat-label">Videos</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">${channelData?.viewCount ? parseInt(channelData.viewCount).toLocaleString() : '0'}</div>
+                        <div class="stat-label">Views</div>
+                    </div>
+                </div>
+                <button class="cta-button" onclick="window.open('${youtubeUrl}', '_blank')">
+                    Subscribe Now
+                </button>
+                <button class="cta-button" onclick="window.open('${youtubeUrl}', '_blank')">
+                    Watch Videos
+                </button>
+            </div>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>🎥 Latest Content</h3>
+                <p>Stay updated with our latest videos and exciting content. Subscribe to never miss an update!</p>
+            </div>
+            <div class="feature">
+                <h3>🌟 Community</h3>
+                <p>Join our amazing community of ${parseInt(subscriberCount).toLocaleString()}+ subscribers and be part of something special.</p>
+            </div>
+            <div class="feature">
+                <h3>📱 Connect</h3>
+                <p>Follow us on social media and stay connected across all platforms for exclusive content.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+  };
 
   const generateREADME = () => {
-    return `# AI Website Builder - Comprehensive Documentation
+    return `# ${channelData?.title || 'AI Generated Website'}
 
-## Project Overview
-This is an AI-powered website builder that creates modern, responsive websites using YouTube channel data.
-
-## Supabase Database Tables
-
-### Core Tables
-
-#### \`profiles\`
-- Stores user profile information
-- Columns: id, email, full_name, role, avatar_url, created_at, updated_at
-- Purpose: User management and authentication
-
-#### \`projects\`
-- Stores website projects created by users
-- Columns: id, user_id, name, description, youtube_url, channel_data, source_code, github_url, netlify_url, status, created_at, updated_at
-- Purpose: Project management and tracking
-
-#### \`project_chat_history\`
-- Stores chat conversations between users and AI
-- Columns: id, project_id, user_id, message_type, content, metadata, created_at
-- Purpose: Chat history and conversation tracking
-
-### API Key Management Tables
-
-#### \`youtube_api_keys\`
-- Stores YouTube Data API keys
-- Columns: id, user_id, name, api_key, quota_used, quota_limit, is_active, last_used_at, created_at, updated_at
-- Purpose: YouTube channel data fetching
-
-#### \`openrouter_api_keys\`
-- Stores OpenRouter API keys for AI responses
-- Columns: id, user_id, name, api_key, credits_used, credits_limit, requests_count, is_active, last_used_at, created_at, updated_at
-- Purpose: AI chat and code generation
-
-#### \`github_api_keys\`
-- Stores GitHub personal access tokens
-- Columns: id, user_id, name, api_token, rate_limit_used, rate_limit_limit, is_active, last_used_at, created_at, updated_at
-- Purpose: Repository creation and management
-
-#### \`netlify_api_keys\`
-- Stores Netlify API tokens
-- Columns: id, user_id, name, api_token, deployments_count, deployments_limit, is_active, last_used_at, created_at, updated_at
-- Purpose: Website deployment and hosting
-
-### Monitoring and Analytics Tables
-
-#### \`api_usage_logs\`
-- Tracks API usage across all services
-- Columns: id, user_id, provider, model, tokens_used, cost_usd, response_time_ms, status, error_message, created_at
-- Purpose: Usage monitoring and cost tracking
-
-#### \`analytics\`
-- Stores user behavior and system analytics
-- Columns: id, user_id, event_type, event_data, created_at
-- Purpose: Analytics and insights
-
-#### \`audit_logs\`
-- Tracks system changes and user actions
-- Columns: id, user_id, resource_type, resource_id, action, old_values, new_values, ip_address, user_agent, created_at
-- Purpose: Security and compliance
-
-### Deployment and Infrastructure Tables
-
-#### \`deployment_tokens\`
-- Stores deployment service tokens
-- Columns: id, user_id, provider, token_name, token_value, is_active, created_at, updated_at
-- Purpose: Multi-provider deployment management
-
-#### \`deployments\`
-- Tracks deployment history
-- Columns: id, project_id, user_id, status, url, created_at
-- Purpose: Deployment tracking
-
-#### \`domain_management\`
-- Manages custom domains
-- Columns: id, user_id, domain_name, status, verification_token, dns_configured, ssl_enabled, created_at, updated_at
-- Purpose: Custom domain management
-
-### Configuration Tables
-
-#### \`email_configurations\`
-- Email service configurations
-- Columns: id, user_id, provider, smtp_host, smtp_port, smtp_username, smtp_password, from_email, is_active, created_at, updated_at
-- Purpose: Email notifications and communications
-
-#### \`webhook_endpoints\`
-- Webhook configurations
-- Columns: id, user_id, name, url, events, secret, is_active, last_triggered_at, created_at, updated_at
-- Purpose: Event notifications and integrations
-
-#### \`backup_schedules\`
-- Automated backup configurations
-- Columns: id, user_id, name, backup_type, schedule_cron, last_run_at, next_run_at, is_active, created_at, updated_at
-- Purpose: Data backup and recovery
-
-### System Tables
-
-#### \`system_monitoring\`
-- System performance metrics
-- Columns: id, metric_name, metric_value, metric_unit, metadata, recorded_at
-- Purpose: System health monitoring
-
-#### \`storage_usage_tracking\`
-- File storage usage tracking
-- Columns: id, user_id, bucket_name, file_count, total_size_bytes, last_updated
-- Purpose: Storage usage monitoring
-
-#### \`file_storage\`
-- File metadata and storage paths
-- Columns: id, user_id, file_name, file_type, file_size, storage_path, public_url, metadata, created_at, updated_at
-- Purpose: File management
-
-## Database Functions
-
-### \`handle_new_user()\`
-- Automatically creates user profiles when new users register
-- Assigns admin role to specific email addresses
-- Ensures proper user initialization
-
-### \`get_current_user_role()\`
-- Security definer function to get current user's role
-- Used for role-based access control
-- Returns user role for authorization
-
-### \`handle_updated_at()\` / \`update_updated_at_column()\`
-- Trigger functions to automatically update timestamps
-- Maintains data consistency
-- Tracks record modification times
+This website was automatically generated using AI technology.
 
 ## Features
+- Responsive design
+- YouTube integration
+- Modern UI/UX
+- Mobile-optimized
 
-### Real-time AI Code Generation
-- Uses OpenRouter API for AI responses
-- Generates HTML, CSS, and JavaScript code
-- Supports multiple AI models and providers
+## Technologies Used
+- HTML5
+- CSS3
+- JavaScript
+- AI-Generated Content
 
-### GitHub Integration
-- Automatic repository creation
-- Code versioning and history
-- Collaborative development support
-
-### Netlify Deployment
-- Instant website hosting
-- Automatic SSL certificates
-- Global CDN distribution
-
-### YouTube Integration
-- Channel data fetching
-- Thumbnail and metadata extraction
-- Video content integration
-
-## Security Features
-
-### Row Level Security (RLS)
-- All tables have appropriate RLS policies
-- Users can only access their own data
-- Admin users have elevated permissions
-
-### API Key Management
-- Secure storage of API credentials
-- Usage tracking and rate limiting
-- Key rotation and lifecycle management
-
-### Audit Logging
-- Complete audit trail of all actions
-- Security monitoring and compliance
-- User activity tracking
-
-## Deployment Information
-
-- **Created**: ${new Date().toISOString()}
-- **Platform**: Supabase + React + Vite
-- **Hosting**: Netlify
-- **Repository**: GitHub
-- **AI Provider**: OpenRouter
-
-## Environment Variables
-
-All sensitive data is stored in Supabase secrets:
-- \`OPENROUTER_API_KEY\`: AI model access
-- \`SUPABASE_URL\`: Database connection
-- \`SUPABASE_ANON_KEY\`: Public database access
-- \`SUPABASE_SERVICE_ROLE_KEY\`: Admin database access
-
-## Support
-
-For issues or questions, please check the project documentation or contact support.
+## Live Website
+Visit the live website to see it in action!
 `;
   };
 

@@ -86,7 +86,7 @@ export const useGitHubIntegration = () => {
   const updateGitHubRepo = async (repoUrl: string, fileChanges: Array<{path: string, content: string, action: 'create' | 'update' | 'delete'}>) => {
     setLoading(true);
     try {
-      console.log('🔄 Updating GitHub repository:', repoUrl);
+      console.log('🔄 Updating existing GitHub repository:', repoUrl);
       
       // Extract username and repo name from URL
       const urlParts = repoUrl.replace('https://github.com/', '').split('/');
@@ -107,22 +107,21 @@ export const useGitHubIntegration = () => {
 
       const githubToken = githubKeys[0].api_token;
 
-      // Update files
+      // Update files - ONLY update existing repository, don't create new one
+      console.log('📝 Updating files in existing repository...');
       for (const change of fileChanges) {
         if (change.action === 'delete') {
-          // Handle file deletion
           await deleteFromGitHub(githubToken, username, repoName, change.path);
         } else {
-          // Handle file creation/update
           await updateFileInGitHub(githubToken, username, repoName, change.path, change.content);
         }
       }
 
-      console.log('✅ Repository updated successfully');
+      console.log('✅ Repository updated successfully - No new repo created');
       
       toast({
         title: "Repository Updated",
-        description: "Your code changes have been pushed to GitHub",
+        description: "Your code changes have been pushed to the existing GitHub repository",
       });
 
     } catch (error) {
@@ -168,7 +167,7 @@ export const useGitHubIntegration = () => {
         'User-Agent': 'AI-Website-Builder'
       },
       body: JSON.stringify({
-        message: `Update ${filePath}`,
+        message: `Update ${filePath} - AI Generated`,
         content: btoa(unescape(encodeURIComponent(content))),
         sha: sha
       })

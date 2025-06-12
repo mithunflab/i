@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Shield, CheckCircle } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface Project {
   id: string;
@@ -16,25 +16,22 @@ interface Project {
 }
 
 interface ProjectVerificationDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  project: Project | null;
-  onSubmit: () => void;
+  project: Project;
+  onVerificationSubmitted: () => void;
 }
 
-const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
-  open,
-  onOpenChange,
-  project,
-  onSubmit
+const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({ 
+  project, 
+  onVerificationSubmitted 
 }) => {
+  const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async () => {
-    if (!project || !user) return;
+    if (!user || !message.trim()) return;
 
     setLoading(true);
     try {
@@ -43,26 +40,33 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
         .insert({
           project_id: project.id,
           user_id: user.id,
-          request_message: message || 'Please verify my project for enhanced features and credibility.'
+          request_message: message.trim(),
+          status: 'pending'
         });
 
       if (error) {
         console.error('Error submitting verification request:', error);
         toast({
           title: "Error",
-          description: "Failed to submit verification request",
+          description: "Failed to submit verification request. Please try again.",
           variant: "destructive"
         });
         return;
       }
 
-      onSubmit();
+      toast({
+        title: "Verification Requested",
+        description: "Your project has been submitted for verification review.",
+      });
+
+      setOpen(false);
       setMessage('');
+      onVerificationSubmitted();
     } catch (error) {
       console.error('Error in handleSubmit:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -71,67 +75,50 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-gray-900 border-gray-800 text-white max-w-md">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="flex items-center gap-1 h-9">
+          <Shield className="w-3 h-3" />
+          Get Verified
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-green-400" />
-            Get Project Verified
+            <Shield className="w-5 h-5 text-green-500" />
+            Request Project Verification
           </DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-6">
-          {project && (
-            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-              <h3 className="font-semibold text-white mb-1">{project.name}</h3>
-              <p className="text-sm text-gray-400">{project.description}</p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-              <CheckCircle className="h-5 w-5 text-green-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm">
-                <h4 className="font-medium text-green-400 mb-1">Verification Benefits</h4>
-                <ul className="text-gray-300 space-y-1">
-                  <li>• Enhanced credibility and trust</li>
-                  <li>• Priority support and features</li>
-                  <li>• Verification badge display</li>
-                  <li>• Access to premium tools</li>
-                </ul>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="verification-message" className="text-gray-300">
-                Additional Message (Optional)
-              </Label>
-              <Textarea
-                id="verification-message"
-                placeholder="Tell us more about your project and why it should be verified..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                className="mt-2 bg-gray-800 border-gray-600 text-white"
-                rows={4}
-              />
-            </div>
+        <div className="space-y-4">
+          <div>
+            <Label className="text-sm font-medium">Project: {project.name}</Label>
+            <p className="text-sm text-gray-600 mt-1">{project.description}</p>
           </div>
-
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="flex-1"
-              disabled={loading}
-            >
+          
+          <div>
+            <Label htmlFor="message" className="text-sm font-medium">
+              Why should this project be verified?
+            </Label>
+            <Textarea
+              id="message"
+              placeholder="Explain why your project deserves verification (quality, originality, usefulness, etc.)"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="mt-1"
+              rows={4}
+            />
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-              disabled={loading}
+            <Button 
+              onClick={handleSubmit} 
+              disabled={loading || !message.trim()}
+              className="bg-green-600 hover:bg-green-700"
             >
-              {loading ? "Submitting..." : "Submit Request"}
+              {loading ? 'Submitting...' : 'Submit Request'}
             </Button>
           </div>
         </div>
