@@ -23,8 +23,11 @@ const ServiceStatusIndicators = () => {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
+    // Check service status immediately when component mounts
+    checkServiceStatus();
+    
+    // Set up real-time updates only if user is available
     if (user?.id) {
-      checkServiceStatus();
       setupRealTimeUpdates();
     }
 
@@ -108,15 +111,13 @@ const ServiceStatusIndicators = () => {
   };
 
   const checkServiceStatus = async () => {
-    if (!user?.id) return;
-
     try {
-      console.log('Checking service status for user:', user.id);
+      console.log('Checking service status (global access)...');
 
-      // Use the apiKeyManager to check availability
+      // Use the apiKeyManager to check availability (now works globally for all users)
       const availability = await apiKeyManager.checkKeyAvailability();
 
-      console.log('Service status updated:', availability);
+      console.log('Service status updated (global):', availability);
       setServiceStatus(availability);
     } catch (error) {
       console.error('Error checking service status:', error);

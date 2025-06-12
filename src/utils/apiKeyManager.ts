@@ -52,7 +52,7 @@ class ApiKeyManager {
     this.cacheExpiry.set(provider, Date.now() + this.CACHE_DURATION);
   }
 
-  // Get shared platform API keys (not user-specific)
+  // Get shared platform API keys (not user-specific) - GLOBAL ACCESS
   async getPlatformApiKeys(provider: string): Promise<ApiKey[]> {
     console.log(`Getting platform API keys for provider: ${provider}`);
     
@@ -65,7 +65,7 @@ class ApiKeyManager {
     }
 
     try {
-      // Get all active keys for this provider (not filtered by user_id)
+      // Get all active keys for this provider (NO user_id filter for shared access)
       const { data, error } = await supabase
         .from('api_keys')
         .select('*')
@@ -112,6 +112,7 @@ class ApiKeyManager {
     return activeKey.key_value;
   }
 
+  // Get provider-specific keys (shared across all users)
   async getProviderSpecificKeys(provider: string): Promise<ProviderSpecificKey[]> {
     console.log(`Getting provider-specific keys for: ${provider}`);
     
@@ -199,8 +200,8 @@ class ApiKeyManager {
     }
   }
 
-  async getAllKeys(userId?: string): Promise<AllKeysResponse> {
-    console.log('Getting all API keys for all providers');
+  async getAllProviderKeys(): Promise<AllKeysResponse> {
+    console.log('Getting all API keys for all providers (shared access)');
     
     try {
       const [youtubeKeys, openrouterKeys, githubKeys, netlifyKeys] = await Promise.all([
@@ -323,14 +324,14 @@ class ApiKeyManager {
     return null;
   }
 
-  // Method to check if keys are available
+  // Method to check if keys are available (GLOBAL ACCESS FOR ALL USERS)
   async checkKeyAvailability(): Promise<{
     youtube: boolean;
     openrouter: boolean;
     github: boolean;
     netlify: boolean;
   }> {
-    console.log('Checking API key availability...');
+    console.log('Checking API key availability for all users...');
     
     const [youtubeKey, openrouterKey, githubKey, netlifyKey] = await Promise.all([
       this.getYouTubeKey(),
@@ -346,7 +347,7 @@ class ApiKeyManager {
       netlify: !!netlifyKey
     };
 
-    console.log('API key availability:', availability);
+    console.log('API key availability (shared access):', availability);
     return availability;
   }
 
