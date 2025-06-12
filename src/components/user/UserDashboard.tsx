@@ -18,7 +18,7 @@ import {
   Palette
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import EnhancedUserProjects from './EnhancedUserProjects';
+import UserProjects from './UserProjects';
 import YouTubeWebsiteBuilder from './YouTubeWebsiteBuilder';
 import ServiceStatusIndicators from '../ui/ServiceStatusIndicators';
 
@@ -43,7 +43,7 @@ const UserDashboard = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'projects':
-        return <EnhancedUserProjects />;
+        return <UserProjects />;
       case 'youtube':
         return <YouTubeWebsiteBuilder />;
       case 'analytics':

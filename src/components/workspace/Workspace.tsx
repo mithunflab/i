@@ -32,6 +32,7 @@ const Workspace = () => {
   const youtubeUrl = searchParams.get('url') || '';
   const projectIdea = searchParams.get('idea') || '';
   const channelDataParam = searchParams.get('channelData');
+  const projectId = searchParams.get('projectId');
   
   let channelData = null;
   try {
@@ -48,34 +49,28 @@ const Workspace = () => {
         return;
       }
       
-      if (!youtubeUrl) {
-        setError('No YouTube URL provided');
-        setLoading(false);
-        return;
-      }
-      
       try {
         setLoading(true);
         setError(null);
-        console.log('🔍 Loading project for URL:', youtubeUrl);
         
-        const { data: project, error: projectError } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('youtube_url', youtubeUrl)
-          .single();
-        
-        if (projectError) {
-          if (projectError.code === 'PGRST116') {
-            // No project found - this is OK for new projects
-            console.log('ℹ️ No existing project found - will create new one');
-            setProjectData(null);
-          } else {
-            throw projectError;
+        // If we have a project ID, load that specific project
+        if (projectId) {
+          console.log('🔍 Loading project by ID:', projectId);
+          
+          const { data: project, error: projectError } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', projectId)
+            .eq('user_id', user.id)
+            .single();
+          
+          if (projectError) {
+            console.error('❌ Error loading project by ID:', projectError);
+            setError('Project not found or access denied');
+            return;
           }
-        } else {
-          console.log('📂 Project found:', project.name);
+          
+          console.log('📂 Project loaded by ID:', project.name);
           setProjectData(project);
           
           if (project.source_code) {
@@ -86,17 +81,89 @@ const Workspace = () => {
           if (project.id) {
             checkRepositoryConnection(project.id);
           }
+          return;
         }
+        
+        // If we have a YouTube URL, try to find existing project or prepare for new one
+        if (youtubeUrl) {
+          console.log('🔍 Loading project for URL:', youtubeUrl);
+          
+          const { data: project, error: projectError } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('youtube_url', youtubeUrl)
+            .maybeSingle();
+          
+          if (projectError) {
+            console.error('❌ Error loading project:', projectError);
+            setError('Failed to load project data');
+            return;
+          }
+          
+          if (project) {
+            console.log('📂 Project found:', project.name);
+            setProjectData(project);
+            
+            if (project.source_code) {
+              setGeneratedCode(project.source_code);
+            }
+            
+            // Check repository connection
+            if (project.id) {
+              checkRepositoryConnection(project.id);
+            }
+          } else {
+            console.log('ℹ️ No existing project found - ready to create new one');
+            setProjectData(null);
+          }
+          return;
+        }
+        
+        // If no URL parameters, check if user has any projects and redirect to most recent
+        console.log('🔍 No URL parameters, checking for user projects...');
+        
+        const { data: userProjects, error: projectsError } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        
+        if (projectsError) {
+          console.error('❌ Error loading user projects:', projectsError);
+          setError('Failed to load projects');
+          return;
+        }
+        
+        if (userProjects && userProjects.length > 0) {
+          const latestProject = userProjects[0];
+          console.log('📂 Loading latest project:', latestProject.name);
+          setProjectData(latestProject);
+          
+          if (latestProject.source_code) {
+            setGeneratedCode(latestProject.source_code);
+          }
+          
+          // Check repository connection
+          if (latestProject.id) {
+            checkRepositoryConnection(latestProject.id);
+          }
+        } else {
+          console.log('ℹ️ No projects found, user can create new one');
+          setProjectData(null);
+        }
+        
       } catch (error) {
-        console.error('❌ Error loading project:', error);
-        setError('Failed to load project data');
+        console.error('❌ Error in loadProject:', error);
+        setError('Failed to load workspace data');
       } finally {
         setLoading(false);
       }
     };
 
     loadProject();
-  }, [user, youtubeUrl, checkRepositoryConnection]);
+  }, [user, youtubeUrl, projectId, checkRepositoryConnection]);
 
   const handleCodeGenerated = (code: string) => {
     console.log('🔄 Code generated in workspace, updating preview...');
@@ -151,10 +218,10 @@ const Workspace = () => {
           </Button>
           
           <div className="flex items-center gap-3">
-            {channelData?.thumbnail && (
+            {(channelData?.thumbnail || projectData?.channel_data?.thumbnail) && (
               <img 
-                src={channelData.thumbnail} 
-                alt={channelData.title}
+                src={channelData?.thumbnail || projectData?.channel_data?.thumbnail} 
+                alt={channelData?.title || projectData?.channel_data?.title || 'Channel'}
                 className="w-8 h-8 rounded-full object-cover border border-cyan-400"
               />
             )}
@@ -163,7 +230,10 @@ const Workspace = () => {
                 {projectData?.name || channelData?.title || 'AI Website Builder'}
               </h1>
               <p className="text-xs text-gray-400">
-                {channelData ? `${parseInt(channelData.subscriberCount || '0').toLocaleString()} subscribers` : 'Enhanced Workspace'}
+                {(channelData || projectData?.channel_data) ? 
+                  `${parseInt((channelData?.subscriberCount || projectData?.channel_data?.subscriberCount) || '0').toLocaleString()} subscribers` : 
+                  'Enhanced Workspace'
+                }
               </p>
             </div>
           </div>
@@ -269,9 +339,9 @@ const Workspace = () => {
           {/* Enhanced Chatbot Panel */}
           <ResizablePanel defaultSize={35} minSize={30} maxSize={50}>
             <SuperEnhancedChatbot
-              youtubeUrl={youtubeUrl}
-              projectIdea={projectIdea}
-              channelData={channelData}
+              youtubeUrl={youtubeUrl || projectData?.youtube_url || ''}
+              projectIdea={projectIdea || projectData?.description || ''}
+              channelData={channelData || projectData?.channel_data}
               onCodeGenerated={handleCodeGenerated}
               projectData={projectData}
               onProjectUpdate={handleProjectUpdate}
@@ -285,11 +355,11 @@ const Workspace = () => {
             <Tabs value={activeTab} className="h-full">
               <TabsContent value="preview" className="h-full m-0">
                 <PreviewFrame
-                  youtubeUrl={youtubeUrl}
-                  projectIdea={projectIdea}
+                  youtubeUrl={youtubeUrl || projectData?.youtube_url || ''}
+                  projectIdea={projectIdea || projectData?.description || ''}
                   previewMode={previewMode}
                   generatedCode={generatedCode}
-                  channelData={channelData}
+                  channelData={channelData || projectData?.channel_data}
                 />
               </TabsContent>
               
