@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Globe, Plus, Settings, Shield, CheckCircle, Clock, ExternalLink, Award } from 'lucide-react';
+import { Globe, Plus, Settings, Shield, CheckCircle, Clock, ExternalLink, Award, Github } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import ProjectVerificationDialog from './ProjectVerificationDialog';
+import { useNavigate } from 'react-router-dom';
 
 interface Project {
   id: string;
@@ -16,8 +16,11 @@ interface Project {
   status: string;
   created_at: string;
   verification_status?: 'pending' | 'approved' | 'rejected' | null;
+  verified?: boolean;
   github_url?: string;
   netlify_url?: string;
+  youtube_url?: string;
+  channel_data?: any;
 }
 
 const UserProjects = () => {
@@ -25,6 +28,7 @@ const UserProjects = () => {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
@@ -34,6 +38,9 @@ const UserProjects = () => {
 
   const loadProjects = async () => {
     try {
+      setLoading(true);
+      console.log('🔍 Loading projects for user:', user?.id);
+
       // Load projects with verification status
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
@@ -43,8 +50,15 @@ const UserProjects = () => {
 
       if (projectsError) {
         console.error('Error loading projects:', projectsError);
+        toast({
+          title: "Error Loading Projects",
+          description: "Failed to load your projects. Please try again.",
+          variant: "destructive"
+        });
         return;
       }
+
+      console.log('✅ Projects loaded:', projectsData?.length || 0);
 
       // Load verification requests
       const { data: verificationsData, error: verificationsError } = await supabase
@@ -70,6 +84,11 @@ const UserProjects = () => {
       setProjects(projectsWithVerification);
     } catch (error) {
       console.error('Error in loadProjects:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while loading projects.",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -77,6 +96,8 @@ const UserProjects = () => {
 
   const handleGetVerified = async (project: Project) => {
     try {
+      console.log('📋 Requesting verification for project:', project.id);
+
       const { error } = await supabase
         .from('project_verification_requests')
         .insert({
@@ -84,7 +105,11 @@ const UserProjects = () => {
           user_id: user?.id,
           project_name: project.name,
           project_url: project.netlify_url || project.github_url || '',
-          status: 'pending'
+          contact_email: user?.email || '',
+          website_description: project.description,
+          project_data: project,
+          status: 'pending',
+          verification_type: 'youtube_website'
         });
 
       if (error) {
@@ -116,23 +141,32 @@ const UserProjects = () => {
     }
   };
 
-  const onVerificationSubmitted = () => {
-    loadProjects(); // Reload to show updated verification status
-    toast({
-      title: "Verification Requested",
-      description: "Your project has been submitted for verification review.",
-    });
+  const handleEditProject = (project: Project) => {
+    if (project.youtube_url) {
+      const params = new URLSearchParams({
+        url: project.youtube_url,
+        idea: project.description || '',
+      });
+      
+      if (project.channel_data) {
+        params.append('channelData', encodeURIComponent(JSON.stringify(project.channel_data)));
+      }
+      
+      navigate(`/workspace?${params.toString()}`);
+    }
   };
 
-  const getVerificationBadge = (status: string | null) => {
+  const getVerificationBadge = (status: string | null, verified?: boolean) => {
+    if (verified || status === 'approved') {
+      return (
+        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+          <CheckCircle size={12} className="mr-1" />
+          Verified
+        </Badge>
+      );
+    }
+    
     switch (status) {
-      case 'approved':
-        return (
-          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-            <CheckCircle size={12} className="mr-1" />
-            Verified
-          </Badge>
-        );
       case 'pending':
         return (
           <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
@@ -151,8 +185,8 @@ const UserProjects = () => {
     }
   };
 
-  const canRequestVerification = (status: string | null) => {
-    return status === null || status === 'rejected';
+  const canRequestVerification = (status: string | null, verified?: boolean) => {
+    return !verified && (status === null || status === 'rejected');
   };
 
   if (loading) {
@@ -173,7 +207,10 @@ const UserProjects = () => {
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle className="text-white">My Projects</CardTitle>
-          <Button className="cyber-button">
+          <Button 
+            className="cyber-button"
+            onClick={() => navigate('/user-dashboard')}
+          >
             <Plus size={16} className="mr-2" />
             New Project
           </Button>
@@ -193,11 +230,28 @@ const UserProjects = () => {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-white text-lg flex items-center gap-2">
-                        {project.name}
-                        {getVerificationBadge(project.verification_status)}
+                      <CardTitle className="text-white text-lg flex items-center gap-2 mb-2">
+                        <span className="flex items-center gap-2">
+                          {project.channel_data?.thumbnail && (
+                            <img 
+                              src={project.channel_data.thumbnail} 
+                              alt={project.channel_data.title}
+                              className="w-6 h-6 rounded-full object-cover"
+                            />
+                          )}
+                          {project.name}
+                          {(project.verified || project.verification_status === 'approved') && (
+                            <CheckCircle size={16} className="text-blue-400" />
+                          )}
+                        </span>
+                        {getVerificationBadge(project.verification_status, project.verified)}
                       </CardTitle>
                       <p className="text-gray-400 text-sm mt-1">{project.description}</p>
+                      {project.channel_data && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {parseInt(project.channel_data.subscriberCount || '0').toLocaleString()} subscribers
+                        </p>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -210,22 +264,47 @@ const UserProjects = () => {
                   </div>
                   
                   <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" size="sm" className="flex-1">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleEditProject(project)}
+                    >
                       <Settings size={14} className="mr-1" />
                       Edit
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
-                      <ExternalLink size={14} className="mr-1" />
-                      View
-                    </Button>
+                    
+                    {project.netlify_url && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => window.open(project.netlify_url, '_blank')}
+                      >
+                        <ExternalLink size={14} className="mr-1" />
+                        View
+                      </Button>
+                    )}
+
+                    {project.github_url && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="p-2"
+                        onClick={() => window.open(project.github_url, '_blank')}
+                        title="GitHub Repository"
+                      >
+                        <Github size={14} />
+                      </Button>
+                    )}
                     
                     {/* Get Verified Button */}
-                    {canRequestVerification(project.verification_status) && (
+                    {canRequestVerification(project.verification_status, project.verified) && (
                       <Button 
                         variant="outline" 
                         size="sm" 
                         onClick={() => handleGetVerified(project)}
-                        className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 flex items-center gap-1"
+                        className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 flex items-center gap-1 min-w-[100px]"
                       >
                         <Award size={14} />
                         <span className="text-xs">Get Verified</span>

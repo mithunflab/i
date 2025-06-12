@@ -24,6 +24,7 @@ const Workspace = () => {
   const [generatedCode, setGeneratedCode] = useState<string>('');
   const [projectData, setProjectData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   const { checkRepositoryConnection } = useGitHubReconnection();
   
@@ -42,20 +43,38 @@ const Workspace = () => {
   // Load existing project data
   useEffect(() => {
     const loadProject = async () => {
-      if (!user || !youtubeUrl) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      
+      if (!youtubeUrl) {
+        setError('No YouTube URL provided');
+        setLoading(false);
+        return;
+      }
       
       try {
         setLoading(true);
+        setError(null);
         console.log('🔍 Loading project for URL:', youtubeUrl);
         
-        const { data: project } = await supabase
+        const { data: project, error: projectError } = await supabase
           .from('projects')
           .select('*')
           .eq('user_id', user.id)
           .eq('youtube_url', youtubeUrl)
           .single();
         
-        if (project) {
+        if (projectError) {
+          if (projectError.code === 'PGRST116') {
+            // No project found - this is OK for new projects
+            console.log('ℹ️ No existing project found - will create new one');
+            setProjectData(null);
+          } else {
+            throw projectError;
+          }
+        } else {
           console.log('📂 Project found:', project.name);
           setProjectData(project);
           
@@ -67,11 +86,10 @@ const Workspace = () => {
           if (project.id) {
             checkRepositoryConnection(project.id);
           }
-        } else {
-          console.log('ℹ️ No existing project found');
         }
       } catch (error) {
         console.error('❌ Error loading project:', error);
+        setError('Failed to load project data');
       } finally {
         setLoading(false);
       }
@@ -89,12 +107,29 @@ const Workspace = () => {
     navigate('/user-dashboard');
   };
 
+  const handleProjectUpdate = (updatedProject: any) => {
+    setProjectData(updatedProject);
+  };
+
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-black">
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400">Loading workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">{error}</p>
+          <Button onClick={handleBackToDashboard} variant="outline">
+            Back to Dashboard
+          </Button>
         </div>
       </div>
     );
@@ -239,6 +274,7 @@ const Workspace = () => {
               channelData={channelData}
               onCodeGenerated={handleCodeGenerated}
               projectData={projectData}
+              onProjectUpdate={handleProjectUpdate}
             />
           </ResizablePanel>
           
