@@ -41,7 +41,7 @@ const UserProjects = () => {
       setLoading(true);
       console.log('🔍 Loading projects for user:', user?.id);
 
-      // Load projects with verification status
+      // Load projects
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('*')
@@ -106,14 +106,14 @@ const UserProjects = () => {
           project_name: project.name,
           project_url: project.netlify_url || project.github_url || '',
           contact_email: user?.email || '',
-          website_description: project.description,
+          website_description: project.description || '',
           project_data: project,
           status: 'pending',
           verification_type: 'youtube_website'
         });
 
       if (error) {
-        if (error.code === '23505') { // Unique constraint violation
+        if (error.code === '23505') {
           toast({
             title: "Already Requested",
             description: "You've already requested verification for this project.",
@@ -129,7 +129,6 @@ const UserProjects = () => {
         description: "Your project has been submitted for developer review.",
       });
 
-      // Reload projects to show updated status
       loadProjects();
     } catch (error) {
       console.error('Error requesting verification:', error);
@@ -146,6 +145,7 @@ const UserProjects = () => {
       const params = new URLSearchParams({
         url: project.youtube_url,
         idea: project.description || '',
+        projectId: project.id
       });
       
       if (project.channel_data) {
@@ -224,31 +224,36 @@ const UserProjects = () => {
             <p>Create your first AI-generated website to get started!</p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
               <Card key={project.id} className="bg-gray-800/50 border-gray-700 hover:bg-gray-800/70 transition-colors">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-white text-lg flex items-center gap-2 mb-2">
-                        <span className="flex items-center gap-2">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="relative w-12 h-12 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
+                          <Globe className="h-6 w-6 text-white" />
                           {project.channel_data?.thumbnail && (
                             <img 
                               src={project.channel_data.thumbnail} 
                               alt={project.channel_data.title}
-                              className="w-6 h-6 rounded-full object-cover"
+                              className="absolute -top-1 -right-1 w-6 h-6 rounded-full object-cover border-2 border-white"
                             />
                           )}
-                          {project.name}
                           {(project.verified || project.verification_status === 'approved') && (
-                            <CheckCircle size={16} className="text-blue-400" />
+                            <CheckCircle className="absolute -bottom-1 -right-1 w-4 h-4 text-blue-400 bg-gray-800 rounded-full" />
                           )}
-                        </span>
-                        {getVerificationBadge(project.verification_status, project.verified)}
-                      </CardTitle>
-                      <p className="text-gray-400 text-sm mt-1">{project.description}</p>
+                        </div>
+                        <div className="flex-1">
+                          <CardTitle className="text-white text-lg leading-tight">
+                            {project.name}
+                          </CardTitle>
+                          {getVerificationBadge(project.verification_status, project.verified)}
+                        </div>
+                      </div>
+                      <p className="text-gray-400 text-sm mt-2 line-clamp-2">{project.description}</p>
                       {project.channel_data && (
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 mt-2">
                           {parseInt(project.channel_data.subscriberCount || '0').toLocaleString()} subscribers
                         </p>
                       )}
@@ -258,7 +263,7 @@ const UserProjects = () => {
                 <CardContent className="pt-0">
                   <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
                     <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
-                    <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
+                    <Badge variant={project.status === 'active' ? 'default' : 'secondary'} className="text-xs">
                       {project.status}
                     </Badge>
                   </div>
@@ -267,7 +272,7 @@ const UserProjects = () => {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="flex-1"
+                      className="flex-1 text-xs"
                       onClick={() => handleEditProject(project)}
                     >
                       <Settings size={14} className="mr-1" />
@@ -278,7 +283,7 @@ const UserProjects = () => {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="flex-1"
+                        className="flex-1 text-xs"
                         onClick={() => window.open(project.netlify_url, '_blank')}
                       >
                         <ExternalLink size={14} className="mr-1" />
@@ -297,20 +302,19 @@ const UserProjects = () => {
                         <Github size={14} />
                       </Button>
                     )}
-                    
-                    {/* Get Verified Button */}
-                    {canRequestVerification(project.verification_status, project.verified) && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleGetVerified(project)}
-                        className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 flex items-center gap-1 min-w-[100px]"
-                      >
-                        <Award size={14} />
-                        <span className="text-xs">Get Verified</span>
-                      </Button>
-                    )}
                   </div>
+
+                  {canRequestVerification(project.verification_status, project.verified) && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleGetVerified(project)}
+                      className="w-full mt-2 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 text-xs"
+                    >
+                      <Award size={14} className="mr-1" />
+                      Get Verified
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
