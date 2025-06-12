@@ -1,5 +1,4 @@
-
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -460,7 +459,7 @@ For issues or questions, please check the project documentation or contact suppo
   };
 
   // Load existing project on mount
-  React.useEffect(() => {
+  useEffect(() => {
     loadExistingProject();
   }, [loadExistingProject]);
 

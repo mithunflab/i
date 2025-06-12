@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,12 +34,7 @@ interface Project {
   status: string;
   created_at: string;
   updated_at: string;
-  channel_data?: {
-    title: string;
-    thumbnail: string;
-    subscriberCount: string;
-    videoCount: string;
-  };
+  channel_data?: any; // Changed from specific interface to any to handle Json type
 }
 
 const EnhancedUserProjects: React.FC = () => {
@@ -72,7 +66,7 @@ const EnhancedUserProjects: React.FC = () => {
       }
 
       console.log('✅ Projects fetched:', data?.length || 0);
-      setProjects(data || []);
+      setProjects(data as Project[] || []); // Type assertion to fix the mismatch
     } catch (error) {
       console.error('❌ Error fetching projects:', error);
       toast({
