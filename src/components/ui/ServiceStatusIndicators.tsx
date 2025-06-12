@@ -23,14 +23,20 @@ const ServiceStatusIndicators = () => {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
+    // Check service status immediately
     checkServiceStatus();
     
+    // Set up real-time updates for shared keys
     if (user?.id) {
       setupRealTimeUpdates();
     }
 
+    // Refresh status every 30 seconds
+    const interval = setInterval(checkServiceStatus, 30000);
+
     return () => {
       cleanupRealTimeUpdates();
+      clearInterval(interval);
     };
   }, [user?.id]);
 
@@ -47,21 +53,20 @@ const ServiceStatusIndicators = () => {
     
     if (!user?.id) return;
     
-    console.log('Setting up real-time updates for service status');
+    console.log('Setting up real-time updates for shared service status');
     
     channelRef.current = supabase
-      .channel(`service-status-${user.id}`)
+      .channel(`shared-service-status`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'youtube_api_keys',
-          filter: `user_id=eq.${user.id}`
+          table: 'youtube_api_keys'
         },
         (payload) => {
           console.log('Real-time YouTube API key update:', payload);
-          checkServiceStatus();
+          setTimeout(checkServiceStatus, 1000);
         }
       )
       .on(
@@ -69,12 +74,11 @@ const ServiceStatusIndicators = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'openrouter_api_keys',
-          filter: `user_id=eq.${user.id}`
+          table: 'openrouter_api_keys'
         },
         (payload) => {
           console.log('Real-time AI API key update:', payload);
-          checkServiceStatus();
+          setTimeout(checkServiceStatus, 1000);
         }
       )
       .on(
@@ -82,12 +86,11 @@ const ServiceStatusIndicators = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'github_api_keys',
-          filter: `user_id=eq.${user.id}`
+          table: 'github_api_keys'
         },
         (payload) => {
           console.log('Real-time GitHub API key update:', payload);
-          checkServiceStatus();
+          setTimeout(checkServiceStatus, 1000);
         }
       )
       .on(
@@ -95,22 +98,48 @@ const ServiceStatusIndicators = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'netlify_api_keys',
-          filter: `user_id=eq.${user.id}`
+          table: 'netlify_api_keys'
         },
         (payload) => {
           console.log('Real-time Netlify API key update:', payload);
-          checkServiceStatus();
+          setTimeout(checkServiceStatus, 1000);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'deployment_tokens'
+        },
+        (payload) => {
+          console.log('Real-time deployment token update:', payload);
+          setTimeout(checkServiceStatus, 1000);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'api_keys'
+        },
+        (payload) => {
+          console.log('Real-time general API key update:', payload);
+          setTimeout(checkServiceStatus, 1000);
         }
       )
       .subscribe((status) => {
-        console.log('Service status real-time subscription status:', status);
+        console.log('Shared service status real-time subscription status:', status);
       });
   };
 
   const checkServiceStatus = async () => {
     try {
-      console.log('Checking service status...');
+      console.log('Checking shared service status...');
+
+      // Clear cache to get fresh data
+      apiKeyManager.clearCache();
 
       const availability = await apiKeyManager.checkKeyAvailability();
 
@@ -122,10 +151,17 @@ const ServiceStatusIndicators = () => {
         github: availability.github
       };
 
-      console.log('Service status updated:', statusWithAI);
+      console.log('Shared service status updated:', statusWithAI);
       setServiceStatus(statusWithAI);
     } catch (error) {
-      console.error('Error checking service status:', error);
+      console.error('Error checking shared service status:', error);
+      // Set all to false on error
+      setServiceStatus({
+        ai: false,
+        youtube: false,
+        netlify: false,
+        github: false
+      });
     }
   };
 
@@ -149,7 +185,7 @@ const ServiceStatusIndicators = () => {
             }`}
           />
           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-            {service.name}: {serviceStatus[service.key] ? 'Connected' : 'Not Connected'}
+            {service.name}: {serviceStatus[service.key] ? 'Connected (Shared)' : 'Not Connected'}
           </div>
         </div>
       ))}
