@@ -1,7 +1,18 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
-export interface ApiKeyWithUsage {
+interface ApiKey {
+  id: string;
+  name: string;
+  key_value: string;
+  provider: string;
+  model?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ProviderSpecificKey {
   id: string;
   name: string;
   api_key?: string;
@@ -20,461 +31,294 @@ export interface ApiKeyWithUsage {
   created_at: string;
 }
 
-export const apiKeyManager = {
-  async getAllKeys(userId: string): Promise<Record<string, ApiKeyWithUsage[]>> {
-    try {
-      console.log('Loading all API keys for user:', userId);
+class ApiKeyManager {
+  private cache: Map<string, ApiKey[]> = new Map();
+  private cacheExpiry: Map<string, number> = new Map();
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-      // Load from general api_keys table first
-      const { data: generalKeys, error: generalError } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('user_id', userId);
+  private isCacheValid(provider: string): boolean {
+    const expiry = this.cacheExpiry.get(provider);
+    return expiry ? Date.now() < expiry : false;
+  }
 
-      if (generalError) {
-        console.error('Error loading general API keys:', generalError);
+  private setCacheExpiry(provider: string): void {
+    this.cacheExpiry.set(provider, Date.now() + this.CACHE_DURATION);
+  }
+
+  // Get shared platform API keys (not user-specific)
+  async getPlatformApiKeys(provider: string): Promise<ApiKey[]> {
+    console.log(`Getting platform API keys for provider: ${provider}`);
+    
+    if (this.isCacheValid(provider)) {
+      const cached = this.cache.get(provider);
+      if (cached) {
+        console.log(`Using cached keys for ${provider}:`, cached);
+        return cached;
       }
-
-      // Load YouTube keys from specific table
-      const { data: youtubeKeys, error: youtubeError } = await supabase
-        .from('youtube_api_keys')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (youtubeError) {
-        console.error('Error loading YouTube keys:', youtubeError);
-      }
-
-      // Load OpenRouter keys from specific table
-      const { data: openrouterKeys, error: openrouterError } = await supabase
-        .from('openrouter_api_keys')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (openrouterError) {
-        console.error('Error loading OpenRouter keys:', openrouterError);
-      }
-
-      // Load GitHub keys from specific table
-      const { data: githubKeys, error: githubError } = await supabase
-        .from('github_api_keys')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (githubError) {
-        console.error('Error loading GitHub keys:', githubError);
-      }
-
-      // Load Netlify keys from specific table
-      const { data: netlifyKeys, error: netlifyError } = await supabase
-        .from('netlify_api_keys')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (netlifyError) {
-        console.error('Error loading Netlify keys:', netlifyError);
-      }
-
-      // Process general keys and categorize by provider
-      const generalKeysByProvider = {
-        youtube: [] as ApiKeyWithUsage[],
-        openrouter: [] as ApiKeyWithUsage[],
-        github: [] as ApiKeyWithUsage[],
-        netlify: [] as ApiKeyWithUsage[]
-      };
-
-      if (generalKeys) {
-        generalKeys.forEach(key => {
-          const provider = key.provider?.toLowerCase();
-          if (provider === 'youtube') {
-            generalKeysByProvider.youtube.push({
-              id: key.id,
-              name: key.name,
-              api_key: key.key_value,
-              quota_used: 0,
-              quota_limit: 10000,
-              is_active: key.is_active,
-              last_used_at: key.updated_at,
-              created_at: key.created_at
-            });
-          } else if (provider === 'openrouter') {
-            generalKeysByProvider.openrouter.push({
-              id: key.id,
-              name: key.name,
-              api_key: key.key_value,
-              credits_used: 0,
-              credits_limit: 100,
-              requests_count: 0,
-              is_active: key.is_active,
-              last_used_at: key.updated_at,
-              created_at: key.created_at
-            });
-          } else if (provider === 'github') {
-            generalKeysByProvider.github.push({
-              id: key.id,
-              name: key.name,
-              api_token: key.key_value,
-              rate_limit_used: 0,
-              rate_limit_limit: 5000,
-              is_active: key.is_active,
-              last_used_at: key.updated_at,
-              created_at: key.created_at
-            });
-          } else if (provider === 'netlify') {
-            generalKeysByProvider.netlify.push({
-              id: key.id,
-              name: key.name,
-              api_token: key.key_value,
-              deployments_count: 0,
-              deployments_limit: 300,
-              is_active: key.is_active,
-              last_used_at: key.updated_at,
-              created_at: key.created_at
-            });
-          }
-        });
-      }
-
-      const result = {
-        youtube: [
-          ...generalKeysByProvider.youtube,
-          ...(youtubeKeys || []).map(key => ({
-            id: key.id,
-            name: key.name,
-            api_key: key.api_key,
-            quota_used: key.quota_used,
-            quota_limit: key.quota_limit,
-            is_active: key.is_active,
-            last_used_at: key.last_used_at,
-            created_at: key.created_at
-          }))
-        ] as ApiKeyWithUsage[],
-        openrouter: [
-          ...generalKeysByProvider.openrouter,
-          ...(openrouterKeys || []).map(key => ({
-            id: key.id,
-            name: key.name,
-            api_key: key.api_key,
-            credits_used: key.credits_used,
-            credits_limit: key.credits_limit,
-            requests_count: key.requests_count,
-            is_active: key.is_active,
-            last_used_at: key.last_used_at,
-            created_at: key.created_at
-          }))
-        ] as ApiKeyWithUsage[],
-        github: [
-          ...generalKeysByProvider.github,
-          ...(githubKeys || []).map(key => ({
-            id: key.id,
-            name: key.name,
-            api_token: key.api_token,
-            rate_limit_used: key.rate_limit_used,
-            rate_limit_limit: key.rate_limit_limit,
-            is_active: key.is_active,
-            last_used_at: key.last_used_at,
-            created_at: key.created_at
-          }))
-        ] as ApiKeyWithUsage[],
-        netlify: [
-          ...generalKeysByProvider.netlify,
-          ...(netlifyKeys || []).map(key => ({
-            id: key.id,
-            name: key.name,
-            api_token: key.api_token,
-            deployments_count: key.deployments_count,
-            deployments_limit: key.deployments_limit,
-            is_active: key.is_active,
-            last_used_at: key.last_used_at,
-            created_at: key.created_at
-          }))
-        ] as ApiKeyWithUsage[]
-      };
-
-      console.log('All API keys loaded:', result);
-      return result;
-    } catch (error) {
-      console.error('Error in getAllKeys:', error);
-      return {
-        youtube: [],
-        openrouter: [],
-        github: [],
-        netlify: []
-      };
     }
-  },
 
-  async getActiveKey(provider: string, userId: string): Promise<ApiKeyWithUsage | null> {
     try {
-      console.log(`Getting active key for provider: ${provider}, user: ${userId}`);
-      
-      // First check general api_keys table
-      const { data: generalData, error: generalError } = await supabase
+      // Get all active keys for this provider (not filtered by user_id)
+      const { data, error } = await supabase
         .from('api_keys')
         .select('*')
-        .eq('user_id', userId)
         .eq('provider', provider)
         .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (!generalError && generalData && generalData.length > 0) {
-        const key = generalData[0];
-        console.log(`Active key found in general table for ${provider}:`, key);
-        
-        // Map general key to ApiKeyWithUsage format
-        const result: ApiKeyWithUsage = {
-          id: key.id,
-          name: key.name,
-          is_active: key.is_active,
-          created_at: key.created_at,
-          last_used_at: key.updated_at
-        };
-
-        // Add provider-specific fields
-        if (provider.toLowerCase() === 'youtube') {
-          result.api_key = key.key_value;
-          result.quota_used = 0;
-          result.quota_limit = 10000;
-        } else if (provider.toLowerCase() === 'openrouter') {
-          result.api_key = key.key_value;
-          result.credits_used = 0;
-          result.credits_limit = 100;
-          result.requests_count = 0;
-        } else if (provider.toLowerCase() === 'github') {
-          result.api_token = key.key_value;
-          result.rate_limit_used = 0;
-          result.rate_limit_limit = 5000;
-        } else if (provider.toLowerCase() === 'netlify') {
-          result.api_token = key.key_value;
-          result.deployments_count = 0;
-          result.deployments_limit = 300;
-        }
-
-        return result;
-      }
-
-      // Fallback to provider-specific tables
-      let tableName: string;
-      switch (provider.toLowerCase()) {
-        case 'youtube':
-          tableName = 'youtube_api_keys';
-          break;
-        case 'openrouter':
-          tableName = 'openrouter_api_keys';
-          break;
-        case 'github':
-          tableName = 'github_api_keys';
-          break;
-        case 'netlify':
-          tableName = 'netlify_api_keys';
-          break;
-        default:
-          console.log(`Unknown provider: ${provider}`);
-          return null;
-      }
-
-      const { data, error } = await supabase
-        .from(tableName as any)
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .order('created_at', { ascending: false });
 
       if (error) {
-        console.error(`Error loading active ${provider} key:`, error);
-        return null;
+        console.error(`Error fetching ${provider} API keys:`, error);
+        return [];
       }
 
-      if (!data || data.length === 0) {
-        console.log(`No active key found for ${provider}`);
-        return null;
-      }
-
-      const rawKey = data[0];
+      const keys = data || [];
+      console.log(`Fetched ${keys.length} platform keys for ${provider}:`, keys);
       
-      // Validate that we have valid data - check for null/undefined first
-      if (!rawKey || typeof rawKey !== 'object') {
-        console.error(`Invalid key data for ${provider}:`, rawKey);
-        return null;
-      }
-
-      // Now we know rawKey is not null, so we can safely check its properties
-      const keyData = rawKey as Record<string, any>;
+      this.cache.set(provider, keys);
+      this.setCacheExpiry(provider);
       
-      // Check required properties exist
-      if (!('id' in keyData) || !('name' in keyData) || !('is_active' in keyData) || !('created_at' in keyData)) {
-        console.error(`Missing required properties for ${provider} key:`, keyData);
-        return null;
-      }
-      
-      // Validate required string properties are not empty
-      if (!keyData.id || !keyData.name) {
-        console.error(`Empty required properties for ${provider} key:`, keyData);
-        return null;
-      }
-      
-      // Map the raw data to our ApiKeyWithUsage interface
-      const result: ApiKeyWithUsage = {
-        id: keyData.id,
-        name: keyData.name,
-        is_active: keyData.is_active,
-        created_at: keyData.created_at,
-        last_used_at: keyData.last_used_at,
-        ...(keyData.api_key && { api_key: keyData.api_key }),
-        ...(keyData.api_token && { api_token: keyData.api_token }),
-        ...(keyData.quota_used !== undefined && { quota_used: keyData.quota_used }),
-        ...(keyData.quota_limit !== undefined && { quota_limit: keyData.quota_limit }),
-        ...(keyData.credits_used !== undefined && { credits_used: keyData.credits_used }),
-        ...(keyData.credits_limit !== undefined && { credits_limit: keyData.credits_limit }),
-        ...(keyData.rate_limit_used !== undefined && { rate_limit_used: keyData.rate_limit_used }),
-        ...(keyData.rate_limit_limit !== undefined && { rate_limit_limit: keyData.rate_limit_limit }),
-        ...(keyData.deployments_count !== undefined && { deployments_count: keyData.deployments_count }),
-        ...(keyData.deployments_limit !== undefined && { deployments_limit: keyData.deployments_limit }),
-        ...(keyData.requests_count !== undefined && { requests_count: keyData.requests_count })
-      };
-
-      console.log(`Active key for ${provider}:`, result);
-      return result;
+      return keys;
     } catch (error) {
-      console.error(`Error getting active key for ${provider}:`, error);
-      return null;
-    }
-  },
-
-  async getNextAvailableKey(provider: string, userId: string): Promise<ApiKeyWithUsage | null> {
-    try {
-      // For now, just return the first active key
-      return await this.getActiveKey(provider, userId);
-    } catch (error) {
-      console.error(`Error getting next available key for ${provider}:`, error);
-      return null;
-    }
-  },
-
-  async updateUsage(provider: string, keyId: string, usageData: any): Promise<boolean> {
-    try {
-      console.log(`Updating usage for ${provider} key ${keyId}:`, usageData);
-      
-      // Try to update in general api_keys table first
-      const { error: generalError } = await supabase
-        .from('api_keys')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', keyId);
-
-      if (!generalError) {
-        console.log(`Successfully updated usage in general table for ${provider} key ${keyId}`);
-        return true;
-      }
-
-      // Fallback to provider-specific tables
-      let tableName: string;
-      let updateData: any = { last_used_at: new Date().toISOString() };
-
-      switch (provider.toLowerCase()) {
-        case 'youtube':
-          tableName = 'youtube_api_keys';
-          if (usageData.quota_used !== undefined) {
-            updateData.quota_used = usageData.quota_used;
-          }
-          break;
-        case 'openrouter':
-          tableName = 'openrouter_api_keys';
-          if (usageData.credits_used !== undefined) {
-            updateData.credits_used = usageData.credits_used;
-          }
-          if (usageData.requests_count !== undefined) {
-            updateData.requests_count = usageData.requests_count;
-          }
-          break;
-        case 'github':
-          tableName = 'github_api_keys';
-          if (usageData.rate_limit_used !== undefined) {
-            updateData.rate_limit_used = usageData.rate_limit_used;
-          }
-          break;
-        case 'netlify':
-          tableName = 'netlify_api_keys';
-          if (usageData.deployments_count !== undefined) {
-            updateData.deployments_count = usageData.deployments_count;
-          }
-          break;
-        default:
-          console.log(`Unknown provider: ${provider}`);
-          return false;
-      }
-
-      const { error } = await supabase
-        .from(tableName as any)
-        .update(updateData)
-        .eq('id', keyId);
-
-      if (error) {
-        console.error(`Error updating ${provider} key usage:`, error);
-        return false;
-      }
-
-      console.log(`Successfully updated usage for ${provider} key ${keyId}`);
-      return true;
-    } catch (error) {
-      console.error(`Error updating usage for ${provider}:`, error);
-      return false;
-    }
-  },
-
-  async updateKeyUsage(provider: string, keyId: string, usageData: any): Promise<boolean> {
-    // Alias for updateUsage method for backward compatibility
-    return await this.updateUsage(provider, keyId, usageData);
-  },
-
-  async trackUsage(
-    provider: string, 
-    keyId: string, 
-    userId: string, 
-    requestType: string, 
-    tokensUsed: number = 0, 
-    costUsd: number = 0, 
-    responseTimeMs: number = 0, 
-    success: boolean = true, 
-    errorMessage?: string
-  ): Promise<boolean> {
-    try {
-      console.log(`Tracking usage for ${provider}:`, {
-        keyId,
-        userId,
-        requestType,
-        tokensUsed,
-        costUsd,
-        responseTimeMs,
-        success,
-        errorMessage
-      });
-
-      const { error } = await supabase
-        .from('api_usage_tracking')
-        .insert({
-          api_key_id: keyId,
-          user_id: userId,
-          provider: provider,
-          request_type: requestType,
-          tokens_used: tokensUsed,
-          cost_usd: costUsd,
-          response_time_ms: responseTimeMs,
-          success: success,
-          error_message: errorMessage || null
-        });
-
-      if (error) {
-        console.error(`Error tracking usage for ${provider}:`, error);
-        return false;
-      }
-
-      console.log(`Successfully tracked usage for ${provider}`);
-      return true;
-    } catch (error) {
-      console.error(`Error tracking usage for ${provider}:`, error);
-      return false;
+      console.error(`Exception fetching ${provider} API keys:`, error);
+      return [];
     }
   }
-};
+
+  async getActiveKey(provider: string): Promise<string | null> {
+    console.log(`Getting active key for provider: ${provider}`);
+    
+    const keys = await this.getPlatformApiKeys(provider);
+    
+    if (keys.length === 0) {
+      console.log(`No keys found for provider: ${provider}`);
+      return null;
+    }
+
+    // Get the first active key
+    const activeKey = keys.find(key => key.is_active);
+    if (!activeKey) {
+      console.log(`No active keys found for provider: ${provider}`);
+      return null;
+    }
+
+    console.log(`Found active key for ${provider}:`, activeKey.name);
+    return activeKey.key_value;
+  }
+
+  async getProviderSpecificKeys(provider: string): Promise<ProviderSpecificKey[]> {
+    console.log(`Getting provider-specific keys for: ${provider}`);
+    
+    try {
+      let tableName: string;
+      let keyField: string;
+
+      switch (provider.toLowerCase()) {
+        case 'youtube':
+          tableName = 'youtube_api_keys';
+          keyField = 'api_key';
+          break;
+        case 'openrouter':
+          tableName = 'openrouter_api_keys';
+          keyField = 'api_key';
+          break;
+        case 'github':
+          tableName = 'github_api_keys';
+          keyField = 'api_token';
+          break;
+        case 'netlify':
+          tableName = 'netlify_api_keys';
+          keyField = 'api_token';
+          break;
+        default:
+          console.log(`Unknown provider: ${provider}`);
+          return [];
+      }
+
+      // Get all keys for this provider (not filtered by user_id for shared access)
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error(`Error fetching ${provider} provider-specific keys:`, error);
+        return [];
+      }
+
+      const keys = data || [];
+      console.log(`Found ${keys.length} provider-specific keys for ${provider}`);
+      
+      return keys.map(key => ({
+        ...key,
+        [keyField === 'api_key' ? 'api_key' : 'api_token']: key[keyField]
+      }));
+    } catch (error) {
+      console.error(`Exception fetching ${provider} provider-specific keys:`, error);
+      return [];
+    }
+  }
+
+  async getYouTubeKey(): Promise<string | null> {
+    console.log('Getting YouTube API key...');
+    
+    // First try provider-specific table
+    const providerKeys = await this.getProviderSpecificKeys('youtube');
+    if (providerKeys.length > 0) {
+      const activeKey = providerKeys.find(key => key.is_active && key.api_key);
+      if (activeKey?.api_key) {
+        console.log('Found YouTube key in provider-specific table');
+        return activeKey.api_key;
+      }
+    }
+
+    // Fallback to general api_keys table
+    const generalKey = await this.getActiveKey('YouTube');
+    if (generalKey) {
+      console.log('Found YouTube key in general api_keys table');
+      return generalKey;
+    }
+
+    console.log('No YouTube API key found');
+    return null;
+  }
+
+  async getOpenRouterKey(): Promise<string | null> {
+    console.log('Getting OpenRouter API key...');
+    
+    // First try provider-specific table
+    const providerKeys = await this.getProviderSpecificKeys('openrouter');
+    if (providerKeys.length > 0) {
+      const activeKey = providerKeys.find(key => key.is_active && key.api_key);
+      if (activeKey?.api_key) {
+        console.log('Found OpenRouter key in provider-specific table');
+        return activeKey.api_key;
+      }
+    }
+
+    // Fallback to general api_keys table
+    const generalKey = await this.getActiveKey('OpenRouter');
+    if (generalKey) {
+      console.log('Found OpenRouter key in general api_keys table');
+      return generalKey;
+    }
+
+    console.log('No OpenRouter API key found');
+    return null;
+  }
+
+  async getGitHubToken(): Promise<string | null> {
+    console.log('Getting GitHub token...');
+    
+    // First try provider-specific table
+    const providerKeys = await this.getProviderSpecificKeys('github');
+    if (providerKeys.length > 0) {
+      const activeKey = providerKeys.find(key => key.is_active && key.api_token);
+      if (activeKey?.api_token) {
+        console.log('Found GitHub token in provider-specific table');
+        return activeKey.api_token;
+      }
+    }
+
+    // Fallback to general api_keys table
+    const generalKey = await this.getActiveKey('GitHub');
+    if (generalKey) {
+      console.log('Found GitHub token in general api_keys table');
+      return generalKey;
+    }
+
+    console.log('No GitHub token found');
+    return null;
+  }
+
+  async getNetlifyToken(): Promise<string | null> {
+    console.log('Getting Netlify token...');
+    
+    // First try provider-specific table
+    const providerKeys = await this.getProviderSpecificKeys('netlify');
+    if (providerKeys.length > 0) {
+      const activeKey = providerKeys.find(key => key.is_active && key.api_token);
+      if (activeKey?.api_token) {
+        console.log('Found Netlify token in provider-specific table');
+        return activeKey.api_token;
+      }
+    }
+
+    // Fallback to general api_keys table
+    const generalKey = await this.getActiveKey('Netlify');
+    if (generalKey) {
+      console.log('Found Netlify token in general api_keys table');
+      return generalKey;
+    }
+
+    console.log('No Netlify token found');
+    return null;
+  }
+
+  // Method to check if keys are available
+  async checkKeyAvailability(): Promise<{
+    youtube: boolean;
+    openrouter: boolean;
+    github: boolean;
+    netlify: boolean;
+  }> {
+    console.log('Checking API key availability...');
+    
+    const [youtubeKey, openrouterKey, githubKey, netlifyKey] = await Promise.all([
+      this.getYouTubeKey(),
+      this.getOpenRouterKey(),
+      this.getGitHubToken(),
+      this.getNetlifyToken()
+    ]);
+
+    const availability = {
+      youtube: !!youtubeKey,
+      openrouter: !!openrouterKey,
+      github: !!githubKey,
+      netlify: !!netlifyKey
+    };
+
+    console.log('API key availability:', availability);
+    return availability;
+  }
+
+  // Clear cache for a specific provider
+  clearCache(provider?: string): void {
+    if (provider) {
+      this.cache.delete(provider);
+      this.cacheExpiry.delete(provider);
+    } else {
+      this.cache.clear();
+      this.cacheExpiry.clear();
+    }
+    console.log(`Cache cleared for ${provider || 'all providers'}`);
+  }
+
+  // Get total key count across all providers
+  async getTotalKeyCount(): Promise<number> {
+    console.log('Getting total platform key count...');
+    
+    try {
+      const { data, error } = await supabase
+        .from('api_keys')
+        .select('id')
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('Error getting total key count:', error);
+        return 0;
+      }
+
+      const count = data?.length || 0;
+      console.log(`Total platform keys: ${count}`);
+      return count;
+    } catch (error) {
+      console.error('Exception getting total key count:', error);
+      return 0;
+    }
+  }
+}
+
+// Export singleton instance
+export const apiKeyManager = new ApiKeyManager();
+export default apiKeyManager;
