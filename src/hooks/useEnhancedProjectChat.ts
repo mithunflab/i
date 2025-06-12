@@ -88,33 +88,47 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     setLoading(true);
 
     try {
-      console.log('📨 Sending message to AI chat function...');
+      console.log('🤖 Calling real AI chat function...');
       
-      // Generate code using AI
-      const generatedCode = await generateCodeWithAI(content, channelData);
-      
-      // Create AI response
-      const aiResponse = `I'll help you create that! Here's what I'm generating for you:\n\n${content}`;
-      
+      // Call the actual Supabase edge function with real AI
+      const { data: aiResponse, error: aiError } = await supabase.functions.invoke('chat', {
+        body: {
+          message: content,
+          projectId: currentProject?.id || projectId,
+          channelData: channelData,
+          chatHistory: messages.slice(-5), // Last 5 messages for context
+          generateCode: true
+        }
+      });
+
+      if (aiError) {
+        console.error('❌ AI API Error:', aiError);
+        throw new Error(`AI API Error: ${aiError.message}`);
+      }
+
+      console.log('✅ AI Response received:', aiResponse);
+
+      // Create AI response message
       const botMessage: ChatMessage = {
         id: crypto.randomUUID(),
         type: 'bot',
-        content: aiResponse,
+        content: aiResponse.reply || 'I\'ve generated your code!',
         timestamp: new Date(),
-        generatedCode: generatedCode,
-        codeDescription: `Generated ${channelData?.title || 'website'} based on your request`,
-        fileChanges: [
-          { path: 'index.html', content: generatedCode, action: 'update' }
-        ]
+        feature: aiResponse.feature || 'website',
+        generatedCode: aiResponse.generatedCode,
+        codeDescription: aiResponse.codeDescription,
+        fileChanges: aiResponse.generatedCode ? [
+          { path: 'index.html', content: aiResponse.generatedCode, action: 'update' }
+        ] : undefined
       };
 
-      // Handle project creation/update
-      if (generatedCode) {
-        console.log('🚀 Code generated, updating project...');
+      // Handle project creation/update with real generated code
+      if (aiResponse.generatedCode) {
+        console.log('🚀 Real AI code generated, deploying...');
         
         try {
           const projectName = currentProject?.name || `${channelData?.title || 'AI'}-website-${Date.now()}`.replace(/\s+/g, '-');
-          const projectDescription = `Website for ${channelData?.title || 'AI Generated Project'}`;
+          const projectDescription = `AI-generated website for ${channelData?.title || 'custom project'}`;
           
           let githubUrl = currentProject?.github_url;
           let netlifyUrl = currentProject?.netlify_url;
@@ -123,28 +137,28 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
             // Update existing repository
             console.log('📤 Updating existing GitHub repository...');
             await updateGitHubRepo(currentProject.github_url, [
-              { path: 'index.html', content: generatedCode, action: 'update' }
+              { path: 'index.html', content: aiResponse.generatedCode, action: 'update' }
             ]);
             
             // Update existing Netlify deployment
             if (currentProject.netlify_url) {
               console.log('🌐 Updating existing Netlify deployment...');
-              await updateNetlifyDeployment(currentProject.netlify_url, generatedCode);
+              await updateNetlifyDeployment(currentProject.netlify_url, aiResponse.generatedCode);
               netlifyUrl = currentProject.netlify_url;
             } else {
               // Create new Netlify deployment if doesn't exist
               console.log('🌐 Creating new Netlify deployment...');
-              const netlifyDeployment = await deployToNetlify(projectName, generatedCode);
+              const netlifyDeployment = await deployToNetlify(projectName, aiResponse.generatedCode);
               netlifyUrl = netlifyDeployment.url;
             }
           } else {
             // Create new repository and deployment
             console.log('📤 Creating new GitHub repository...');
-            const githubRepo = await createGitHubRepo(projectName, projectDescription, generatedCode, generateREADME());
+            const githubRepo = await createGitHubRepo(projectName, projectDescription, aiResponse.generatedCode, generateREADME());
             githubUrl = githubRepo.html_url;
             
             console.log('🌐 Creating new Netlify deployment...');
-            const netlifyDeployment = await deployToNetlify(projectName, generatedCode);
+            const netlifyDeployment = await deployToNetlify(projectName, aiResponse.generatedCode);
             netlifyUrl = netlifyDeployment.url;
           }
 
@@ -159,7 +173,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
             description: projectDescription,
             youtube_url: youtubeUrl,
             channel_data: channelData as any,
-            source_code: generatedCode,
+            source_code: aiResponse.generatedCode,
             github_url: githubUrl,
             netlify_url: netlifyUrl,
             status: 'active'
@@ -192,15 +206,15 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           }
 
           toast({
-            title: "🎉 Website Updated Successfully!",
-            description: `Your website is live at ${netlifyUrl}`,
+            title: "🎉 AI-Generated Website Deployed!",
+            description: `Your AI-powered website is live at ${netlifyUrl}`,
           });
 
         } catch (deployError) {
           console.error('❌ Deployment failed:', deployError);
           toast({
             title: "Deployment Error",
-            description: "Code generated but deployment failed. Check console for details.",
+            description: "AI code generated but deployment failed. Check console for details.",
             variant: "destructive"
           });
         }
@@ -230,165 +244,31 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     }
   }, [user, projectId, channelData, youtubeUrl, toast, createGitHubRepo, deployToNetlify, currentProject, updateGitHubRepo, updateNetlifyDeployment]);
 
-  const generateCodeWithAI = async (prompt: string, channelData?: ChannelData | null) => {
-    // Generate HTML code based on the prompt and channel data
-    const channelTitle = channelData?.title || 'AI Generated';
-    const channelDescription = channelData?.description || 'Welcome to our website';
-    const subscriberCount = channelData?.subscriberCount || '0';
-    const thumbnailUrl = channelData?.thumbnail || 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=300&fit=crop';
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${channelTitle}</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Arial', sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: white;
-        }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .header { text-align: center; padding: 40px 0; }
-        .channel-info { 
-            background: rgba(255,255,255,0.1); 
-            backdrop-filter: blur(10px);
-            border-radius: 20px; 
-            padding: 30px; 
-            margin: 20px 0; 
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        .thumbnail { 
-            width: 150px; 
-            height: 150px; 
-            border-radius: 50%; 
-            object-fit: cover; 
-            margin: 0 auto 20px;
-            display: block;
-            border: 3px solid rgba(255,255,255,0.3);
-        }
-        .title { font-size: 2.5em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .description { font-size: 1.2em; opacity: 0.9; line-height: 1.6; }
-        .stats { 
-            display: flex; 
-            justify-content: center; 
-            gap: 30px; 
-            margin: 20px 0; 
-            flex-wrap: wrap;
-        }
-        .stat { 
-            background: rgba(255,255,255,0.15); 
-            padding: 15px 25px; 
-            border-radius: 15px; 
-            text-align: center;
-            backdrop-filter: blur(5px);
-        }
-        .stat-number { font-size: 1.5em; font-weight: bold; }
-        .stat-label { font-size: 0.9em; opacity: 0.8; }
-        .cta-button {
-            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
-            border: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            color: white;
-            font-size: 1.1em;
-            cursor: pointer;
-            margin: 20px 10px;
-            transition: transform 0.3s ease;
-        }
-        .cta-button:hover { transform: translateY(-2px); }
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin: 40px 0;
-        }
-        .feature {
-            background: rgba(255,255,255,0.1);
-            padding: 25px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        .feature h3 { margin-bottom: 15px; color: #ffd700; }
-        @media (max-width: 768px) {
-            .title { font-size: 1.8em; }
-            .stats { flex-direction: column; align-items: center; }
-            .container { padding: 10px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="channel-info">
-                <img src="${thumbnailUrl}" alt="Channel Thumbnail" class="thumbnail">
-                <h1 class="title">${channelTitle}</h1>
-                <p class="description">${channelDescription}</p>
-                <div class="stats">
-                    <div class="stat">
-                        <div class="stat-number">${parseInt(subscriberCount).toLocaleString()}</div>
-                        <div class="stat-label">Subscribers</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-number">${channelData?.videoCount ? parseInt(channelData.videoCount).toLocaleString() : '0'}</div>
-                        <div class="stat-label">Videos</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-number">${channelData?.viewCount ? parseInt(channelData.viewCount).toLocaleString() : '0'}</div>
-                        <div class="stat-label">Views</div>
-                    </div>
-                </div>
-                <button class="cta-button" onclick="window.open('${youtubeUrl}', '_blank')">
-                    Subscribe Now
-                </button>
-                <button class="cta-button" onclick="window.open('${youtubeUrl}', '_blank')">
-                    Watch Videos
-                </button>
-            </div>
-        </div>
-        
-        <div class="features">
-            <div class="feature">
-                <h3>🎥 Latest Content</h3>
-                <p>Stay updated with our latest videos and exciting content. Subscribe to never miss an update!</p>
-            </div>
-            <div class="feature">
-                <h3>🌟 Community</h3>
-                <p>Join our amazing community of ${parseInt(subscriberCount).toLocaleString()}+ subscribers and be part of something special.</p>
-            </div>
-            <div class="feature">
-                <h3>📱 Connect</h3>
-                <p>Follow us on social media and stay connected across all platforms for exclusive content.</p>
-            </div>
-        </div>
-    </div>
-</body>
-</html>`;
-  };
-
   const generateREADME = () => {
     return `# ${channelData?.title || 'AI Generated Website'}
 
-This website was automatically generated using AI technology.
+This website was automatically generated using AI technology with OpenRouter API.
 
 ## Features
+- Real-time AI code generation
 - Responsive design
 - YouTube integration
 - Modern UI/UX
 - Mobile-optimized
+- AI-powered content creation
 
 ## Technologies Used
-- HTML5
-- CSS3
-- JavaScript
-- AI-Generated Content
+- HTML5, CSS3, JavaScript
+- OpenRouter AI API
+- GitHub Integration
+- Netlify Deployment
+- Real-time Generation
+
+## AI-Generated Content
+This project was created using advanced AI models that generate custom code based on user requirements and YouTube channel data.
 
 ## Live Website
-Visit the live website to see it in action!
+Visit the live website to see the AI-generated content in action!
 `;
   };
 
