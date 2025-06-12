@@ -38,6 +38,14 @@ interface ChannelData {
   videos: any[];
 }
 
+interface ChatMetadata {
+  feature?: string;
+  generatedCode?: string;
+  codeDescription?: string;
+  githubUrl?: string;
+  netlifyUrl?: string;
+}
+
 export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, channelData?: ChannelData | null) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,17 +84,20 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           .order('created_at', { ascending: true });
 
         if (chatHistory && chatHistory.length > 0) {
-          const loadedMessages: ChatMessage[] = chatHistory.map(msg => ({
-            id: msg.id,
-            type: msg.message_type as 'user' | 'bot',
-            content: msg.content,
-            timestamp: new Date(msg.created_at),
-            feature: msg.metadata?.feature,
-            generatedCode: msg.metadata?.generatedCode,
-            codeDescription: msg.metadata?.codeDescription,
-            githubUrl: msg.metadata?.githubUrl,
-            netlifyUrl: msg.metadata?.netlifyUrl
-          }));
+          const loadedMessages: ChatMessage[] = chatHistory.map(msg => {
+            const metadata = msg.metadata as ChatMetadata | null;
+            return {
+              id: msg.id,
+              type: msg.message_type as 'user' | 'bot',
+              content: msg.content,
+              timestamp: new Date(msg.created_at),
+              feature: metadata?.feature,
+              generatedCode: metadata?.generatedCode,
+              codeDescription: metadata?.codeDescription,
+              githubUrl: metadata?.githubUrl,
+              netlifyUrl: metadata?.netlifyUrl
+            };
+          });
           setMessages(loadedMessages);
         } else {
           // Add welcome message if no history

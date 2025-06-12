@@ -3,15 +3,20 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface ProjectStructure {
+  components: string[];
+  styling: {
+    colors?: string[];
+    [key: string]: any;
+  };
+  layout: string;
+}
+
 interface ProjectContext {
   id: string;
   name: string;
   description: string;
-  currentStructure: {
-    components: string[];
-    styling: Record<string, any>;
-    layout: string;
-  };
+  currentStructure: ProjectStructure;
   designPrinciples: string[];
   chatHistory: any[];
   githubUrl?: string;
@@ -87,11 +92,11 @@ export const useProjectContext = (projectId: string, youtubeUrl: string) => {
     }
   }, [context, projectId]);
 
-  const parseProjectStructure = (sourceCode: string) => {
-    if (!sourceCode) return { components: [], styling: {}, layout: 'default' };
+  const parseProjectStructure = (sourceCode: string): ProjectStructure => {
+    if (!sourceCode) return { components: [], styling: { colors: [] }, layout: 'default' };
 
     const components = [];
-    const styling = {};
+    const styling: { colors?: string[]; [key: string]: any } = { colors: [] };
 
     // Extract components from HTML
     const componentMatches = sourceCode.match(/<(\w+)[^>]*class="([^"]*)"[^>]*>/g) || [];
@@ -111,7 +116,9 @@ export const useProjectContext = (projectId: string, youtubeUrl: string) => {
     const colorMatches = sourceCode.match(/background[^;]*:\s*([^;]+)/g) || [];
     colorMatches.forEach(match => {
       const color = match.split(':')[1]?.trim();
-      if (color) styling.colors = [...(styling.colors || []), color];
+      if (color && styling.colors) {
+        styling.colors = [...styling.colors, color];
+      }
     });
 
     return {
