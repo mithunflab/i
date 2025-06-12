@@ -113,20 +113,11 @@ const ServiceStatusIndicators = () => {
     try {
       console.log('Checking service status for user:', user.id);
 
-      // Use the apiKeyManager to get all keys
-      const allKeys = await apiKeyManager.getAllKeys(user.id);
+      // Use the apiKeyManager to check availability
+      const availability = await apiKeyManager.checkKeyAvailability();
 
-      console.log('All API keys from manager:', allKeys);
-
-      const newStatus = {
-        youtube: allKeys.youtube && allKeys.youtube.length > 0 && allKeys.youtube.some(key => key.is_active),
-        openrouter: allKeys.openrouter && allKeys.openrouter.length > 0 && allKeys.openrouter.some(key => key.is_active),
-        github: allKeys.github && allKeys.github.length > 0 && allKeys.github.some(key => key.is_active),
-        netlify: allKeys.netlify && allKeys.netlify.length > 0 && allKeys.netlify.some(key => key.is_active)
-      };
-
-      console.log('Service status updated:', newStatus);
-      setServiceStatus(newStatus);
+      console.log('Service status updated:', availability);
+      setServiceStatus(availability);
     } catch (error) {
       console.error('Error checking service status:', error);
     }

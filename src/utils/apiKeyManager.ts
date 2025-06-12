@@ -31,6 +31,13 @@ interface ProviderSpecificKey {
   created_at: string;
 }
 
+interface AllKeysResponse {
+  youtube: ProviderSpecificKey[];
+  openrouter: ProviderSpecificKey[];
+  github: ProviderSpecificKey[];
+  netlify: ProviderSpecificKey[];
+}
+
 class ApiKeyManager {
   private cache: Map<string, ApiKey[]> = new Map();
   private cacheExpiry: Map<string, number> = new Map();
@@ -109,53 +116,114 @@ class ApiKeyManager {
     console.log(`Getting provider-specific keys for: ${provider}`);
     
     try {
-      let tableName: string;
-      let keyField: string;
-
       switch (provider.toLowerCase()) {
-        case 'youtube':
-          tableName = 'youtube_api_keys';
-          keyField = 'api_key';
-          break;
-        case 'openrouter':
-          tableName = 'openrouter_api_keys';
-          keyField = 'api_key';
-          break;
-        case 'github':
-          tableName = 'github_api_keys';
-          keyField = 'api_token';
-          break;
-        case 'netlify':
-          tableName = 'netlify_api_keys';
-          keyField = 'api_token';
-          break;
+        case 'youtube': {
+          const { data, error } = await supabase
+            .from('youtube_api_keys')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            console.error(`Error fetching YouTube provider-specific keys:`, error);
+            return [];
+          }
+
+          return (data || []).map(key => ({
+            ...key,
+            api_key: key.api_key
+          }));
+        }
+        
+        case 'openrouter': {
+          const { data, error } = await supabase
+            .from('openrouter_api_keys')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            console.error(`Error fetching OpenRouter provider-specific keys:`, error);
+            return [];
+          }
+
+          return (data || []).map(key => ({
+            ...key,
+            api_key: key.api_key
+          }));
+        }
+        
+        case 'github': {
+          const { data, error } = await supabase
+            .from('github_api_keys')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            console.error(`Error fetching GitHub provider-specific keys:`, error);
+            return [];
+          }
+
+          return (data || []).map(key => ({
+            ...key,
+            api_token: key.api_token
+          }));
+        }
+        
+        case 'netlify': {
+          const { data, error } = await supabase
+            .from('netlify_api_keys')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            console.error(`Error fetching Netlify provider-specific keys:`, error);
+            return [];
+          }
+
+          return (data || []).map(key => ({
+            ...key,
+            api_token: key.api_token
+          }));
+        }
+        
         default:
           console.log(`Unknown provider: ${provider}`);
           return [];
       }
-
-      // Get all keys for this provider (not filtered by user_id for shared access)
-      const { data, error } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error(`Error fetching ${provider} provider-specific keys:`, error);
-        return [];
-      }
-
-      const keys = data || [];
-      console.log(`Found ${keys.length} provider-specific keys for ${provider}`);
-      
-      return keys.map(key => ({
-        ...key,
-        [keyField === 'api_key' ? 'api_key' : 'api_token']: key[keyField]
-      }));
     } catch (error) {
       console.error(`Exception fetching ${provider} provider-specific keys:`, error);
       return [];
+    }
+  }
+
+  async getAllKeys(userId?: string): Promise<AllKeysResponse> {
+    console.log('Getting all API keys for all providers');
+    
+    try {
+      const [youtubeKeys, openrouterKeys, githubKeys, netlifyKeys] = await Promise.all([
+        this.getProviderSpecificKeys('youtube'),
+        this.getProviderSpecificKeys('openrouter'),
+        this.getProviderSpecificKeys('github'),
+        this.getProviderSpecificKeys('netlify')
+      ]);
+
+      return {
+        youtube: youtubeKeys,
+        openrouter: openrouterKeys,
+        github: githubKeys,
+        netlify: netlifyKeys
+      };
+    } catch (error) {
+      console.error('Exception getting all keys:', error);
+      return {
+        youtube: [],
+        openrouter: [],
+        github: [],
+        netlify: []
+      };
     }
   }
 

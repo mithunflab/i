@@ -91,7 +91,7 @@ const YouTubeApiSettings = () => {
       console.log('Loading YouTube API keys for user:', user.id);
       
       // Use the apiKeyManager to get YouTube keys
-      const allKeys = await apiKeyManager.getAllKeys(user.id);
+      const allKeys = await apiKeyManager.getAllKeys();
       const youtubeKeys = allKeys.youtube || [];
       
       console.log('YouTube API keys loaded from manager:', youtubeKeys);
