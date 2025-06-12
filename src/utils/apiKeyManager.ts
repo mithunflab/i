@@ -385,24 +385,56 @@ class ApiKeyManager {
     console.log(`🧹 Cache cleared for ${provider || 'all providers'}`);
   }
 
-  // Get total key count across all providers
+  // Get total key count across all providers - now including provider-specific tables
   async getTotalKeyCount(): Promise<number> {
     console.log('🔢 Getting total shared platform key count...');
     
     try {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('id', { count: 'exact' })
-        .eq('is_active', true);
+      // Get counts from all tables
+      const [
+        generalKeysResult,
+        youtubeKeysResult,
+        openrouterKeysResult,
+        githubKeysResult,
+        netlifyKeysResult,
+        deploymentTokensResult
+      ] = await Promise.all([
+        supabase
+          .from('api_keys')
+          .select('id', { count: 'exact' })
+          .eq('is_active', true),
+        supabase
+          .from('youtube_api_keys')
+          .select('id', { count: 'exact' })
+          .eq('is_active', true),
+        supabase
+          .from('openrouter_api_keys')
+          .select('id', { count: 'exact' })
+          .eq('is_active', true),
+        supabase
+          .from('github_api_keys')
+          .select('id', { count: 'exact' })
+          .eq('is_active', true),
+        supabase
+          .from('netlify_api_keys')
+          .select('id', { count: 'exact' })
+          .eq('is_active', true),
+        supabase
+          .from('deployment_tokens')
+          .select('id', { count: 'exact' })
+          .eq('is_active', true)
+      ]);
 
-      if (error) {
-        console.error('❌ Error getting total key count:', error);
-        return 0;
-      }
+      const totalCount = 
+        (generalKeysResult.data?.length || 0) +
+        (youtubeKeysResult.data?.length || 0) +
+        (openrouterKeysResult.data?.length || 0) +
+        (githubKeysResult.data?.length || 0) +
+        (netlifyKeysResult.data?.length || 0) +
+        (deploymentTokensResult.data?.length || 0);
 
-      const count = data?.length || 0;
-      console.log(`📊 Total shared platform keys: ${count}`);
-      return count;
+      console.log(`📊 Total shared platform keys: ${totalCount}`);
+      return totalCount;
     } catch (error) {
       console.error('❌ Exception getting total key count:', error);
       return 0;
