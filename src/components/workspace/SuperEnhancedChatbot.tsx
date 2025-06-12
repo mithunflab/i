@@ -8,7 +8,6 @@ import { Send, Bot, User, Loader2, Youtube, Users, Eye, Calendar } from 'lucide-
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useEnhancedTargetedChanges } from '@/hooks/useEnhancedTargetedChanges';
 
 interface Message {
   id: string;
@@ -43,7 +42,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   
   const { user } = useAuth();
   const { toast } = useToast();
-  const { generateEnhancedPrompt } = useEnhancedTargetedChanges();
 
   useEffect(() => {
     setCurrentProject(projectData);
@@ -80,67 +78,41 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
     setIsLoading(true);
 
     try {
-      let chatSystemPrompt = '';
+      console.log('🤖 Sending message to Supabase Edge Function...');
       
-      // Generate enhanced prompt if we have a project
-      if (currentProject) {
-        const enhancedPrompt = await generateEnhancedPrompt({
-          userRequest: inputValue.trim(),
-          projectId: currentProject.id,
-          channelData
-        });
-        chatSystemPrompt = enhancedPrompt.prompt;
-        console.log('🎯 Using enhanced targeted prompt for changes');
-      } else {
-        // Standard prompt for new projects
-        chatSystemPrompt = `
-You are an expert web developer creating a stunning website for the YouTube channel "${channelData?.title || 'YouTube Channel'}".
-
-Channel Information:
-- Name: ${channelData?.title || 'Unknown'}
-- Subscribers: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
-- Videos: ${parseInt(channelData?.videoCount || '0').toLocaleString()}
-- Thumbnail: ${channelData?.thumbnail || ''}
-
-Create a modern, responsive website that showcases this YouTube channel beautifully. Use the actual channel data provided above.
-
-Requirements:
-- Modern, professional design
-- YouTube brand colors (#FF0000 for primary buttons)
-- Responsive design (mobile-first)
-- Real subscriber and video counts
-- Channel thumbnail integration
-- Clean, readable typography
-- Smooth animations and hover effects
-
-Generate complete HTML with embedded CSS and JavaScript. Make it visually stunning and engaging.
-`;
-      }
-
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: chatSystemPrompt },
-            ...messages.map(m => ({ role: m.role, content: m.content })),
-            { role: 'user', content: inputValue.trim() }
-          ]
-        })
+      // Use Supabase Edge Function instead of /api/chat
+      const { data, error } = await supabase.functions.invoke('chat', {
+        body: {
+          message: inputValue.trim(),
+          projectId: currentProject?.id || crypto.randomUUID(),
+          channelData: channelData,
+          chatHistory: messages.slice(-5),
+          generateCode: true,
+          projectContext: {
+            youtubeUrl,
+            projectIdea,
+            currentCode: currentProject?.source_code || '',
+            preserveDesign: true
+          },
+          isTargetedChange: currentProject ? true : false,
+          currentCode: currentProject?.source_code || ''
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to get response');
+      if (error) {
+        console.error('❌ Supabase function error:', error);
+        throw new Error(`API Error: ${error.message}`);
+      }
 
-      const data = await response.json();
-      const assistantContent = data.message || 'Sorry, I encountered an error.';
+      console.log('✅ AI Response received');
 
-      // Extract code from the response
-      const codeMatch = assistantContent.match(/```html([\s\S]*?)```/);
-      if (codeMatch) {
-        const generatedCode = codeMatch[1].trim();
+      const assistantContent = data.reply || 'I\'ve processed your request!';
+      const generatedCode = data.generatedCode;
+
+      // Extract and process generated code
+      if (generatedCode) {
+        console.log('🔄 Code generated, updating preview...');
         onCodeGenerated(generatedCode);
-
-        // Save or update project
         await saveProject(generatedCode, assistantContent);
       }
 
@@ -154,7 +126,17 @@ Generate complete HTML with embedded CSS and JavaScript. Make it visually stunni
       setMessages(prev => [...prev, assistantMessage]);
 
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `❌ Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again with your request.`,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+      
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
@@ -226,7 +208,7 @@ Generate complete HTML with embedded CSS and JavaScript. Make it visually stunni
       }
 
     } catch (error) {
-      console.error('Error saving project:', error);
+      console.error('❌ Error saving project:', error);
     }
   };
 

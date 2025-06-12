@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Monitor, Smartphone, Tablet, Code, Eye, Github, Globe, ArrowLeft, Settings } from 'lucide-react';
+import { Monitor, Smartphone, Tablet, Code, Eye, Github, Globe, ArrowLeft } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import PreviewFrame from './PreviewFrame';
 import OptimizedCodePreview from './OptimizedCodePreview';
@@ -11,7 +12,6 @@ import SuperEnhancedChatbot from './SuperEnhancedChatbot';
 import ProjectVerificationDialog from './ProjectVerificationDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useGitHubReconnection } from '@/hooks/useGitHubReconnection';
 
 const Workspace = () => {
   const [searchParams] = useSearchParams();
@@ -24,8 +24,6 @@ const Workspace = () => {
   const [projectData, setProjectData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const { checkRepositoryConnection } = useGitHubReconnection();
   
   // Get URL parameters
   const youtubeUrl = searchParams.get('url') || '';
@@ -75,11 +73,6 @@ const Workspace = () => {
           if (project.source_code) {
             setGeneratedCode(project.source_code);
           }
-          
-          // Check repository connection
-          if (project.id) {
-            checkRepositoryConnection(project.id);
-          }
           return;
         }
         
@@ -106,11 +99,6 @@ const Workspace = () => {
             
             if (project.source_code) {
               setGeneratedCode(project.source_code);
-            }
-            
-            // Check repository connection
-            if (project.id) {
-              checkRepositoryConnection(project.id);
             }
           } else {
             console.log('ℹ️ No existing project found - ready to create new one');
@@ -143,11 +131,6 @@ const Workspace = () => {
           if (latestProject.source_code) {
             setGeneratedCode(latestProject.source_code);
           }
-          
-          // Check repository connection
-          if (latestProject.id) {
-            checkRepositoryConnection(latestProject.id);
-          }
         } else {
           console.log('ℹ️ No projects found, user can create new one');
           setProjectData(null);
@@ -162,7 +145,7 @@ const Workspace = () => {
     };
 
     loadProject();
-  }, [user, youtubeUrl, projectId, checkRepositoryConnection]);
+  }, [user, youtubeUrl, projectId]);
 
   const handleCodeGenerated = (code: string) => {
     console.log('🔄 Code generated in workspace, updating preview...');
@@ -203,7 +186,7 @@ const Workspace = () => {
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-      {/* Enhanced Header */}
+      {/* Clean Header */}
       <div className="h-14 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
           <Button
@@ -335,7 +318,7 @@ const Workspace = () => {
       {/* Main Content */}
       <div className="h-[calc(100vh-3.5rem)]">
         <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* Enhanced Chatbot Panel */}
+          {/* Chatbot Panel */}
           <ResizablePanel defaultSize={35} minSize={30} maxSize={50}>
             <SuperEnhancedChatbot
               youtubeUrl={youtubeUrl || projectData?.youtube_url || ''}
