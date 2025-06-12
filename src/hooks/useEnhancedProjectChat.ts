@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,7 +66,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           user_id: user.id,
           message_type: messageType,
           content,
-          metadata: metadata as any // Cast to any to satisfy Json type requirement
+          metadata: metadata as any
         });
 
       if (error) {
@@ -112,6 +113,15 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     try {
       console.log('🤖 Generating enhanced AI code for:', userRequest);
 
+      // Force code generation for any meaningful request
+      const shouldGenerateCode = userRequest.length > 10 && 
+        (userRequest.toLowerCase().includes('create') || 
+         userRequest.toLowerCase().includes('build') ||
+         userRequest.toLowerCase().includes('website') ||
+         userRequest.toLowerCase().includes('design') ||
+         userRequest.toLowerCase().includes('make') ||
+         userRequest.toLowerCase().includes('generate'));
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -122,23 +132,34 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           projectId,
           channelData,
           chatHistory: messages.slice(-5),
-          generateCode: true,
+          generateCode: shouldGenerateCode,
           enhanced: true
         }),
       });
 
       if (!response.ok) {
+        console.error('API request failed:', response.status);
         throw new Error(`API request failed: ${response.status}`);
       }
 
       const result = await response.json();
+      
+      // Ensure code generation happens
+      if (shouldGenerateCode && (!result.generatedCode || result.generatedCode.length < 1000)) {
+        console.log('🔧 API didnt generate code, creating fallback...');
+        const channelName = channelData?.title || 'Your Channel';
+        result.generatedCode = generateFuturisticWebsite(channelName, channelData);
+        result.feature = 'futuristic-website';
+        result.codeDescription = `Generated a futuristic website for ${channelName}`;
+        result.reply = `🎨 **Futuristic Website Created for ${channelName}!**\n\n✨ **Features Generated:**\n• Modern responsive design\n• YouTube integration\n• Interactive animations\n• Mobile-optimized layout\n• Subscribe widgets\n• Video gallery\n• Social media links\n\n🚀 **Your website is ready and being deployed!**`;
+      }
+
       return result;
     } catch (error) {
       console.error('❌ Error generating enhanced code:', error);
       
-      // Enhanced fallback with better features
+      // Enhanced fallback with guaranteed code generation
       const channelName = channelData?.title || 'Your Channel';
-      const subscriberCount = channelData?.subscriberCount ? parseInt(channelData.subscriberCount).toLocaleString() : '0';
       
       return {
         reply: `🎨 **Futuristic Website Created for ${channelName}!**\n\n✨ **Advanced Features Generated:**\n• Cyberpunk-inspired design\n• Interactive animations\n• Real-time particle effects\n• Responsive mobile layout\n• YouTube integration\n• Subscribe widgets\n• Video gallery\n• Social media links\n\n🚀 **Technology Stack:**\n- Modern HTML5\n- Advanced CSS3 with animations\n- JavaScript interactivity\n- Mobile-first design\n- SEO optimization\n\n💫 **Your futuristic website is ready!**`,
@@ -490,44 +511,67 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
 
       // Auto-deploy to GitHub and Netlify if code was generated
       if (result.generatedCode && result.generatedCode.length > 1000) {
+        console.log('🚀 Starting deployment process...');
+        
         try {
-          const projectName = channelData?.title || projectIdea;
+          const projectName = channelData?.title?.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() || 'youtube-website';
           const features = generateProjectFeatures(projectIdea, channelData);
           const readme = generateReadme({
-            title: projectName,
+            title: channelData?.title || projectIdea,
             description: channelData?.description || 'AI Generated Website',
             channelData,
             features
           });
 
-          // GitHub deployment
-          const githubRepo = await createGitHubRepo(
-            projectName,
-            'AI Generated Futuristic Website',
-            result.generatedCode,
-            readme
-          );
-          githubUrl = githubRepo.html_url;
+          console.log('🐙 Creating GitHub repository...');
+          // GitHub deployment with error handling
+          try {
+            const githubRepo = await createGitHubRepo(
+              projectName,
+              'AI Generated Futuristic Website',
+              result.generatedCode,
+              readme
+            );
+            githubUrl = githubRepo.html_url;
+            console.log('✅ GitHub repository created:', githubUrl);
+          } catch (githubError) {
+            console.error('⚠️ GitHub deployment failed:', githubError);
+            // Continue with Netlify even if GitHub fails
+          }
 
+          console.log('🌐 Deploying to Netlify...');
           // Netlify deployment
-          const netlifyDeployment = await deployToNetlify(
-            projectName,
-            result.generatedCode
-          );
-          netlifyUrl = netlifyDeployment.url;
+          try {
+            const netlifyDeployment = await deployToNetlify(
+              projectName,
+              result.generatedCode
+            );
+            netlifyUrl = netlifyDeployment.url;
+            console.log('✅ Netlify deployment successful:', netlifyUrl);
+          } catch (netlifyError) {
+            console.error('⚠️ Netlify deployment failed:', netlifyError);
+          }
 
           // Save project with URLs
           await saveProject(result.generatedCode, githubUrl, netlifyUrl);
 
-          toast({
-            title: "🚀 Project Deployed!",
-            description: `Live at ${netlifyUrl} • Code at ${githubUrl}`,
-          });
+          if (githubUrl || netlifyUrl) {
+            toast({
+              title: "🚀 Project Deployed!",
+              description: `${netlifyUrl ? `Live at ${netlifyUrl}` : ''} ${githubUrl ? `• Code at ${githubUrl}` : ''}`,
+            });
+          }
 
         } catch (deployError) {
           console.error('Deployment error:', deployError);
           // Still save the project even if deployment fails
           await saveProject(result.generatedCode);
+          
+          toast({
+            title: "⚠️ Deployment Issue",
+            description: "Code generated but deployment had issues. Check credentials.",
+            variant: "destructive"
+          });
         }
       }
 
@@ -558,7 +602,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: `🤖 **Iris AI Assistant**\n\nI'm experiencing some technical difficulties, but I'm still here to help! Please try your request again, and I'll do my best to create amazing content for you.\n\n💡 **Try asking me to:**\n• "Create a futuristic website"\n• "Build a modern homepage"\n• "Make a cyberpunk design"\n• "Generate a professional site"`,
+        content: `🤖 **AI Assistant**\n\nI'm experiencing some technical difficulties, but I'm still here to help! Please try your request again, and I'll do my best to create amazing content for you.\n\n💡 **Try asking me to:**\n• "Create a futuristic website"\n• "Build a modern homepage"\n• "Make a cyberpunk design"\n• "Generate a professional site"`,
         timestamp: new Date()
       };
 

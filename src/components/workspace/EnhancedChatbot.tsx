@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Youtube, Users, Smartphone, Palette, Play, Eye, Lightbulb, Code, FileText, Github, Globe, Zap, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Youtube, Users, Play, Eye, Lightbulb, Code, FileText, Github, Globe, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { useEnhancedProjectChat } from '@/hooks/useEnhancedProjectChat';
 
 interface ChannelData {
@@ -27,6 +27,7 @@ interface EnhancedChatbotProps {
 const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectIdea, channelData }) => {
   const [inputValue, setInputValue] = useState('');
   const [showQuickIdeas, setShowQuickIdeas] = useState(false);
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const { messages, loading, sendMessage, projectId } = useEnhancedProjectChat(youtubeUrl, projectIdea, channelData);
 
   const handleSendMessage = async () => {
@@ -53,68 +54,109 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
     { label: 'Create gaming website', icon: '🎮' }
   ];
 
+  // Mock latest videos for Chitti - Tamil channel
+  const latestVideos = [
+    {
+      title: "Message with LASER 🤯 | How it works",
+      thumbnail: "https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=120&h=90&fit=crop",
+      url: "https://youtube.com/watch?v=example1"
+    },
+    {
+      title: "Ask Chitti: Floating Fire?! The Butane Velocity Secret! 🔥💨",
+      thumbnail: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=120&h=90&fit=crop",
+      url: "https://youtube.com/watch?v=example2"
+    },
+    {
+      title: "Chitti at School: Blow Out a Candle With Your PHONE?!",
+      thumbnail: "https://images.unsplash.com/photo-1556075798-4825dfaaf498?w=120&h=90&fit=crop",
+      url: "https://youtube.com/watch?v=example3"
+    },
+    {
+      title: "Amazing Science Experiment You Won't Believe!",
+      thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=90&fit=crop",
+      url: "https://youtube.com/watch?v=example4"
+    }
+  ];
+
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Enhanced Chat Header */}
-      <div className="p-4 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
-        {channelData ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <img 
-                src={channelData.thumbnail} 
-                alt={channelData.title}
-                className="w-12 h-12 rounded-full object-cover border-2 border-cyan-400 shadow-lg shadow-cyan-400/50"
-              />
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-cyan-400 text-sm truncate flex items-center gap-2">
-                  <Sparkles size={14} className="text-yellow-400" />
-                  {channelData.title}
-                </h3>
-                <p className="text-xs text-purple-300 flex items-center gap-2">
-                  <Users size={12} />
-                  {parseInt(channelData.subscriberCount).toLocaleString()} subscribers
-                  <Play size={12} />
-                  {parseInt(channelData.videoCount).toLocaleString()} videos
-                </p>
-              </div>
-            </div>
-            
-            {channelData.videos && channelData.videos.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-cyan-400">Latest Videos:</p>
-                <div className="space-y-1 max-h-20 overflow-y-auto">
-                  {channelData.videos.slice(0, 3).map((video, index) => (
-                    <div key={index} className="flex items-center gap-2 text-xs">
-                      <Play size={10} className="text-red-400 flex-shrink-0" />
-                      <span className="truncate text-gray-300">{video.snippet.title}</span>
-                    </div>
-                  ))}
+      {/* Compact Expandable Header */}
+      <div className="border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
+        <div 
+          className="p-3 cursor-pointer hover:bg-black/20 transition-colors"
+          onClick={() => setIsHeaderExpanded(!isHeaderExpanded)}
+        >
+          {channelData ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <img 
+                  src={channelData.thumbnail} 
+                  alt={channelData.title}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-cyan-400 shadow-lg shadow-cyan-400/50 flex-shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-cyan-400 text-sm truncate">
+                    {channelData.title}
+                  </h3>
+                  <p className="text-xs text-purple-300 truncate">
+                    {parseInt(channelData.subscriberCount).toLocaleString()} subscribers
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-purple-500">
-              <Bot className="text-white" size={18} />
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-xs text-gray-400">
+                  {parseInt(channelData.videoCount).toLocaleString()} videos
+                </span>
+                {isHeaderExpanded ? <ChevronUp size={16} className="text-cyan-400" /> : <ChevronDown size={16} className="text-cyan-400" />}
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-cyan-400 flex items-center gap-2">
-                <Zap size={14} className="text-yellow-400" />
-                Iris AI Assistant
-              </h3>
-              <p className="text-xs text-purple-300">Futuristic Website Creator</p>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-purple-500">
+                  <Bot className="text-white" size={16} />
+                </div>
+                <h3 className="font-semibold text-cyan-400 text-sm">Iris AI Assistant</h3>
+              </div>
+              {isHeaderExpanded ? <ChevronUp size={16} className="text-cyan-400" /> : <ChevronDown size={16} className="text-cyan-400" />}
+            </div>
+          )}
+        </div>
+
+        {/* Expanded Content */}
+        {isHeaderExpanded && channelData && (
+          <div className="px-3 pb-3 border-t border-purple-500/20">
+            <div className="mt-3">
+              <p className="text-xs font-medium text-cyan-400 mb-2">Latest Videos:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {latestVideos.map((video, index) => (
+                  <a
+                    key={index}
+                    href={video.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-2 p-2 rounded-lg bg-black/30 hover:bg-black/50 transition-colors group"
+                  >
+                    <img 
+                      src={video.thumbnail} 
+                      alt={video.title}
+                      className="w-12 h-9 rounded object-cover flex-shrink-0 border border-gray-600"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-white line-clamp-2 group-hover:text-cyan-300 transition-colors">
+                        {video.title}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         )}
-        <div className="mt-2 text-xs text-gray-500 flex items-center gap-2">
-          <Code size={10} />
-          Project ID: {projectId}
-        </div>
       </div>
 
-      {/* Enhanced Messages */}
-      <ScrollArea className="flex-1 p-4">
+      {/* Messages - Maximum Height */}
+      <ScrollArea className="flex-1 p-4" style={{ height: 'calc(100vh - 200px)' }}>
         <div className="space-y-4">
           {messages.map((message) => (
             <div
@@ -125,8 +167,6 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
                 <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-400/50">
                   {message.feature === 'video' ? (
                     <Youtube size={14} className="text-white" />
-                  ) : message.feature === 'branding' ? (
-                    <Palette size={14} className="text-white" />
                   ) : message.feature === 'futuristic-website' ? (
                     <Sparkles size={14} className="text-white" />
                   ) : (
@@ -144,7 +184,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
               >
                 <p className="text-sm whitespace-pre-line leading-relaxed text-white">{message.content}</p>
                 
-                {/* Enhanced deployment info */}
+                {/* Deployment info */}
                 {message.generatedCode && (
                   <div className="mt-3 space-y-2">
                     <div className="p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
@@ -211,7 +251,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
                     <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
                     <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                   </div>
-                  <span className="text-sm text-cyan-400 ml-2">Iris is creating your futuristic website...</span>
+                  <span className="text-sm text-cyan-400 ml-2">Creating your website...</span>
                 </div>
               </div>
             </div>
@@ -219,13 +259,13 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
         </div>
       </ScrollArea>
 
-      {/* Enhanced Input */}
-      <div className="p-4 border-t border-purple-500/30 bg-black/50 backdrop-blur-sm">
+      {/* Compact Input */}
+      <div className="p-3 border-t border-purple-500/30 bg-black/50 backdrop-blur-sm">
         <div className="relative">
-          <div className="flex gap-2 mb-3">
+          <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Input
-                placeholder={`Tell Iris what futuristic website to create for ${channelData?.title || 'you'}...`}
+                placeholder={`Tell AI what to create for ${channelData?.title || 'you'}...`}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -253,7 +293,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
             </Button>
           </div>
 
-          {/* Enhanced Quick Ideas */}
+          {/* Quick Ideas */}
           {showQuickIdeas && (
             <div className="absolute bottom-full left-0 right-0 mb-2 bg-black/90 border border-cyan-500/30 rounded-lg shadow-2xl shadow-cyan-400/20 p-3 z-50 backdrop-blur-sm">
               <div className="grid grid-cols-1 gap-2">
@@ -276,18 +316,6 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
               </div>
             </div>
           )}
-        </div>
-        
-        {/* Enhanced Feature Status */}
-        <div className="text-xs text-center space-y-1">
-          <div className="text-cyan-400 flex items-center justify-center gap-2">
-            <Sparkles size={10} />
-            Iris AI • Auto GitHub • Real-time Netlify • Project Limits
-            {channelData && ` • ${channelData.title} Connected`}
-          </div>
-          <div className="text-purple-300">
-            🚀 Futuristic websites with cyberpunk aesthetics and advanced animations
-          </div>
         </div>
       </div>
     </div>
