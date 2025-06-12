@@ -21,9 +21,15 @@ interface EnhancedChatbotProps {
   youtubeUrl: string;
   projectIdea: string;
   channelData?: ChannelData | null;
+  onCodeGenerated?: (code: string) => void;
 }
 
-const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectIdea, channelData }) => {
+const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ 
+  youtubeUrl, 
+  projectIdea, 
+  channelData, 
+  onCodeGenerated 
+}) => {
   const [inputValue, setInputValue] = useState('');
   const [showQuickIdeas, setShowQuickIdeas] = useState(false);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
@@ -96,14 +102,19 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
     return thumbnailUrl;
   };
 
-  // Track file changes from AI responses
+  // Track file changes from AI responses and notify parent
   React.useEffect(() => {
     const latestMessage = messages[messages.length - 1];
-    if (latestMessage?.type === 'bot' && latestMessage.fileChanges) {
-      const newFiles = latestMessage.fileChanges.map(change => change.path);
-      setCurrentFiles(prev => [...new Set([...prev, ...newFiles])]);
+    if (latestMessage?.type === 'bot' && latestMessage.generatedCode) {
+      console.log('🔄 Code generated, updating preview...');
+      onCodeGenerated?.(latestMessage.generatedCode);
+      
+      if (latestMessage.fileChanges) {
+        const newFiles = latestMessage.fileChanges.map(change => change.path);
+        setCurrentFiles(prev => [...new Set([...prev, ...newFiles])]);
+      }
     }
-  }, [messages]);
+  }, [messages, onCodeGenerated]);
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -223,7 +234,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
                 <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-400/50">
                   {message.feature === 'video' ? (
                     <Youtube size={14} className="text-white" />
-                  ) : message.feature === 'futuristic-website' ? (
+                  ) : message.feature === 'website' ? (
                     <Sparkles size={14} className="text-white" />
                   ) : (
                     <Bot size={14} className="text-white" />
@@ -240,37 +251,13 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
               >
                 <p className="text-sm whitespace-pre-line leading-relaxed text-white">{message.content}</p>
                 
-                {/* Show file changes in real-time */}
-                {message.fileChanges && message.fileChanges.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <div className="p-2 bg-blue-500/20 border border-blue-500/30 rounded-lg">
-                      <div className="flex items-center gap-2 text-blue-400 text-xs">
-                        <Code size={12} />
-                        <span>Code Changes Applied</span>
-                      </div>
-                      <div className="mt-2 space-y-1">
-                        {message.fileChanges.map((change, index) => (
-                          <div key={index} className="text-xs text-blue-300 flex items-center gap-1">
-                            {change.action === 'create' && <span className="text-green-400">+</span>}
-                            {change.action === 'update' && <span className="text-yellow-400">~</span>}
-                            {change.action === 'delete' && <span className="text-red-400">-</span>}
-                            <span>{change.path}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Deployment info */}
+                {/* Show code generation status */}
                 {message.generatedCode && (
                   <div className="mt-3 space-y-2">
                     <div className="p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
                       <div className="flex items-center gap-2 text-green-400 text-xs">
-                        <FileText size={12} />
-                        <span>
-                          {currentProject ? 'Project Updated & Redeployed' : 'Website Generated & Auto-Deployed'}
-                        </span>
+                        <Code size={12} />
+                        <span>✨ Stunning Website Generated!</span>
                       </div>
                       {message.codeDescription && (
                         <p className="text-xs text-green-300 mt-1">{message.codeDescription}</p>
@@ -332,7 +319,7 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
                     <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                   </div>
                   <span className="text-sm text-cyan-400 ml-2">
-                    {currentProject ? 'Updating your project...' : 'Creating your website...'}
+                    ✨ Creating stunning website code...
                   </span>
                 </div>
               </div>
@@ -375,18 +362,11 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ youtubeUrl, projectId
             </Button>
           </div>
 
-          {/* Quick Ideas - Updated for editing vs creating */}
+          {/* Quick Ideas */}
           {showQuickIdeas && (
             <div className="absolute bottom-full left-0 right-0 mb-2 bg-black/90 border border-cyan-500/30 rounded-lg shadow-2xl shadow-cyan-400/20 p-3 z-50 backdrop-blur-sm">
               <div className="grid grid-cols-1 gap-2">
-                {(currentProject ? [
-                  { label: 'Add a contact form', icon: '📝' },
-                  { label: 'Change color scheme', icon: '🎨' },
-                  { label: 'Add image gallery', icon: '🖼️' },
-                  { label: 'Update navigation menu', icon: '🧭' },
-                  { label: 'Add social media links', icon: '📱' },
-                  { label: 'Improve mobile layout', icon: '📱' }
-                ] : quickIdeas).map((idea) => (
+                {quickIdeas.map((idea) => (
                   <Button
                     key={idea.label}
                     variant="ghost"

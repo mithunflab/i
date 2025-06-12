@@ -8,7 +8,9 @@ import CodePreview from './CodePreview';
 import ElementSelector from './ElementSelector';
 import PreviewFrame from './PreviewFrame';
 import ServiceStatusIndicators from '@/components/ui/ServiceStatusIndicators';
+
 type PreviewMode = 'mobile' | 'tablet' | 'desktop';
+
 const Workspace = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -17,17 +19,16 @@ const Workspace = () => {
   const [previewMode, setPreviewMode] = useState<PreviewMode>('desktop');
   const [isElementSelectorActive, setIsElementSelectorActive] = useState(false);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState({
-    width: 0,
-    height: 0
-  });
   const [showToolbar, setShowToolbar] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<string>('');
+
   const {
     youtubeUrl = 'https://youtube.com/@example',
     projectIdea = 'YouTube Channel Website',
     channelData = null
   } = location.state || {};
+
   useEffect(() => {
     const updateDimensions = () => {
       const width = window.innerWidth;
@@ -51,6 +52,17 @@ const Workspace = () => {
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
+
+  const handleCodeGenerated = (code: string) => {
+    console.log('📝 New code generated:', code.substring(0, 100) + '...');
+    setGeneratedCode(code);
+    
+    // Switch to preview tab when code is generated
+    if (activeView !== 'preview') {
+      setActiveView('preview');
+    }
+  };
+
   const handleFeature = (feature: string) => {
     console.log(`${feature} feature activated`);
     switch (feature) {
@@ -85,18 +97,21 @@ const Workspace = () => {
         alert(`✨ ${feature} feature is now active and working!`);
     }
   };
+
   const handleDeploy = () => {
     alert('🚀 Publishing your YouTube website... Your audience will love it!');
     setTimeout(() => {
       alert('✅ Website is live! Share it with your YouTube community: https://your-channel.website');
     }, 2000);
   };
+
   const handleElementSelect = (elementId: string) => {
     setSelectedElement(elementId);
     setIsElementSelectorActive(false);
     console.log('Selected element:', elementId);
     alert(`🎯 Element selected: ${elementId}. You can now edit this element!`);
   };
+
   const quickActions = [{
     label: 'Add subscribe button',
     icon: '🔔'
@@ -116,26 +131,37 @@ const Workspace = () => {
     label: 'Setup analytics',
     icon: '📊'
   }];
+
   const getLayoutStyle = () => {
     if (deviceType === 'mobile') {
       return 'flex-col h-auto min-h-screen';
     }
     return `flex-row h-screen max-h-screen`;
   };
+
   const getSidebarStyle = () => {
     if (deviceType === 'mobile') {
       return 'h-96 w-full order-2 border-t';
     }
     return 'w-80 h-full order-1 border-r';
   };
+
   const getMainContentStyle = () => {
     if (deviceType === 'mobile') {
       return 'flex-1 order-1 min-h-[60vh]';
     }
     return 'flex-1 h-full order-2';
   };
-  const renderChatbot = () => <EnhancedChatbot youtubeUrl={youtubeUrl} projectIdea={projectIdea} channelData={channelData} />;
-  return <div className="min-h-screen bg-background animated-gradient overflow-hidden">
+
+  const renderChatbot = () => <EnhancedChatbot 
+    youtubeUrl={youtubeUrl} 
+    projectIdea={projectIdea} 
+    channelData={channelData}
+    onCodeGenerated={handleCodeGenerated}
+  />;
+
+  return (
+    <div className="min-h-screen bg-background animated-gradient overflow-hidden">
       {/* Compact Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm glass">
         <div className="container mx-auto px-4 py-2">
@@ -264,8 +290,8 @@ const Workspace = () => {
 
       {/* Main Layout - Full Height */}
       <div className={`flex ${getLayoutStyle()}`} style={{
-      height: `calc(100vh - ${showToolbar ? '140px' : '80px'})`
-    }}>
+        height: `calc(100vh - ${showToolbar ? '140px' : '80px'})`
+      }}>
         {/* Chatbot Sidebar */}
         <div className={`${getSidebarStyle()} border-border bg-card/30 glass overflow-hidden`}>
           <div className="h-full flex flex-col">
@@ -279,18 +305,25 @@ const Workspace = () => {
             <TabsContent value="preview" className="flex-1 m-0 overflow-hidden">
               <div className="h-full bg-white p-2 sm:p-4 relative overflow-auto">
                 {isElementSelectorActive && <ElementSelector onElementSelect={handleElementSelect} isActive={isElementSelectorActive} />}
-                <PreviewFrame youtubeUrl={youtubeUrl} projectIdea={projectIdea} previewMode={previewMode} />
+                <PreviewFrame 
+                  youtubeUrl={youtubeUrl} 
+                  projectIdea={projectIdea} 
+                  previewMode={previewMode}
+                  generatedCode={generatedCode}
+                />
               </div>
             </TabsContent>
             
             <TabsContent value="code" className="flex-1 m-0 overflow-hidden">
               <div className="h-full">
-                <CodePreview />
+                <CodePreview generatedCode={generatedCode} />
               </div>
             </TabsContent>
           </Tabs>
         </div>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default Workspace;
