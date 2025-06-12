@@ -146,12 +146,11 @@ Generated on: ${new Date().toISOString()}
           const { error: projectError } = await supabase
             .from('projects')
             .insert({
-              id: projectId,
               user_id: user.id,
               name: projectName,
               description: projectDescription,
               youtube_url: youtubeUrl,
-              channel_data: channelData,
+              channel_data: channelData as any, // Cast to any to satisfy Json type
               source_code: generatedCode,
               github_url: githubRepo.html_url,
               netlify_url: netlifyDeployment.url,
