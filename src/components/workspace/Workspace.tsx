@@ -1,338 +1,272 @@
 
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, MessageSquare, Code, Eye, Rocket, Smartphone, Monitor, Tablet, Zap, Palette, Youtube, Play, Bell, TrendingUp, DollarSign, Radio, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
-import EnhancedChatbot from './EnhancedChatbot';
-import CodePreview from './CodePreview';
-import ElementSelector from './ElementSelector';
+import { Monitor, Smartphone, Tablet, Code, Eye, Github, Globe, ArrowLeft, Settings } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import PreviewFrame from './PreviewFrame';
-import ServiceStatusIndicators from '@/components/ui/ServiceStatusIndicators';
-
-type PreviewMode = 'mobile' | 'tablet' | 'desktop';
+import OptimizedCodePreview from './OptimizedCodePreview';
+import SuperEnhancedChatbot from './SuperEnhancedChatbot';
+import ProjectVerificationDialog from './ProjectVerificationDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useGitHubReconnection } from '@/hooks/useGitHubReconnection';
 
 const Workspace = () => {
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState('preview');
-  const [deviceType, setDeviceType] = useState('desktop');
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('desktop');
-  const [isElementSelectorActive, setIsElementSelectorActive] = useState(false);
-  const [selectedElement, setSelectedElement] = useState<string | null>(null);
-  const [showToolbar, setShowToolbar] = useState(false);
-  const [showQuickActions, setShowQuickActions] = useState(false);
+  const { user } = useAuth();
+  
+  const [previewMode, setPreviewMode] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+  const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
   const [generatedCode, setGeneratedCode] = useState<string>('');
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [codeBlocks, setCodeBlocks] = useState<Array<{ type: string, content: string }>>([]);
-  const [isLiveTyping, setIsLiveTyping] = useState(false);
+  const [projectData, setProjectData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  const { checkRepositoryConnection } = useGitHubReconnection();
+  
+  // Get URL parameters
+  const youtubeUrl = searchParams.get('url') || '';
+  const projectIdea = searchParams.get('idea') || '';
+  const channelDataParam = searchParams.get('channelData');
+  
+  let channelData = null;
+  try {
+    channelData = channelDataParam ? JSON.parse(decodeURIComponent(channelDataParam)) : null;
+  } catch (error) {
+    console.error('Error parsing channel data:', error);
+  }
 
-  const {
-    youtubeUrl = 'https://youtube.com/@example',
-    projectIdea = 'YouTube Channel Website',
-    channelData = null
-  } = location.state || {};
-
+  // Load existing project data
   useEffect(() => {
-    const updateDimensions = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      setDimensions({
-        width,
-        height
-      });
-      if (width < 768) {
-        setDeviceType('mobile');
-        setPreviewMode('mobile');
-      } else if (width < 1024) {
-        setDeviceType('tablet');
-        setPreviewMode('tablet');
-      } else {
-        setDeviceType('desktop');
-        setPreviewMode('desktop');
+    const loadProject = async () => {
+      if (!user || !youtubeUrl) return;
+      
+      try {
+        setLoading(true);
+        console.log('🔍 Loading project for URL:', youtubeUrl);
+        
+        const { data: project } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('youtube_url', youtubeUrl)
+          .single();
+        
+        if (project) {
+          console.log('📂 Project found:', project.name);
+          setProjectData(project);
+          
+          if (project.source_code) {
+            setGeneratedCode(project.source_code);
+          }
+          
+          // Check repository connection
+          if (project.id) {
+            checkRepositoryConnection(project.id);
+          }
+        } else {
+          console.log('ℹ️ No existing project found');
+        }
+      } catch (error) {
+        console.error('❌ Error loading project:', error);
+      } finally {
+        setLoading(false);
       }
     };
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, []);
 
-  const handleCodeGenerated = (code: string, blocks?: Array<{ type: string, content: string }>) => {
-    console.log('📝 Professional code generated:', code.substring(0, 100) + '...');
-    setIsLiveTyping(true);
-    
-    // Simulate live typing effect
-    setTimeout(() => {
-      setGeneratedCode(code);
-      if (blocks) {
-        setCodeBlocks(blocks);
-      }
-      setIsLiveTyping(false);
-      
-      // Auto-switch to preview when code is generated
-      if (activeView !== 'preview') {
-        setActiveView('preview');
-      }
-    }, 500);
+    loadProject();
+  }, [user, youtubeUrl, checkRepositoryConnection]);
+
+  const handleCodeGenerated = (code: string) => {
+    console.log('🔄 Code generated in workspace, updating preview...');
+    setGeneratedCode(code);
   };
 
-  const handleFeature = (feature: string) => {
-    console.log(`${feature} feature activated`);
-    switch (feature) {
-      case 'YouTube Sync':
-        alert('📺 YouTube Sync: Importing your latest videos, playlists, and channel branding...');
-        break;
-      case 'Channel Branding':
-        alert('🎨 Channel Branding: Applying your YouTube colors, fonts, and style to the website...');
-        break;
-      case 'Video Gallery':
-        alert('🎬 Video Gallery: Creating beautiful video showcases and playlists...');
-        break;
-      case 'Subscribe Widget':
-        alert('🔔 Subscribe Widget: Adding YouTube subscribe buttons and social links...');
-        break;
-      case 'Analytics':
-        alert('📊 Analytics: Setting up YouTube and website analytics tracking...');
-        break;
-      case 'SEO Boost':
-        alert('🚀 SEO Boost: Optimizing for YouTube keywords and search rankings...');
-        break;
-      case 'Monetization':
-        alert('💰 Monetization: Adding sponsor sections, merch links, and revenue tools...');
-        break;
-      case 'Mobile Optimize':
-        alert('📱 Mobile Optimize: Ensuring perfect mobile viewing for your audience...');
-        break;
-      case 'Live Stream':
-        alert('🔴 Live Stream: Integrating live streaming and premiere announcements...');
-        break;
-      default:
-        alert(`✨ ${feature} feature is now active and working!`);
-    }
+  const handleBackToDashboard = () => {
+    navigate('/user-dashboard');
   };
 
-  const handleDeploy = () => {
-    alert('🚀 Publishing your YouTube website... Your audience will love it!');
-    setTimeout(() => {
-      alert('✅ Website is live! Share it with your YouTube community: https://your-channel.website');
-    }, 2000);
-  };
-
-  const handleElementSelect = (elementId: string) => {
-    setSelectedElement(elementId);
-    setIsElementSelectorActive(false);
-    console.log('Selected element:', elementId);
-    alert(`🎯 Element selected: ${elementId}. You can now edit this element!`);
-  };
-
-  const quickActions = [{
-    label: 'Add subscribe button',
-    icon: '🔔'
-  }, {
-    label: 'Import latest videos',
-    icon: '📺'
-  }, {
-    label: 'Match channel colors',
-    icon: '🎨'
-  }, {
-    label: 'Mobile optimize',
-    icon: '📱'
-  }, {
-    label: 'Add video gallery',
-    icon: '🎬'
-  }, {
-    label: 'Setup analytics',
-    icon: '📊'
-  }];
-
-  const getLayoutStyle = () => {
-    if (deviceType === 'mobile') {
-      return 'flex-col h-auto min-h-screen';
-    }
-    return `flex-row h-screen max-h-screen`;
-  };
-
-  const getSidebarStyle = () => {
-    if (deviceType === 'mobile') {
-      return 'h-96 w-full order-2 border-t border-purple-500/30';
-    }
-    return 'w-80 h-full order-1 border-r border-purple-500/30';
-  };
-
-  const getMainContentStyle = () => {
-    if (deviceType === 'mobile') {
-      return 'flex-1 order-1 min-h-[60vh]';
-    }
-    return 'flex-1 h-full order-2';
-  };
-
-  const renderChatbot = () => <EnhancedChatbot 
-    youtubeUrl={youtubeUrl} 
-    projectIdea={projectIdea} 
-    channelData={channelData}
-    onCodeGenerated={handleCodeGenerated}
-  />;
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-      {/* Header with chatbox styling */}
-      <header className="border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" onClick={() => navigate('/user-dashboard')} className="flex items-center gap-2 bg-black/80 border-cyan-500/50 text-cyan-400 hover:bg-black/60 hover:border-cyan-400">
-                <ArrowLeft size={16} />
-                <span className="hidden sm:inline">Back</span>
-              </Button>
-              <ServiceStatusIndicators />
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
+      {/* Enhanced Header */}
+      <div className="h-14 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm flex items-center justify-between px-4">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleBackToDashboard}
+            className="text-gray-400 hover:text-white"
+          >
+            <ArrowLeft size={16} className="mr-2" />
+            Dashboard
+          </Button>
+          
+          <div className="flex items-center gap-3">
+            {channelData?.thumbnail && (
+              <img 
+                src={channelData.thumbnail} 
+                alt={channelData.title}
+                className="w-8 h-8 rounded-full object-cover border border-cyan-400"
+              />
+            )}
+            <div>
+              <h1 className="text-lg font-semibold text-white">
+                {projectData?.name || channelData?.title || 'AI Website Builder'}
+              </h1>
+              <p className="text-xs text-gray-400">
+                {channelData ? `${parseInt(channelData.subscriberCount || '0').toLocaleString()} subscribers` : 'Enhanced Workspace'}
+              </p>
             </div>
-            
-            <div className="flex items-center gap-3">
-              {/* Enhanced Status Indicator */}
-              {generatedCode && (
-                <div className="flex items-center gap-2 text-xs">
-                  <div className={`w-2 h-2 rounded-full ${isLiveTyping ? 'bg-green-400 animate-pulse' : 'bg-blue-400'}`}></div>
-                  <span className={isLiveTyping ? 'text-green-400' : 'text-blue-400'}>
-                    {isLiveTyping ? 'Live Generation' : 'Code Ready'}
-                  </span>
-                </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Project Status */}
+          {projectData && (
+            <div className="flex items-center gap-2 mr-4">
+              <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
+                {projectData.status || 'Active'}
+              </Badge>
+              {projectData.verified && (
+                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                  Verified
+                </Badge>
               )}
-
-              {/* Edit Button */}
-              <Button variant={isElementSelectorActive ? 'default' : 'outline'} size="sm" onClick={() => {
-              setIsElementSelectorActive(!isElementSelectorActive);
-              if (!isElementSelectorActive) {
-                alert('🎯 Element Selector activated! Click any element to customize it for your brand.');
-              }
-            }} className="flex items-center gap-1 bg-black/80 border-cyan-500/50 text-cyan-400 hover:bg-black/60">
-                <Zap size={14} />
-                <span className="hidden sm:inline">Edit</span>
-              </Button>
-
-              {/* Features Button */}
-              <Button variant="outline" size="sm" onClick={() => setShowToolbar(!showToolbar)} className="flex items-center gap-1 bg-black/80 border-cyan-500/50 text-cyan-400 hover:bg-black/60">
-                <span className="hidden sm:inline">Features</span>
-                {showToolbar ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </Button>
-
-              {/* Device Preview Toggle */}
-              <div className="hidden sm:flex items-center gap-1">
-                <Button variant={previewMode === 'mobile' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('mobile')} className="bg-black/80 border-cyan-500/50 text-cyan-400">
-                  <Smartphone size={14} />
-                </Button>
-                <Button variant={previewMode === 'tablet' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('tablet')} className="bg-black/80 border-cyan-500/50 text-cyan-400">
-                  <Tablet size={14} />
-                </Button>
-                <Button variant={previewMode === 'desktop' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewMode('desktop')} className="bg-black/80 border-cyan-500/50 text-cyan-400">
-                  <Monitor size={14} />
-                </Button>
-              </div>
-
-              <Tabs value={activeView} onValueChange={setActiveView}>
-                <TabsList className="grid w-full grid-cols-2 bg-black/80 border border-cyan-500/50">
-                  <TabsTrigger value="preview" className="flex items-center gap-2 text-cyan-400 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-purple-500 data-[state=active]:text-white">
-                    <Eye size={14} />
-                    <span className="hidden sm:inline">Preview</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="code" className="flex items-center gap-2 text-cyan-400 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-purple-500 data-[state=active]:text-white">
-                    <Code size={14} />
-                    <span className="hidden sm:inline">Code</span>
-                    {isLiveTyping && <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse ml-1"></div>}
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-              
-              <Button onClick={handleDeploy} className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white flex items-center gap-2">
-                <Rocket size={16} />
-                <span>Publish</span>
-              </Button>
             </div>
+          )}
+
+          {/* External Links */}
+          {projectData?.github_url && (
+            <a
+              href={projectData.github_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+              title="Open GitHub Repository"
+            >
+              <Github size={16} />
+            </a>
+          )}
+          
+          {projectData?.netlify_url && (
+            <a
+              href={projectData.netlify_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-gray-400 hover:text-white hover:bg-blue-600 rounded transition-colors"
+              title="Open Live Site"
+            >
+              <Globe size={16} />
+            </a>
+          )}
+
+          {/* Verification Button */}
+          {projectData && (
+            <ProjectVerificationDialog
+              projectId={projectData.id}
+              projectName={projectData.name}
+              projectData={projectData}
+              isVerified={projectData.verified}
+            />
+          )}
+
+          {/* Preview Mode Controls */}
+          <div className="flex items-center gap-1 bg-black/30 rounded-lg p-1">
+            <Button
+              variant={previewMode === 'mobile' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setPreviewMode('mobile')}
+              className="p-2"
+            >
+              <Smartphone size={16} />
+            </Button>
+            <Button
+              variant={previewMode === 'tablet' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setPreviewMode('tablet')}
+              className="p-2"
+            >
+              <Tablet size={16} />
+            </Button>
+            <Button
+              variant={previewMode === 'desktop' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setPreviewMode('desktop')}
+              className="p-2"
+            >
+              <Monitor size={16} />
+            </Button>
           </div>
 
-          {/* Collapsible Features Toolbar */}
-          {showToolbar && <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 pt-3 mt-3 border-t border-purple-500/30">
-              {[{
-            icon: Youtube,
-            name: 'YT Sync',
-            feature: 'YouTube Sync'
-          }, {
-            icon: Palette,
-            name: 'Branding',
-            feature: 'Channel Branding'
-          }, {
-            icon: Play,
-            name: 'Videos',
-            feature: 'Video Gallery'
-          }, {
-            icon: Bell,
-            name: 'Subscribe',
-            feature: 'Subscribe Widget'
-          }, {
-            icon: TrendingUp,
-            name: 'Analytics',
-            feature: 'Analytics'
-          }, {
-            icon: Rocket,
-            name: 'SEO',
-            feature: 'SEO Boost'
-          }, {
-            icon: DollarSign,
-            name: 'Monetize',
-            feature: 'Monetization'
-          }, {
-            icon: Smartphone,
-            name: 'Mobile',
-            feature: 'Mobile Optimize'
-          }, {
-            icon: Radio,
-            name: 'Live',
-            feature: 'Live Stream'
-          }].map((item, index) => <Button key={index} variant="outline" size="sm" onClick={() => handleFeature(item.feature)} className="flex items-center gap-1 text-xs bg-black/80 border-cyan-500/50 text-cyan-400 hover:bg-black/60">
-                  <item.icon size={12} className={item.icon === Youtube ? 'text-red-500' : ''} />
-                  <span className="hidden sm:inline">{item.name}</span>
-                </Button>)}
-            </div>}
+          {/* View Toggle */}
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'preview' | 'code')} className="w-auto">
+            <TabsList className="bg-black/30">
+              <TabsTrigger value="preview" className="flex items-center gap-2">
+                <Eye size={16} />
+                Preview
+              </TabsTrigger>
+              <TabsTrigger value="code" className="flex items-center gap-2">
+                <Code size={16} />
+                Code
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
-      </header>
+      </div>
 
-      {/* Main Layout - Full Height with chatbox styling */}
-      <div className={`flex ${getLayoutStyle()}`} style={{
-        height: `calc(100vh - ${showToolbar ? '140px' : '80px'})`
-      }}>
-        {/* Chatbot Sidebar - matching chatbox style */}
-        <div className={`${getSidebarStyle()} bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden`}>
-          <div className="h-full flex flex-col">
-            {renderChatbot()}
-          </div>
-        </div>
-
-        {/* Main Content Area with chatbox background */}
-        <div className={`${getMainContentStyle()} overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900`}>
-          <Tabs value={activeView} onValueChange={setActiveView} className="h-full flex flex-col">
-            <TabsContent value="preview" className="flex-1 m-0 overflow-hidden">
-              <div className="h-full bg-black/20 p-2 sm:p-4 relative overflow-auto backdrop-blur-sm">
-                {isElementSelectorActive && <ElementSelector onElementSelect={handleElementSelect} isActive={isElementSelectorActive} />}
-                <PreviewFrame 
-                  youtubeUrl={youtubeUrl} 
-                  projectIdea={projectIdea} 
+      {/* Main Content */}
+      <div className="h-[calc(100vh-3.5rem)]">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* Enhanced Chatbot Panel */}
+          <ResizablePanel defaultSize={35} minSize={30} maxSize={50}>
+            <SuperEnhancedChatbot
+              youtubeUrl={youtubeUrl}
+              projectIdea={projectIdea}
+              channelData={channelData}
+              onCodeGenerated={handleCodeGenerated}
+              projectData={projectData}
+            />
+          </ResizablePanel>
+          
+          <ResizableHandle />
+          
+          {/* Preview/Code Panel */}
+          <ResizablePanel defaultSize={65} minSize={50}>
+            <Tabs value={activeTab} className="h-full">
+              <TabsContent value="preview" className="h-full m-0">
+                <PreviewFrame
+                  youtubeUrl={youtubeUrl}
+                  projectIdea={projectIdea}
                   previewMode={previewMode}
                   generatedCode={generatedCode}
                   channelData={channelData}
                 />
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="code" className="flex-1 m-0 overflow-hidden">
-              <div className="h-full bg-black/20 backdrop-blur-sm">
-                <CodePreview 
-                  generatedCode={generatedCode} 
-                  codeBlocks={codeBlocks}
-                  isLiveTyping={isLiveTyping}
+              </TabsContent>
+              
+              <TabsContent value="code" className="h-full m-0">
+                <OptimizedCodePreview
+                  generatedCode={generatedCode}
+                  isLiveTyping={false}
+                  projectData={projectData}
                 />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+              </TabsContent>
+            </Tabs>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </div>
   );
