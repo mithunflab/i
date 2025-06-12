@@ -701,15 +701,7 @@ export type Database = {
           project_id?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "project_chat_history_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       project_verification_requests: {
         Row: {
@@ -757,31 +749,46 @@ export type Database = {
       }
       projects: {
         Row: {
+          channel_data: Json | null
           created_at: string | null
           description: string | null
+          github_url: string | null
           id: string
           name: string
+          netlify_url: string | null
+          source_code: string | null
           status: string | null
           updated_at: string | null
           user_id: string
+          youtube_url: string | null
         }
         Insert: {
+          channel_data?: Json | null
           created_at?: string | null
           description?: string | null
+          github_url?: string | null
           id?: string
           name: string
+          netlify_url?: string | null
+          source_code?: string | null
           status?: string | null
           updated_at?: string | null
           user_id: string
+          youtube_url?: string | null
         }
         Update: {
+          channel_data?: Json | null
           created_at?: string | null
           description?: string | null
+          github_url?: string | null
           id?: string
           name?: string
+          netlify_url?: string | null
+          source_code?: string | null
           status?: string | null
           updated_at?: string | null
           user_id?: string
+          youtube_url?: string | null
         }
         Relationships: []
       }
