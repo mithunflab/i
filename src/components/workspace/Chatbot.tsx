@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Youtube, Users, Smartphone, Palette } from 'lucide-react';
+import { Send, Bot, User, Youtube, Users, Smartphone, Palette, Play, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -14,13 +14,26 @@ interface Message {
   feature?: string;
 }
 
+interface ChannelData {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  subscriberCount: string;
+  videoCount: string;
+  viewCount: string;
+  customUrl?: string;
+  videos: any[];
+}
+
 interface ChatbotProps {
   youtubeUrl: string;
   projectIdea: string;
   projectId?: string;
+  channelData?: ChannelData | null;
 }
 
-const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 'default-project' }) => {
+const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 'default-project', channelData }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,12 +47,47 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 
     const welcomeMessage: Message = {
       id: '1',
       type: 'bot',
-      content: `🎥 **Welcome to YouTube Website Builder!**\n\nI've analyzed your channel and I'm ready to help you create an amazing website!\n\n**📺 Channel:** ${youtubeUrl}\n**💡 Vision:** ${projectIdea}\n\n**✨ Creator Features Available:**\n• YouTube Video Integration\n• Channel Branding Match\n• Subscribe Widgets\n• Mobile-First Design\n• SEO for Creators\n• Monetization Tools\n• Analytics Dashboard\n\n**🎯 Pro Tip:** Use "Edit" to click and customize any element for your brand!\n\nWhat would you like to add to your YouTube website first?`,
+      content: getWelcomeMessage(),
       timestamp: new Date()
     };
 
     setMessages(prev => prev.length === 0 ? [welcomeMessage] : prev);
-  }, [projectId, user]);
+  }, [projectId, user, channelData]);
+
+  const getWelcomeMessage = () => {
+    if (channelData) {
+      const subscriberCount = parseInt(channelData.subscriberCount).toLocaleString();
+      const videoCount = parseInt(channelData.videoCount).toLocaleString();
+      
+      let videoList = '';
+      if (channelData.videos && channelData.videos.length > 0) {
+        videoList = '\n\n**🎬 Latest Videos:**\n' + 
+          channelData.videos.slice(0, 3).map((video, index) => 
+            `${index + 1}. ${video.snippet.title}`
+          ).join('\n');
+      }
+
+      return `🎥 **Welcome to ${channelData.title} Website Builder!**\n\n` +
+        `I've analyzed your channel and I'm ready to help you create an amazing website!\n\n` +
+        `**📺 Channel Info:**\n` +
+        `• **${channelData.title}**\n` +
+        `• ${subscriberCount} subscribers\n` +
+        `• ${videoCount} videos\n` +
+        `• ${parseInt(channelData.viewCount).toLocaleString()} total views${videoList}\n\n` +
+        `**✨ Creator Features Available:**\n` +
+        `• YouTube Video Integration\n` +
+        `• Channel Branding Match\n` +
+        `• Subscribe Widgets\n` +
+        `• Mobile-First Design\n` +
+        `• SEO for Creators\n` +
+        `• Monetization Tools\n` +
+        `• Analytics Dashboard\n\n` +
+        `**🎯 Pro Tip:** Use "Edit" to click and customize any element for your brand!\n\n` +
+        `What would you like to add to your YouTube website first?`;
+    }
+
+    return `🎥 **Welcome to YouTube Website Builder!**\n\nI've analyzed your channel and I'm ready to help you create an amazing website!\n\n**📺 Channel:** ${youtubeUrl}\n**💡 Vision:** ${projectIdea}\n\n**✨ Creator Features Available:**\n• YouTube Video Integration\n• Channel Branding Match\n• Subscribe Widgets\n• Mobile-First Design\n• SEO for Creators\n• Monetization Tools\n• Analytics Dashboard\n\n**🎯 Pro Tip:** Use "Edit" to click and customize any element for your brand!\n\nWhat would you like to add to your YouTube website first?`;
+  };
 
   const loadChatHistory = async () => {
     if (!user || !projectId) return;
@@ -109,25 +157,27 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 
 
     setLoading(true);
 
-    // Enhanced AI response logic for YouTube creators
+    // Enhanced AI response logic for YouTube creators with channel context
     setTimeout(async () => {
       let botResponse = '';
       let feature = '';
 
+      const channelName = channelData?.title || 'your channel';
+
       if (inputValue.toLowerCase().includes('video') || inputValue.toLowerCase().includes('youtube')) {
         feature = 'video';
-        botResponse = `📺 **YouTube Video Integration Activated!**\n\nSetting up video showcase for "${inputValue}"\n\n🔧 Processing:\n✅ Latest video imports\n✅ Playlist organization\n✅ Thumbnail optimization\n✅ Subscribe button placement\n\n🎥 **Your videos will look amazing on your website!**`;
+        botResponse = `📺 **YouTube Video Integration Activated for ${channelName}!**\n\nSetting up video showcase for "${inputValue}"\n\n🔧 Processing:\n✅ Latest video imports from ${channelName}\n✅ Playlist organization\n✅ Thumbnail optimization\n✅ Subscribe button placement\n\n🎥 **Your ${channelData?.videoCount || 'videos'} videos will look amazing on your website!**`;
       } else if (inputValue.toLowerCase().includes('brand') || inputValue.toLowerCase().includes('color') || inputValue.toLowerCase().includes('style')) {
         feature = 'branding';
-        botResponse = `🎨 **Channel Branding Applied!**\n\nCustomizing design based on "${inputValue}"\n\n🔧 Branding Updates:\n✅ Channel color extraction\n✅ Thumbnail style analysis\n✅ Font matching\n✅ Logo integration\n\n🌟 **Your website now matches your YouTube brand perfectly!**`;
+        botResponse = `🎨 **${channelName} Branding Applied!**\n\nCustomizing design based on "${inputValue}"\n\n🔧 Branding Updates:\n✅ ${channelName} color extraction\n✅ Thumbnail style analysis\n✅ Font matching\n✅ Logo integration\n\n🌟 **Your website now matches ${channelName}'s YouTube brand perfectly!**`;
       } else if (inputValue.toLowerCase().includes('subscribe') || inputValue.toLowerCase().includes('audience')) {
         feature = 'audience';
-        botResponse = `🔔 **Audience Growth Tools Activated!**\n\nOptimizing for "${inputValue}"\n\n🔧 Growth Features:\n✅ Subscribe buttons added\n✅ Social media links\n✅ Email capture forms\n✅ Content recommendations\n\n📈 **Ready to grow your YouTube audience through your website!**`;
+        botResponse = `🔔 **Audience Growth Tools Activated for ${channelName}!**\n\nOptimizing for "${inputValue}"\n\n🔧 Growth Features:\n✅ Subscribe buttons for ${channelName}\n✅ Social media links\n✅ Email capture forms\n✅ Content recommendations\n\n📈 **Ready to grow ${channelName}'s ${channelData?.subscriberCount || 'subscriber'} base through your website!**`;
       } else if (inputValue.toLowerCase().includes('mobile') || inputValue.toLowerCase().includes('phone')) {
         feature = 'mobile';
-        botResponse = `📱 **Mobile Creator Optimization!**\n\nOptimizing for mobile viewers: "${inputValue}"\n\n🔧 Mobile Features:\n✅ Touch-friendly navigation\n✅ Fast video loading\n✅ Thumb-friendly buttons\n✅ Portrait video support\n\n📱 **Perfect for your mobile YouTube audience!**`;
+        botResponse = `📱 **Mobile Creator Optimization for ${channelName}!**\n\nOptimizing for mobile viewers: "${inputValue}"\n\n🔧 Mobile Features:\n✅ Touch-friendly navigation\n✅ Fast video loading\n✅ Thumb-friendly buttons\n✅ Portrait video support\n\n📱 **Perfect for ${channelName}'s mobile YouTube audience!**`;
       } else {
-        botResponse = `🤖 **YouTube Website AI Processing...**\n\nWorking on: "${inputValue}"\n\n🔧 **Creator Tools Active:**\n✅ Content analysis\n✅ Audience optimization\n✅ Mobile-first design\n✅ YouTube integration\n\n🎥 **Your YouTube website is getting better!**\n\n💡 **Try these creator features:**\n• "Add subscribe button"\n• "Import my latest videos"\n• "Match my channel colors"\n• "Optimize for mobile viewers"`;
+        botResponse = `🤖 **${channelName} Website AI Processing...**\n\nWorking on: "${inputValue}"\n\n🔧 **Creator Tools Active:**\n✅ Content analysis for ${channelName}\n✅ Audience optimization\n✅ Mobile-first design\n✅ YouTube integration\n\n🎥 **${channelName}'s website is getting better!**\n\n💡 **Try these creator features:**\n• "Add subscribe button for ${channelName}"\n• "Import my latest videos"\n• "Match ${channelName}'s colors"\n• "Optimize for mobile viewers"`;
       }
 
       const botMessage: Message = {
@@ -167,17 +217,52 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 
 
   return (
     <div className="h-full flex flex-col bg-rough">
-      {/* Chat Header */}
+      {/* Chat Header with Channel Info */}
       <div className="p-4 border-b border-border glass">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500">
-            <Youtube className="text-white" size={18} />
+        {channelData ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <img 
+                src={channelData.thumbnail} 
+                alt={channelData.title}
+                className="w-12 h-12 rounded-full object-cover border-2 border-red-500"
+              />
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold neon-text text-sm truncate">{channelData.title}</h3>
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Users size={12} />
+                  {parseInt(channelData.subscriberCount).toLocaleString()} subscribers
+                  <Play size={12} />
+                  {parseInt(channelData.videoCount).toLocaleString()} videos
+                </p>
+              </div>
+            </div>
+            
+            {channelData.videos && channelData.videos.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-300">Latest Videos:</p>
+                <div className="space-y-1 max-h-20 overflow-y-auto">
+                  {channelData.videos.slice(0, 3).map((video, index) => (
+                    <div key={index} className="flex items-center gap-2 text-xs">
+                      <Play size={10} className="text-red-400 flex-shrink-0" />
+                      <span className="truncate text-gray-400">{video.snippet.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <div>
-            <h3 className="font-semibold neon-text">YouTube AI Builder</h3>
-            <p className="text-xs text-muted-foreground">Creator Website Assistant</p>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500">
+              <Youtube className="text-white" size={18} />
+            </div>
+            <div>
+              <h3 className="font-semibold neon-text">YouTube AI Builder</h3>
+              <p className="text-xs text-muted-foreground">Creator Website Assistant</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Messages */}
@@ -247,7 +332,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 
       <div className="p-4 border-t border-border glass">
         <div className="flex gap-2 mb-3">
           <Input
-            placeholder="Describe what you want for your YouTube website..."
+            placeholder={`Describe what you want for ${channelData?.title || 'your YouTube'} website...`}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
@@ -278,6 +363,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, projectId = 
         {/* Feature Status */}
         <div className="mt-2 text-xs text-muted-foreground text-center">
           🎥 YouTube tools active • Creator-focused features ready • Chat history saved
+          {channelData && ` • ${channelData.title} data loaded`}
         </div>
       </div>
     </div>

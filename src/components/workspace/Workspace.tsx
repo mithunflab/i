@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -22,7 +21,11 @@ const Workspace = () => {
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   
-  const { youtubeUrl = 'https://youtube.com/@example', projectIdea = 'YouTube Channel Website' } = location.state || {};
+  const { 
+    youtubeUrl = 'https://youtube.com/@example', 
+    projectIdea = 'YouTube Channel Website',
+    channelData = null
+  } = location.state || {};
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -129,7 +132,7 @@ const Workspace = () => {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate('/user-dashboard')}
                   className="flex items-center gap-2 cyber-button"
                 >
                   <ArrowLeft size={16} />
@@ -138,7 +141,7 @@ const Workspace = () => {
                 <div>
                   <h1 className="text-lg sm:text-xl font-bold neon-text flex items-center gap-2">
                     <Youtube className="w-5 h-5 text-red-500" />
-                    YouTube Website Builder
+                    {channelData ? `${channelData.title} Website` : 'YouTube Website Builder'}
                   </h1>
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     {dimensions.width}x{dimensions.height} • {deviceType}
@@ -247,7 +250,11 @@ const Workspace = () => {
         {/* Chatbot Sidebar - Responsive */}
         <div className={`${getSidebarStyle()} border-border bg-card/30 glass overflow-hidden`}>
           <div className="h-full flex flex-col">
-            <Chatbot youtubeUrl={youtubeUrl} projectIdea={projectIdea} />
+            <Chatbot 
+              youtubeUrl={youtubeUrl} 
+              projectIdea={projectIdea}
+              channelData={channelData}
+            />
           </div>
         </div>
 

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Youtube, Globe, Wifi, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 import { apiKeyManager } from '@/utils/apiKeyManager';
 
 const YouTubeWebsiteBuilder = () => {
@@ -22,6 +23,7 @@ const YouTubeWebsiteBuilder = () => {
   const [totalKeys, setTotalKeys] = useState(0);
   const [isConnected, setIsConnected] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     checkApiKeys();
@@ -131,12 +133,42 @@ const YouTubeWebsiteBuilder = () => {
       const channel = channelData.items[0];
       console.log('Channel data fetched successfully:', channel);
 
+      // Fetch latest videos
+      const videosResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&order=date&type=video&maxResults=5&key=${youtubeKey}`
+      );
+
+      let videos = [];
+      if (videosResponse.ok) {
+        const videosData = await videosResponse.json();
+        videos = videosData.items || [];
+      }
+
       toast({
         title: "Success",
-        description: `Channel "${channel.snippet.title}" found with ${channel.statistics.subscriberCount} subscribers`,
+        description: `Channel "${channel.snippet.title}" found! Redirecting to workspace...`,
       });
 
-      // Here you could store the channel data or proceed with website generation
+      // Redirect to workspace with channel data
+      setTimeout(() => {
+        navigate('/workspace', {
+          state: {
+            youtubeUrl: channelUrl,
+            projectIdea: `YouTube Channel Website for ${channel.snippet.title}`,
+            channelData: {
+              id: channelId,
+              title: channel.snippet.title,
+              description: channel.snippet.description,
+              thumbnail: channel.snippet.thumbnails?.medium?.url || channel.snippet.thumbnails?.default?.url,
+              subscriberCount: channel.statistics.subscriberCount,
+              videoCount: channel.statistics.videoCount,
+              viewCount: channel.statistics.viewCount,
+              customUrl: channel.snippet.customUrl,
+              videos: videos
+            }
+          }
+        });
+      }, 1500);
       
     } catch (error) {
       console.error('Error fetching channel:', error);
@@ -268,12 +300,12 @@ const YouTubeWebsiteBuilder = () => {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Fetching Channel...
+                  Analyzing Channel...
                 </>
               ) : (
                 <>
                   <Globe className="mr-2 h-4 w-4" />
-                  Fetch Channel Data
+                  Start Building Website
                 </>
               )}
             </Button>
