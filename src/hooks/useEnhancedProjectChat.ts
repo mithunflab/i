@@ -211,7 +211,7 @@ export const useEnhancedProjectChat = (
 
       // Handle deployment if code was generated
       if (data.generatedCode) {
-        await handleDeployment(botMessage, data.generatedCode, data.codeDescription);
+        await handleDeployment(botMessage);
       }
 
       setMessages(prev => [...prev, botMessage]);
@@ -234,7 +234,7 @@ export const useEnhancedProjectChat = (
         codeDescription: 'Modern responsive website with interactive elements'
       };
 
-      await handleDeployment(fallbackMessage, fallbackMessage.generatedCode!, fallbackMessage.codeDescription!);
+      await handleDeployment(fallbackMessage);
       setMessages(prev => [...prev, fallbackMessage]);
       await saveChatMessage(fallbackMessage);
     } finally {
@@ -242,7 +242,9 @@ export const useEnhancedProjectChat = (
     }
   };
 
-  const handleDeployment = async (message: ChatMessage, code: string, description: string) => {
+  const handleDeployment = async (message: ChatMessage) => {
+    if (!message.generatedCode) return;
+
     try {
       const siteName = channelData?.title 
         ? `${channelData.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-website`
@@ -250,14 +252,14 @@ export const useEnhancedProjectChat = (
 
       const readme = generateReadme(
         siteName,
-        description,
+        message.codeDescription || 'AI Generated Website',
         channelData?.title || 'AI Generated Project',
         youtubeUrl
       );
 
       // Deploy to GitHub (if available)
       try {
-        const githubRepo = await createGitHubRepo(siteName, description, code, readme);
+        const githubRepo = await createGitHubRepo(siteName, message.codeDescription || 'AI Generated Website', message.generatedCode, readme);
         if (githubRepo) {
           message.githubUrl = githubRepo.html_url;
         }
@@ -267,7 +269,7 @@ export const useEnhancedProjectChat = (
 
       // Deploy to Netlify (if available)
       try {
-        const netlifyDeploy = await deployToNetlify(siteName, code);
+        const netlifyDeploy = await deployToNetlify(siteName, message.generatedCode);
         if (netlifyDeploy) {
           message.netlifyUrl = netlifyDeploy.url;
         }
@@ -282,7 +284,7 @@ export const useEnhancedProjectChat = (
           .update({
             github_url: message.githubUrl,
             netlify_url: message.netlifyUrl,
-            source_code: code
+            source_code: message.generatedCode
           })
           .eq('id', projectId);
       }
