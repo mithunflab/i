@@ -31,6 +31,14 @@ interface ChannelData {
   videos: any[];
 }
 
+interface MessageMetadata {
+  feature?: string;
+  generatedCode?: string;
+  codeDescription?: string;
+  githubUrl?: string;
+  netlifyUrl?: string;
+}
+
 export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, channelData?: ChannelData | null) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,7 +53,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
 
   const projectId = generateProjectId();
 
-  const saveChatMessage = useCallback(async (messageType: 'user' | 'assistant', content: string, metadata?: any) => {
+  const saveChatMessage = useCallback(async (messageType: 'user' | 'assistant', content: string, metadata?: MessageMetadata) => {
     if (!user || !projectId) return;
 
     try {
@@ -557,7 +565,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     } finally {
       setLoading(false);
     }
-  }, [messages, loading, projectId, channelData, saveChatMessage, saveProject, createGitHubRepo, deployToNetlify, toast]);
+  }, [messages, loading, projectId, channelData, saveChatMessage, saveProject, createGitHubRepo, deployToNetlify, toast, projectIdea]);
 
   // Load chat history on mount
   useEffect(() => {
@@ -578,17 +586,20 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
         }
 
         if (data && data.length > 0) {
-          const loadedMessages: Message[] = data.map(msg => ({
-            id: msg.id,
-            type: msg.message_type as 'user' | 'bot',
-            content: msg.content,
-            timestamp: new Date(msg.created_at),
-            feature: msg.metadata?.feature,
-            generatedCode: msg.metadata?.generatedCode,
-            codeDescription: msg.metadata?.codeDescription,
-            githubUrl: msg.metadata?.githubUrl,
-            netlifyUrl: msg.metadata?.netlifyUrl
-          }));
+          const loadedMessages: Message[] = data.map(msg => {
+            const metadata = msg.metadata as MessageMetadata | null;
+            return {
+              id: msg.id,
+              type: msg.message_type as 'user' | 'bot',
+              content: msg.content,
+              timestamp: new Date(msg.created_at),
+              feature: metadata?.feature,
+              generatedCode: metadata?.generatedCode,
+              codeDescription: metadata?.codeDescription,
+              githubUrl: metadata?.githubUrl,
+              netlifyUrl: metadata?.netlifyUrl
+            };
+          });
           setMessages(loadedMessages);
         } else {
           // Initialize with enhanced welcome message
@@ -608,7 +619,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
     };
 
     loadChatHistory();
-  }, [user, projectId, channelData]);
+  }, [user, projectId, channelData, saveChatMessage]);
 
   return {
     messages,

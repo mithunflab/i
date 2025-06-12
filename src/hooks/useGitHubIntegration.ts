@@ -20,7 +20,7 @@ export const useGitHubIntegration = () => {
     try {
       console.log('🐙 Creating GitHub repository:', projectName);
       
-      const githubToken = await apiKeyManager.getGitHubKey();
+      const githubToken = await apiKeyManager.getGitHubToken();
       if (!githubToken) {
         throw new Error('GitHub API key not available');
       }

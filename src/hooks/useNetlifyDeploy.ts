@@ -18,7 +18,7 @@ export const useNetlifyDeploy = () => {
     try {
       console.log('🌐 Deploying to Netlify:', siteName);
       
-      const netlifyToken = await apiKeyManager.getNetlifyKey();
+      const netlifyToken = await apiKeyManager.getNetlifyToken();
       if (!netlifyToken) {
         throw new Error('Netlify API key not available');
       }

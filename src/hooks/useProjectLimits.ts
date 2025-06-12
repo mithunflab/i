@@ -9,7 +9,7 @@ export const useProjectLimits = () => {
   const { user, profile } = useAuth();
 
   const FREE_USER_LIMIT = 5;
-  const PRO_USER_LIMIT = 100;
+  const ADMIN_USER_LIMIT = 100;
 
   useEffect(() => {
     if (user) {
@@ -38,7 +38,7 @@ export const useProjectLimits = () => {
   };
 
   const getMaxProjects = () => {
-    return profile?.role === 'pro' ? PRO_USER_LIMIT : FREE_USER_LIMIT;
+    return profile?.role === 'admin' ? ADMIN_USER_LIMIT : FREE_USER_LIMIT;
   };
 
   const canCreateProject = () => {
