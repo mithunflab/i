@@ -11,6 +11,7 @@ import Pricing from '@/pages/Pricing';
 import Contact from '@/pages/Contact';
 import Workspace from '@/components/workspace/Workspace';
 import LoginForm from '@/components/LoginForm';
+import UserDashboard from '@/components/user/UserDashboard';
 import NotFound from '@/pages/NotFound';
 
 function App() {
@@ -19,7 +20,8 @@ function App() {
       <Router>
         <div className="min-h-screen">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Index />} />
+            <Route path="/home" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/features" element={<Features />} />
             <Route path="/pricing" element={<Pricing />} />
@@ -27,6 +29,7 @@ function App() {
             <Route path="/workspace" element={<Workspace />} />
             <Route path="/login" element={<LoginForm />} />
             <Route path="/auth" element={<LoginForm />} />
+            <Route path="/user-dashboard" element={<UserDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster />
