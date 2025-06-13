@@ -1,269 +1,190 @@
-import { useState, useEffect, useCallback } from 'react';
+
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
-interface ProjectMemory {
+interface AIMemoryEntry {
   id: string;
-  components: Record<string, ComponentInfo>;
-  designTokens: DesignTokens;
-  chatHistory: ChatEntry[];
-  lastUpdated: Date;
-}
-
-interface ComponentInfo {
-  id: string;
-  type: string;
-  file: string;
-  className?: string;
-  lastModified: Date;
-  changeHistory: ChangeEntry[];
-}
-
-interface DesignTokens {
-  primaryColor: string;
-  secondaryColor: string;
-  fontFamily: string;
-  spacing: string;
-}
-
-interface ChatEntry {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  componentTarget?: string;
-}
-
-interface ChangeEntry {
-  timestamp: Date;
-  action: string;
-  details: string;
+  projectId: string;
+  component: string;
   userRequest: string;
+  beforeCode: string;
+  afterCode: string;
+  timestamp: Date;
+  success: boolean;
 }
 
-interface SafeChannelData {
-  components?: Record<string, any>;
-  design_tokens?: any;
-  [key: string]: any;
+interface ProjectContext {
+  designPrinciples: string[];
+  currentStructure: {
+    components: any[];
+    styling: { colors: any[] };
+    layout: string;
+  };
+  recentChanges: AIMemoryEntry[];
 }
 
 export const useAdvancedAIMemory = (projectId: string) => {
-  const [memory, setMemory] = useState<ProjectMemory | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [memory, setMemory] = useState<AIMemoryEntry[]>([]);
+  const [context, setContext] = useState<ProjectContext>({
+    designPrinciples: [],
+    currentStructure: { components: [], styling: { colors: [] }, layout: 'default' },
+    recentChanges: []
+  });
+  const { user } = useAuth();
 
-  const loadMemory = useCallback(async () => {
-    if (!projectId) return;
-    
-    setLoading(true);
+  const loadProjectMemory = useCallback(async () => {
+    if (!user || !projectId) return;
+
     try {
-      const { data: project, error: projectError } = await supabase
-        .from('projects')
+      const { data, error } = await supabase
+        .from('ai_edit_history')
         .select('*')
-        .eq('id', projectId)
-        .single();
+        .eq('project_id', projectId)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-      if (projectError && projectError.code !== 'PGRST116') {
-        console.error('Error loading project:', projectError);
+      if (error) {
+        console.error('Error loading AI memory:', error);
         return;
       }
 
-      const { data: chatHistory, error: chatError } = await supabase
-        .from('project_chat_history')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: true });
+      const memoryEntries: AIMemoryEntry[] = data?.map(entry => ({
+        id: entry.id,
+        projectId: entry.project_id,
+        component: entry.component,
+        userRequest: entry.user_request,
+        beforeCode: entry.before_code || '',
+        afterCode: entry.after_code || '',
+        timestamp: new Date(entry.created_at),
+        success: entry.success || false
+      })) || [];
 
-      if (chatError) {
-        console.error('Error loading chat history:', chatError);
-      }
+      setMemory(memoryEntries);
+      setContext(prev => ({
+        ...prev,
+        recentChanges: memoryEntries.slice(0, 10)
+      }));
 
-      if (project) {
-        // Safely parse channel_data
-        let channelData: SafeChannelData = {};
-        if (project.channel_data) {
-          try {
-            if (typeof project.channel_data === 'string') {
-              channelData = JSON.parse(project.channel_data);
-            } else if (typeof project.channel_data === 'object') {
-              channelData = project.channel_data as SafeChannelData;
-            }
-          } catch (e) {
-            console.warn('Failed to parse channel_data:', e);
-            channelData = {};
-          }
-        }
-        
-        setMemory({
-          id: project.id,
-          components: channelData.components || {},
-          designTokens: channelData.design_tokens || {
-            primaryColor: '#000000',
-            secondaryColor: '#666666',
-            fontFamily: 'Arial, sans-serif',
-            spacing: '16px'
-          },
-          chatHistory: (chatHistory || []).map(chat => {
-            let metadata: any = {};
-            if (chat.metadata) {
-              try {
-                if (typeof chat.metadata === 'string') {
-                  metadata = JSON.parse(chat.metadata);
-                } else if (typeof chat.metadata === 'object') {
-                  metadata = chat.metadata;
-                }
-              } catch (e) {
-                console.warn('Failed to parse chat metadata:', e);
-              }
-            }
-            
-            return {
-              id: chat.id,
-              role: chat.message_type as 'user' | 'assistant',
-              content: chat.content,
-              timestamp: new Date(chat.created_at),
-              componentTarget: metadata.component
-            };
-          }),
-          lastUpdated: new Date(project.updated_at)
-        });
-      }
     } catch (error) {
-      console.error('Memory load error:', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to load project memory:', error);
     }
-  }, [projectId]);
+  }, [user, projectId]);
 
-  const updateMemory = useCallback(async (updates: Partial<ProjectMemory>) => {
-    if (!projectId || !memory) return;
-
-    const updatedMemory = { ...memory, ...updates, lastUpdated: new Date() };
-    setMemory(updatedMemory);
+  const saveChange = useCallback(async (
+    component: string,
+    userRequest: string,
+    beforeCode: string,
+    afterCode: string,
+    success: boolean = true
+  ) => {
+    if (!user || !projectId) return;
 
     try {
-      // Prepare channel_data update - convert to plain objects
-      const channelDataUpdate = {
-        components: JSON.parse(JSON.stringify(updatedMemory.components)),
-        design_tokens: JSON.parse(JSON.stringify(updatedMemory.designTokens))
+      const { data, error } = await supabase
+        .from('ai_edit_history')
+        .insert({
+          project_id: projectId,
+          user_id: user.id,
+          component,
+          user_request: userRequest,
+          before_code: beforeCode,
+          after_code: afterCode,
+          success,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            component_type: component.includes('button') ? 'button' : 'content'
+          }
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving change to memory:', error);
+        return;
+      }
+
+      // Update local memory
+      const newEntry: AIMemoryEntry = {
+        id: data.id,
+        projectId,
+        component,
+        userRequest,
+        beforeCode,
+        afterCode,
+        timestamp: new Date(),
+        success
       };
 
-      await supabase
-        .from('projects')
-        .update({
-          channel_data: channelDataUpdate,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', projectId);
+      setMemory(prev => [newEntry, ...prev]);
+      setContext(prev => ({
+        ...prev,
+        recentChanges: [newEntry, ...prev.recentChanges].slice(0, 10)
+      }));
+
     } catch (error) {
-      console.error('Memory update error:', error);
+      console.error('Failed to save change to memory:', error);
     }
-  }, [projectId, memory]);
-
-  const generateTargetedPrompt = useCallback((
-    userRequest: string,
-    channelData: any,
-    currentCode: string
-  ): string => {
-    if (!memory) return userRequest;
-
-    const relevantComponents = Object.values(memory.components).filter(comp =>
-      userRequest.toLowerCase().includes(comp.type.toLowerCase()) ||
-      userRequest.toLowerCase().includes(comp.id.toLowerCase())
-    );
-
-    return `
-# Targeted Component Edit Request
-
-## User Request
-${userRequest}
-
-## Relevant Components
-${relevantComponents.map(comp => `- ${comp.type}: #${comp.id} (${comp.file})`).join('\n')}
-
-## Design Context
-- Primary Color: ${memory.designTokens.primaryColor}
-- Font Family: ${memory.designTokens.fontFamily}
-- Spacing: ${memory.designTokens.spacing}
-
-## Channel Data
-${channelData ? `Channel: ${channelData.title}, Subscribers: ${channelData.subscriberCount}` : 'No channel data'}
-
-Please make targeted changes to the specified component while preserving the existing design system.
-`;
-  }, [memory]);
+  }, [user, projectId]);
 
   const generateContextualPrompt = useCallback((
     userRequest: string,
     channelData: any,
     currentCode: string
-  ): string => {
-    return generateTargetedPrompt(userRequest, channelData, currentCode);
-  }, [generateTargetedPrompt]);
-
-  const saveChange = useCallback(async (
-    componentId: string,
-    userRequest: string,
-    originalCode: string,
-    modifiedCode: string
   ) => {
-    if (!memory) return;
+    const recentChanges = context.recentChanges.slice(0, 5);
+    const designPrinciples = context.designPrinciples;
 
-    const component = memory.components[componentId];
-    if (!component) return;
+    return `
+# 🧠 AI MEMORY-ENHANCED COMPONENT EDITING
 
-    const changeEntry: ChangeEntry = {
-      timestamp: new Date(),
-      action: 'AI Edit',
-      details: `Modified based on: ${userRequest}`,
-      userRequest
-    };
+## CONTEXT FROM PROJECT MEMORY
+${recentChanges.length > 0 ? `
+**Recent Changes Made:**
+${recentChanges.map(change => 
+  `• ${change.component}: "${change.userRequest}" (${change.success ? '✅' : '❌'})`
+).join('\n')}
+` : ''}
 
-    const updatedComponent = {
-      ...component,
-      lastModified: new Date(),
-      changeHistory: [...component.changeHistory, changeEntry]
-    };
+## CURRENT REQUEST
+**User Request**: "${userRequest}"
 
-    await updateMemory({
-      components: {
-        ...memory.components,
-        [componentId]: updatedComponent
-      }
-    });
+## PROJECT CONTEXT
+**Channel**: ${channelData?.title || 'YouTube Channel'}
+**Design Principles**: ${designPrinciples.join(', ') || 'YouTube branding, responsive design'}
 
-    try {
-      await supabase
-        .from('project_chat_history')
-        .insert({
-          project_id: projectId,
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-          message_type: 'assistant',
-          content: `Applied changes to ${componentId}`,
-          metadata: {
-            component: componentId,
-            action: 'AI Edit',
-            userRequest
-          }
-        });
-    } catch (error) {
-      console.error('Error saving change to chat history:', error);
-    }
-  }, [memory, updateMemory, projectId]);
+## COMPONENT STRUCTURE
+${context.currentStructure.components.length > 0 ? 
+  `**Available Components**: ${context.currentStructure.components.map(c => c.id || c.type).join(', ')}` : 
+  '**Components**: Auto-detected from HTML structure'
+}
 
-  const refreshMemory = useCallback(async () => {
-    await loadMemory();
-  }, [loadMemory]);
+## MEMORY-GUIDED INSTRUCTIONS
+1. **Learn from recent changes** - Build upon successful patterns
+2. **Avoid repeating failed approaches** - Check memory for what didn't work
+3. **Maintain design consistency** - Follow established principles
+4. **Target specific components** - Use component-level precision
+5. **Preserve working elements** - Don't break successful previous edits
+
+## CURRENT CODE TO MODIFY
+\`\`\`html
+${currentCode.substring(0, 1000)}...
+\`\`\`
+
+**Generate targeted component-level changes that build upon project memory and maintain consistency.**
+`;
+  }, [context]);
 
   useEffect(() => {
-    loadMemory();
-  }, [loadMemory]);
+    loadProjectMemory();
+  }, [loadProjectMemory]);
 
   return {
     memory,
-    loading,
-    updateMemory,
-    generateTargetedPrompt,
-    generateContextualPrompt,
+    context,
     saveChange,
-    refreshMemory
+    generateContextualPrompt,
+    loadProjectMemory
   };
 };

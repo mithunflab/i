@@ -1,194 +1,127 @@
 
-interface ProjectData {
+interface ProjectInfo {
   title: string;
   description: string;
-  channelData?: {
-    title: string;
-    description: string;
-    subscriberCount: string;
-    videoCount: string;
-    viewCount: string;
-  };
+  channelData?: any;
   features: string[];
   designPrinciples: string[];
-  currentStructure: {
-    components: string[];
-    styling: Record<string, any>;
-    layout: string;
-  };
+  currentStructure: any;
   githubUrl?: string;
   netlifyUrl?: string;
   lastModified: Date;
 }
 
-export const generateReadme = (projectData: ProjectData): string => {
-  const { title, description, channelData, features, designPrinciples, currentStructure, githubUrl, netlifyUrl } = projectData;
-  
+export const generateReadme = (projectInfo: ProjectInfo): string => {
+  const { title, description, channelData, features, designPrinciples, githubUrl, netlifyUrl } = projectInfo;
+
   return `# ${title}
 
 ${description}
 
-## 🚀 Project Overview
-
-This website was generated using AI technology to create a modern, responsive web experience specifically tailored for ${channelData?.title || 'the content creator'}.
-
+## 🎥 Channel Information
 ${channelData ? `
-## 📺 YouTube Channel Integration
+- **Channel Name**: ${channelData.title}
+- **Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}
+- **Videos**: ${parseInt(channelData.videoCount || '0').toLocaleString()}
+- **Total Views**: ${parseInt(channelData.viewCount || '0').toLocaleString()}
+- **Custom URL**: ${channelData.customUrl || 'N/A'}
+` : 'Real YouTube channel data integrated'}
 
-- **Channel**: ${channelData.title}
-- **Subscribers**: ${parseInt(channelData.subscriberCount).toLocaleString()}
-- **Videos**: ${parseInt(channelData.videoCount).toLocaleString()}
-- **Total Views**: ${parseInt(channelData.viewCount).toLocaleString()}
-- **Description**: ${channelData.description}
-
-### Channel Branding Integration
-- Custom color scheme matching channel identity
-- Subscribe buttons and call-to-action elements
-- Video showcase and latest content integration
-- Channel statistics display
-` : ''}
-
-## ✨ Current Features
-
+## ✨ Features
 ${features.map(feature => `- ${feature}`).join('\n')}
 
 ## 🎨 Design Principles
-
 ${designPrinciples.map(principle => `- ${principle}`).join('\n')}
 
-## 🏗️ Website Structure
+## 🏗️ Architecture
+This project uses an intelligent AI-powered editing system that enables:
 
-### Layout: ${currentStructure.layout}
+### Smart Component Editing
+- **Component-Level Targeting**: AI identifies and modifies specific elements
+- **Design Preservation**: Maintains existing styling and layout
+- **Memory System**: Learns from previous edits for better context
+- **Real-Time Validation**: Ensures changes don't break functionality
 
-### Components
-${currentStructure.components.map(component => `- **${component}**: Core website section`).join('\n')}
+### File Structure
+- \`index.html\` - Main website page with real YouTube data
+- \`componentMap.json\` - Maps all editable components
+- \`design.json\` - Design system tokens and variables
+- \`changelog.md\` - Complete history of AI-powered edits
+- \`chat-history.json\` - Conversation log with context
 
-### Styling Approach
-${currentStructure.styling.colors ? `- **Color Palette**: ${currentStructure.styling.colors.slice(0, 3).join(', ')}` : ''}
-- **Responsive Design**: Mobile-first approach
-- **Typography**: Professional and readable fonts
-- **Animations**: Smooth transitions and hover effects
-
-## 🛠️ Technologies Used
-
-- **HTML5**: Semantic markup and structure
-- **CSS3**: Modern styling with gradients and animations
-- **JavaScript**: Interactive elements and smooth scrolling
-- **Responsive Design**: Mobile-first approach
-- **AI Generated**: Created with advanced AI technology
-
-## 📱 Browser Compatibility
-
-This website is compatible with all modern browsers:
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-- Mobile browsers
+### AI Editing Commands
+The AI assistant understands natural language commands like:
+- "Make the subscribe button bigger and red"
+- "Change the hero title color to blue"
+- "Update the header background"
+- "Add animation to video thumbnails"
 
 ## 🚀 Deployment
+${netlifyUrl ? `- **Live Site**: [${netlifyUrl}](${netlifyUrl})` : ''}
+${githubUrl ? `- **Source Code**: [GitHub Repository](${githubUrl})` : ''}
 
-${netlifyUrl ? `**Live Website**: [${netlifyUrl}](${netlifyUrl})` : 'Ready for deployment'}
-${githubUrl ? `**Source Code**: [${githubUrl}](${githubUrl})` : ''}
+## 🧠 AI Features
+- **Smart Intent Parsing**: Converts natural language to component actions
+- **Context Awareness**: Remembers project structure and previous changes
+- **Targeted Modifications**: Changes only requested elements
+- **Design Consistency**: Maintains YouTube branding and responsive design
+- **Real Data Integration**: Uses actual channel statistics and video thumbnails
 
-This project is automatically deployed and can be hosted on any static hosting service:
-- Netlify ✅
-- Vercel
-- GitHub Pages
-- AWS S3
+## 🛠️ Development
+This website was built using:
+- **AI Editor**: Lovable AI with advanced component targeting
+- **Framework**: HTML/CSS/JavaScript with YouTube API integration
+- **Styling**: Custom CSS with YouTube brand colors
+- **Deployment**: Automated via GitHub integration
+- **Memory System**: Persistent chat history and edit tracking
 
-## 🔄 Version History
-
-- **Last Modified**: ${projectData.lastModified.toLocaleDateString()}
-- **Auto-deployed**: Real-time updates to live site
-- **Version Control**: Tracked via GitHub integration
-
-## 📝 Modification Guidelines
-
-When making changes to this website:
-
-1. **Preserve Brand Identity**: Maintain ${channelData?.title || 'channel'} branding and color scheme
-2. **Component-Based Changes**: Modify specific sections without affecting the overall layout
-3. **Mobile Responsiveness**: Ensure all changes work across devices
-4. **YouTube Integration**: Keep subscribe buttons and channel elements prominent
-5. **Performance**: Maintain fast loading times and smooth animations
-
-### Component Modification Map
-${currentStructure.components.map(component => 
-  `- **${component}**: Can be modified independently without affecting other sections`
-).join('\n')}
-
-## 🎯 Content Strategy
-
-- **Hero Section**: Primary call-to-action and channel branding
-- **Video Gallery**: Latest content showcase with YouTube integration
-- **Stats Section**: Channel metrics and engagement data
-- **Call-to-Actions**: Subscribe buttons and social media links
-- **Footer**: Contact information and additional links
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## 🤖 AI-Generated
-
-This website was created using advanced AI technology that analyzed requirements and generated optimized, modern web code automatically. All modifications maintain the original design integrity while adding requested features.
-
-### AI Modification Log
-- Component-specific changes preserve existing layout
-- Design consistency maintained across updates
-- YouTube branding and integration preserved
-- Mobile responsiveness automatically maintained
+## 📝 Edit History
+All changes are automatically tracked in \`changelog.md\` with:
+- Timestamp of each modification
+- Component affected
+- User request that triggered the change
+- Technical details of the implementation
 
 ---
 
-**Created with ❤️ using AI Technology**
-**Optimized for ${channelData?.title || 'Content Creators'}**
+*This README was automatically generated by the Smart Project Manager system.*
+*Last updated: ${projectInfo.lastModified.toLocaleString()}*
 `;
 };
 
-export const generateProjectFeatures = (projectIdea: string, channelData?: any, currentCode?: string): string[] => {
-  const baseFeatures = [
-    'Responsive design for all devices',
-    'Modern CSS3 animations and transitions',
-    'Smooth scrolling navigation',
-    'Professional typography system',
-    'SEO-optimized structure',
-    'Fast loading performance',
-    'Cross-browser compatibility',
-    'Mobile-first responsive design'
+export const generateProjectFeatures = (
+  projectIdea: string,
+  channelData: any,
+  generatedCode: string
+): string[] => {
+  const features = [
+    '🎯 Smart AI component-level editing',
+    '📱 Fully responsive design',
+    '🎨 YouTube brand-consistent styling',
+    '💬 Intelligent chat-based modifications'
   ];
 
-  const youtubeFeatures = channelData ? [
-    `YouTube channel integration for ${channelData.title}`,
-    'Subscriber count display',
-    'Latest videos showcase section',
-    'Channel branding and color matching',
-    'Subscribe call-to-action buttons',
-    'Video embed functionality',
-    'Channel statistics display'
-  ] : [];
+  if (channelData) {
+    features.push(
+      `📊 Real ${channelData.title} channel statistics`,
+      '🎥 Live video thumbnail integration',
+      '👥 Dynamic subscriber count display'
+    );
+  }
 
-  const codeFeatures = currentCode ? [
-    'Interactive hover effects',
-    'Gradient background styling',
-    'Call-to-action buttons',
-    'Social media integration',
-    'Contact form functionality'
-  ] : [];
+  if (generatedCode?.includes('animation')) {
+    features.push('✨ Smooth animations and transitions');
+  }
 
-  return [...baseFeatures, ...youtubeFeatures, ...codeFeatures];
-};
+  if (generatedCode?.includes('grid') || generatedCode?.includes('flex')) {
+    features.push('📐 Modern CSS Grid/Flexbox layout');
+  }
 
-export const generateModificationInstructions = (componentType: string, currentStructure: any): string => {
-  const instructions = {
-    'hero': 'Modify the main header section while preserving the channel title and primary call-to-action',
-    'navigation': 'Update navigation menu items while maintaining the responsive mobile menu functionality',
-    'video-gallery': 'Modify video display layout while keeping YouTube integration intact',
-    'stats': 'Update statistics display while preserving channel metrics integration',
-    'footer': 'Modify footer content while maintaining social media and contact links',
-    'call-to-action': 'Update button styling and text while preserving click functionality'
-  };
+  features.push(
+    '🔄 Real-time preview updates',
+    '📚 Complete edit history tracking',
+    '🚀 One-click deployment ready'
+  );
 
-  return instructions[componentType] || `Modify this ${componentType} component while preserving existing functionality and design consistency`;
+  return features;
 };
