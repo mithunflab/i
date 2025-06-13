@@ -7,6 +7,8 @@ interface CreateProjectParams {
   youtubeUrl?: string;
   channelData?: any;
   sourceCode?: string;
+  github_url?: string;
+  netlify_url?: string;
 }
 
 export const createProject = async (params: CreateProjectParams) => {
@@ -27,6 +29,8 @@ export const createProject = async (params: CreateProjectParams) => {
       youtube_url: params.youtubeUrl || null,
       channel_data: params.channelData || null,
       source_code: params.sourceCode || null,
+      github_url: params.github_url || null,
+      netlify_url: params.netlify_url || null,
       status: 'active' as const,
       verified: false
     };
@@ -61,7 +65,11 @@ export const updateProject = async (projectId: string, updates: Partial<CreatePr
     const { data: project, error: updateError } = await supabase
       .from('projects')
       .update({
-        ...updates,
+        name: updates.name,
+        description: updates.description,
+        source_code: updates.sourceCode,
+        github_url: updates.github_url,
+        netlify_url: updates.netlify_url,
         updated_at: new Date().toISOString()
       })
       .eq('id', projectId)
