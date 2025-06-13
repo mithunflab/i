@@ -24,6 +24,15 @@ interface ProjectContext {
   recentChanges: AIMemoryEntry[];
 }
 
+interface ChatMetadata {
+  component?: string;
+  beforeCode?: string;
+  generatedCode?: string;
+  success?: boolean;
+  timestamp?: string;
+  component_type?: string;
+}
+
 export const useAdvancedAIMemory = (projectId: string) => {
   const [memory, setMemory] = useState<AIMemoryEntry[]>([]);
   const [context, setContext] = useState<ProjectContext>({
@@ -53,16 +62,19 @@ export const useAdvancedAIMemory = (projectId: string) => {
         return;
       }
 
-      const memoryEntries: AIMemoryEntry[] = data?.map(entry => ({
-        id: entry.id,
-        projectId: entry.project_id,
-        component: entry.metadata?.component || 'unknown',
-        userRequest: entry.content,
-        beforeCode: entry.metadata?.beforeCode || '',
-        afterCode: entry.metadata?.generatedCode || '',
-        timestamp: new Date(entry.created_at || ''),
-        success: true
-      })) || [];
+      const memoryEntries: AIMemoryEntry[] = data?.map(entry => {
+        const metadata = entry.metadata as ChatMetadata | null;
+        return {
+          id: entry.id,
+          projectId: entry.project_id,
+          component: metadata?.component || 'unknown',
+          userRequest: entry.content,
+          beforeCode: metadata?.beforeCode || '',
+          afterCode: metadata?.generatedCode || '',
+          timestamp: new Date(entry.created_at || ''),
+          success: true
+        };
+      }) || [];
 
       setMemory(memoryEntries);
       setContext(prev => ({
