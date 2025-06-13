@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import {
   Zap,
   Eye
 } from 'lucide-react';
-import { useProjectContext as useProjectContextData } from '@/hooks/useProjectContext';
+import { useEnhancedProjectContext } from '@/hooks/useEnhancedProjectContext';
 import { useEnhancedProjectChat } from '@/hooks/useEnhancedProjectChat';
 import { useEnhancedRepositoryManager } from '@/hooks/useEnhancedRepositoryManager';
 import SuperEnhancedChatbot from './SuperEnhancedChatbot';
@@ -46,7 +47,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
   const { 
     context, 
     loading: contextLoading 
-  } = useProjectContextData(projectId, youtubeUrl);
+  } = useEnhancedProjectContext(projectId, youtubeUrl, channelData);
 
   const { 
     checkRepositoryStatus, 
@@ -250,20 +251,24 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="h-full overflow-auto">
-                  {context?.currentStructure ? (
+                  {context?.files ? (
                     <div className="space-y-3">
-                      <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-600">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-mono text-sm text-cyan-400">Project Structure</span>
+                      {Object.entries(context.files).map(([filename, content]) => (
+                        <div key={filename} className="p-3 bg-gray-800/50 rounded-lg border border-gray-600">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-mono text-sm text-cyan-400">{filename}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {content.length} chars
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-gray-400 max-h-20 overflow-hidden">
+                            {filename.endsWith('.json') ? 
+                              <pre>{content.substring(0, 200)}...</pre> :
+                              content.substring(0, 200)...
+                            }
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-400">
-                          <div>Components: {context.currentStructure.components.join(', ')}</div>
-                          <div>Layout: {context.currentStructure.layout}</div>
-                          {context.currentStructure.styling.colors && (
-                            <div>Colors: {context.currentStructure.styling.colors.join(', ')}</div>
-                          )}
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-400">
@@ -285,7 +290,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                 <CardContent className="h-full">
                   <div className="h-full bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-auto">
                     <pre className="text-green-400">
-                      {currentProject?.source_code || '// No code generated yet\n// Start chatting to generate website code'}
+                      {context?.files?.['index.html'] || '// No code generated yet\n// Start chatting to generate website code'}
                     </pre>
                   </div>
                 </CardContent>
@@ -307,10 +312,21 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
               </CardHeader>
               <CardContent className="h-full p-0">
                 <div className="w-full h-full bg-white rounded-lg overflow-hidden">
-                  {currentProject?.source_code ? (
+                  {context?.files?.['index.html'] ? (
                     <iframe
                       key={previewKey}
-                      srcDoc={currentProject.source_code}
+                      srcDoc={`
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                          <style>${context.files['styles.css'] || ''}</style>
+                        </head>
+                        <body>
+                          ${context.files['index.html']}
+                          <script>${context.files['scripts.js'] || ''}</script>
+                        </body>
+                        </html>
+                      `}
                       className="w-full h-full border-0"
                       title="Website Preview"
                     />

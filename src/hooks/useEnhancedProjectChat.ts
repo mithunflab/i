@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,7 +15,6 @@ interface ChatMessage {
   codeDescription?: string;
   githubUrl?: string;
   netlifyUrl?: string;
-  fileChanges?: Array<{ path: string; content: string }>;
 }
 
 interface DeploymentStatus {
@@ -28,7 +26,6 @@ interface DeploymentStatus {
 export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, channelData?: any) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [projectId, setProjectId] = useState<string>('');
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus>({
@@ -118,7 +115,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           type: msg.message_type === 'user' ? 'user' : 'bot',
           content: msg.content,
           timestamp: new Date(msg.created_at),
-          feature: (msg.metadata as any)?.feature || 'chat'
+          feature: msg.metadata?.feature || 'chat'
         }));
 
         setMessages(formattedMessages);
@@ -127,7 +124,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
         const welcomeMessage: ChatMessage = {
           id: 'welcome',
           type: 'bot',
-          content: `Welcome back! I've loaded your project: **${currentProject?.name || 'YouTube Channel Website'}**.\\n\\n📁 **Project Files Ready**\\n🔄 **GitHub Sync Available**\\n💬 **Chat History Restored**\\n\\nHow can I help you continue developing your website?`,
+          content: `Welcome back! I've loaded your project: **${currentProject?.name || 'YouTube Channel Website'}**.\n\n📁 **Project Files Ready**\n🔄 **GitHub Sync Available**\n💬 **Chat History Restored**\n\nHow can I help you continue developing your website?`,
           timestamp: new Date(),
           feature: 'website'
         };
@@ -492,15 +489,15 @@ Generate a comprehensive response that addresses the user's needs while maintain
             <div class="container">
                 <h2>Latest Videos</h2>
                 <div class="video-grid">
-                    ${channelData?.videos?.slice(0, 6).map((video: any) => 
-                        `<div class="video-card">
+                    ${channelData?.videos?.slice(0, 6).map((video: any) => `
+                        <div class="video-card">
                             <img src="${video.snippet?.thumbnails?.high?.url || ''}" alt="${video.snippet?.title || 'Video'}" class="video-thumbnail">
                             <div class="video-info">
                                 <h3 class="video-title">${video.snippet?.title || 'Video Title'}</h3>
                                 <p class="video-date">${new Date(video.snippet?.publishedAt).toLocaleDateString()}</p>
                             </div>
-                        </div>`
-                    ).join('') || '<p>No videos available</p>'}
+                        </div>
+                    `).join('') || '<p>No videos available</p>'}
                 </div>
             </div>
         </section>
@@ -804,7 +801,7 @@ class EnhancedYouTubeDataManager {
   }
 
   trackEvent(eventName, data) {
-    console.log('📊 Analytics Event: ' + eventName, data);
+    console.log(\`📊 Analytics Event: \${eventName}\`, data);
     
     // In a real implementation, this would send data to analytics service
     if (window.gtag) {
@@ -930,8 +927,8 @@ Basic analytics tracking is implemented for:
   };
 
   const formatChatHistoryToText = (chatHistory: any[]) => {
-    let output = 'AI Website Builder - Chat History\n';
-    output += '=======================================\n\n';
+    let output = `AI Website Builder - Chat History\n`;
+    output += `=======================================\n\n`;
     output += `Project: ${currentProject?.name || 'YouTube Channel Website'}\n`;
     output += `Channel: ${channelData?.title || 'Unknown'}\n`;
     output += `Total Messages: ${chatHistory.length}\n`;
@@ -939,7 +936,7 @@ Basic analytics tracking is implemented for:
     output += `${'-'.repeat(50)}\n\n`;
 
     if (chatHistory.length === 0) {
-      output += 'No chat messages recorded yet.\n';
+      output += `No chat messages recorded yet.\n`;
       return output;
     }
 
@@ -955,7 +952,7 @@ Basic analytics tracking is implemented for:
       }
       
       if (message.generatedCode) {
-        output += 'Generated Code: Yes\n';
+        output += `Generated Code: Yes\n`;
       }
       
       if (index < chatHistory.length - 1) {
@@ -964,7 +961,7 @@ Basic analytics tracking is implemented for:
     });
 
     output += `\n\n${'-'.repeat(50)}\n`;
-    output += 'End of Chat History\n';
+    output += `End of Chat History\n`;
     output += `Total Characters: ${output.length}\n`;
     output += `Last Updated: ${new Date().toLocaleDateString()}\n`;
 
@@ -1022,6 +1019,7 @@ ${JSON.stringify(channelData, null, 2)}
   };
 
   const generateComponentMap = (html: string) => {
+    // ... keep existing code (component analysis logic)
     return JSON.stringify({
       generated: new Date().toISOString(),
       totalComponents: 8,
@@ -1035,6 +1033,7 @@ ${JSON.stringify(channelData, null, 2)}
   };
 
   const generateDesignSystem = (css: string, channelData: any) => {
+    // ... keep existing code (design system analysis)
     return JSON.stringify({
       generated: new Date().toISOString(),
       theme: 'dark',
@@ -1078,9 +1077,9 @@ class EnhancedAIInterpreter {
       
     } catch (error) {
       console.error('❌ Error processing AI response:', error);
+    } finally {
+      this.isProcessing = false;
     }
-    
-    this.isProcessing = false;
   }
 
   parseStructuredResponse(response) {
@@ -1093,18 +1092,18 @@ class EnhancedAIInterpreter {
   }
 
   detectResponseType(response) {
-    if (response.includes('\`\`\`html')) return 'html-update';
-    if (response.includes('\`\`\`css')) return 'style-update';
-    if (response.includes('\`\`\`js')) return 'script-update';
+    if (response.includes('```html')) return 'html-update';
+    if (response.includes('```css')) return 'style-update';
+    if (response.includes('```js')) return 'script-update';
     return 'text-response';
   }
 
   extractFiles(response) {
     const files = {};
-    const codeBlocks = response.match(/\`\`\`(\\w+)([\\s\\S]*?)\`\`\`/g) || [];
+    const codeBlocks = response.match(/\`\`\`(\w+)([\s\S]*?)\`\`\`/g) || [];
     
     codeBlocks.forEach(block => {
-      const match = block.match(/\`\`\`(\\w+)([\\s\\S]*?)\`\`\`/);
+      const match = block.match(/\`\`\`(\w+)([\s\S]*?)\`\`\`/);
       if (match) {
         const [, language, code] = match;
         files[language] = code.trim();
@@ -1124,9 +1123,9 @@ class EnhancedAIInterpreter {
   }
 
   detectLanguage(response) {
-    if (response.includes('\`\`\`html')) return 'html';
-    if (response.includes('\`\`\`css')) return 'css';
-    if (response.includes('\`\`\`js')) return 'javascript';
+    if (response.includes('```html')) return 'html';
+    if (response.includes('```css')) return 'css';
+    if (response.includes('```js')) return 'javascript';
     return 'text';
   }
 
@@ -1389,7 +1388,6 @@ document.addEventListener('DOMContentLoaded', () => {
   return {
     messages,
     loading,
-    isProcessing,
     sendMessage,
     projectId,
     currentProject,

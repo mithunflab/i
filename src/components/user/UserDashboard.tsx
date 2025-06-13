@@ -82,10 +82,9 @@ const UserDashboard = () => {
         let totalViews = 0;
 
         projectData.forEach(project => {
-          if (project.channel_data && typeof project.channel_data === 'object') {
-            const channelData = project.channel_data as any;
-            totalSubscribers += parseInt(channelData.subscriberCount || '0');
-            totalViews += parseInt(channelData.viewCount || '0');
+          if (project.channel_data) {
+            totalSubscribers += parseInt(project.channel_data.subscriberCount || '0');
+            totalViews += parseInt(project.channel_data.viewCount || '0');
           }
         });
 

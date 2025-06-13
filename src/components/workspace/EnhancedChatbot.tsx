@@ -124,7 +124,7 @@ Would you like me to regenerate the website with optimized loading, or do you wa
     const latestMessage = messages[messages.length - 1];
     if (latestMessage?.type === 'bot' && latestMessage.generatedCode) {
       console.log('🔄 Professional code generated, updating preview...');
-      onCodeGenerated?.(latestMessage.generatedCode.toString());
+      onCodeGenerated?.(latestMessage.generatedCode);
       
       if (latestMessage.fileChanges) {
         const newFiles = latestMessage.fileChanges.map(change => change.path);
