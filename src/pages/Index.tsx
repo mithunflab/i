@@ -112,35 +112,6 @@ const Index = () => {
       }
     });
   };
-  return <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
-      {/* Header */}
-      <div className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
-                <Code className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white">AI Website Builder</h1>
-                <p className="text-sm text-gray-400">Create stunning websites with AI</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <ServiceStatusIndicators />
-              {user ? <Badge variant="secondary" className="bg-green-600/20 text-green-400 border-green-600/30">
-                  Logged in as {user.email}
-                </Badge> : <Badge variant="secondary" className="bg-red-600/20 text-red-400 border-red-600/30">
-                  Not logged in
-                </Badge>}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      
-    </div>;
+  return;
 };
 export default Index;
