@@ -172,18 +172,19 @@ ${memory.preservationRules.map(rule => `- ${rule}`).join('\n')}
     if (!projectId || !user) return;
 
     try {
-      // Save change to chat history
+      // Save change to chat history - using correct field names for project_chat_history table
       await supabase
         .from('project_chat_history')
         .insert({
           project_id: projectId,
           user_id: user.id,
-          message: userRequest,
-          response: `Modified ${component}`,
+          content: userRequest,
+          message_type: 'user_request',
           metadata: {
             component,
             beforeCode: beforeCode.substring(0, 1000), // Limit size
-            afterCode: afterCode.substring(0, 1000)
+            afterCode: afterCode.substring(0, 1000),
+            response: `Modified ${component}`
           }
         });
 
