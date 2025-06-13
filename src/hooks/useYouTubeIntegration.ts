@@ -43,7 +43,7 @@ export const useYouTubeIntegration = () => {
         throw new Error('Invalid YouTube URL format');
       }
 
-      // Call Supabase Edge Function to fetch YouTube data
+      // Call Supabase Edge Function using the correct method
       const { data, error } = await supabase.functions.invoke('youtube-integration', {
         body: {
           channelIdentifier,
@@ -53,7 +53,7 @@ export const useYouTubeIntegration = () => {
       });
 
       if (error) {
-        console.error('❌ YouTube API Error:', error);
+        console.error('❌ YouTube function error:', error);
         throw new Error(`Failed to fetch channel data: ${error.message}`);
       }
 
@@ -79,11 +79,11 @@ export const useYouTubeIntegration = () => {
       setLoading(true);
       console.log('🏗️ Generating professional website with real YouTube data...');
 
-      const { data, error } = await supabase.functions.invoke('generate-professional-website', {
+      const { data, error } = await supabase.functions.invoke('chat', {
         body: {
+          message: userRequest || 'Create a professional website',
           channelData,
           projectIdea,
-          userRequest: userRequest || 'Create a professional website',
           includeRealVideos: true,
           generateMultipleFiles: true,
           preserveDesign: !!userRequest // If userRequest exists, preserve existing design

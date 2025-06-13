@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -159,33 +160,29 @@ export const useProjectChat = (youtubeUrl: string, projectIdea: string, channelD
     try {
       console.log('🤖 Generating code with AI for:', userRequest);
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Use correct Supabase function URL
+      const { data, error } = await supabase.functions.invoke('chat', {
+        body: {
           message: userRequest,
           projectId,
           channelData: channelInfo,
           chatHistory: messages.slice(-5),
           generateCode: true
-        }),
+        }
       });
 
-      if (!response.ok) {
-        console.error('❌ API response not OK:', response.status, response.statusText);
-        throw new Error(`API request failed: ${response.status}`);
+      if (error) {
+        console.error('❌ Supabase function error:', error);
+        throw new Error(`Function call failed: ${error.message}`);
       }
 
-      const result = await response.json();
-      console.log('✅ AI response received:', result);
+      console.log('✅ AI response received:', data);
 
       return {
-        reply: result.reply,
-        feature: result.feature,
-        generatedCode: result.generatedCode,
-        codeDescription: result.codeDescription
+        reply: data.reply,
+        feature: data.feature,
+        generatedCode: data.generatedCode,
+        codeDescription: data.codeDescription
       };
     } catch (error) {
       console.error('❌ Error generating code:', error);

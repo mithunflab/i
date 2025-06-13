@@ -22,15 +22,37 @@ serve(async (req) => {
       hasChannelData: !!channelData
     });
 
-    // Get OpenRouter API key from environment
-    const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (!openRouterApiKey) {
-      console.error('❌ OpenRouter API key not found');
-      throw new Error('OpenRouter API key not configured');
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error('Supabase configuration missing');
     }
 
-    console.log('✅ Found OpenRouter API key');
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    // Get active OpenRouter API key from database
+    console.log('🔍 Fetching OpenRouter API key from database...');
+    const { data: openrouterKeys, error: openrouterError } = await supabase
+      .from('openrouter_api_keys')
+      .select('api_key, name')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (openrouterError) {
+      console.error('❌ Error fetching OpenRouter keys:', openrouterError);
+      throw new Error('Failed to fetch OpenRouter API keys from database');
+    }
+
+    if (!openrouterKeys || openrouterKeys.length === 0) {
+      console.error('❌ No active OpenRouter API keys found in database');
+      throw new Error('No active OpenRouter API keys found. Please add API keys in admin panel.');
+    }
+
+    const openRouterApiKey = openrouterKeys[0].api_key;
+    console.log('✅ Found OpenRouter API key:', openrouterKeys[0].name);
 
     // Free models for random selection
     const freeModels = [

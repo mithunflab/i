@@ -17,12 +17,37 @@ serve(async (req) => {
     
     console.log('🎥 YouTube Integration request:', { channelIdentifier, fetchVideos, maxResults });
 
-    // Get YouTube API key from Supabase secrets
-    const youtubeApiKey = Deno.env.get('YOUTUBE_API_KEY');
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (!youtubeApiKey) {
-      throw new Error('YouTube API key not configured');
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error('Supabase configuration missing');
     }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    // Get active YouTube API key from database
+    console.log('🔍 Fetching YouTube API key from database...');
+    const { data: youtubeKeys, error: youtubeError } = await supabase
+      .from('youtube_api_keys')
+      .select('api_key, name')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (youtubeError) {
+      console.error('❌ Error fetching YouTube keys:', youtubeError);
+      throw new Error('Failed to fetch YouTube API keys from database');
+    }
+
+    if (!youtubeKeys || youtubeKeys.length === 0) {
+      console.error('❌ No active YouTube API keys found in database');
+      throw new Error('No active YouTube API keys found. Please add API keys in admin panel.');
+    }
+
+    const youtubeApiKey = youtubeKeys[0].api_key;
+    console.log('✅ Found YouTube API key:', youtubeKeys[0].name);
 
     // First, resolve channel ID if we have a username/handle
     let channelId = channelIdentifier;
