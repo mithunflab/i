@@ -16,7 +16,7 @@ import {
   Zap,
   Eye
 } from 'lucide-react';
-import { useEnhancedProjectContext } from '@/hooks/useEnhancedProjectContext';
+import { useProjectContext } from '@/hooks/useProjectContext';
 import { useEnhancedProjectChat } from '@/hooks/useEnhancedProjectChat';
 import { useEnhancedRepositoryManager } from '@/hooks/useEnhancedRepositoryManager';
 import SuperEnhancedChatbot from './SuperEnhancedChatbot';
@@ -47,7 +47,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
   const { 
     context, 
     loading: contextLoading 
-  } = useEnhancedProjectContext(projectId, youtubeUrl, channelData);
+  } = useProjectContext(projectId, youtubeUrl);
 
   const { 
     checkRepositoryStatus, 
@@ -251,21 +251,21 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="h-full overflow-auto">
-                  {context?.files ? (
+                  {context?.currentStructure ? (
                     <div className="space-y-3">
-                      {Object.entries(context.files).map(([filename, content]) => (
+                      {Object.entries(context.currentStructure).map(([filename, content]) => (
                         <div key={filename} className="p-3 bg-gray-800/50 rounded-lg border border-gray-600">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-mono text-sm text-cyan-400">{filename}</span>
                             <Badge variant="outline" className="text-xs">
-                              {content.length} chars
+                              {typeof content === 'string' ? content.length : 0} chars
                             </Badge>
                           </div>
                           <div className="text-xs text-gray-400 max-h-20 overflow-hidden">
                             {filename.endsWith('.json') ? 
-                              <pre>{content.substring(0, 200)}...</pre> :
-                              content.substring(0, 200)...
-                            }
+                              <pre>{typeof content === 'string' ? content.substring(0, 200) : ''}...</pre> :
+                              typeof content === 'string' ? content.substring(0, 200) : ''
+                            }...
                           </div>
                         </div>
                       ))}
@@ -290,7 +290,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                 <CardContent className="h-full">
                   <div className="h-full bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-auto">
                     <pre className="text-green-400">
-                      {context?.files?.['index.html'] || '// No code generated yet\n// Start chatting to generate website code'}
+                      {currentProject?.source_code || '// No code generated yet\n// Start chatting to generate website code'}
                     </pre>
                   </div>
                 </CardContent>
@@ -312,21 +312,10 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
               </CardHeader>
               <CardContent className="h-full p-0">
                 <div className="w-full h-full bg-white rounded-lg overflow-hidden">
-                  {context?.files?.['index.html'] ? (
+                  {currentProject?.source_code ? (
                     <iframe
                       key={previewKey}
-                      srcDoc={`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                          <style>${context.files['styles.css'] || ''}</style>
-                        </head>
-                        <body>
-                          ${context.files['index.html']}
-                          <script>${context.files['scripts.js'] || ''}</script>
-                        </body>
-                        </html>
-                      `}
+                      srcDoc={currentProject.source_code}
                       className="w-full h-full border-0"
                       title="Website Preview"
                     />
