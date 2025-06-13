@@ -40,7 +40,7 @@ interface ChatHistoryEntry {
   };
 }
 
-export class SmartProjectManager {
+class SmartProjectManager {
   private projectId: string;
   private files: Map<string, ProjectFile> = new Map();
   private componentMap: Map<string, ComponentMapEntry> = new Map();

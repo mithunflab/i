@@ -403,16 +403,21 @@ ${sourceCode.substring(0, 1500)}${sourceCode.length > 1500 ? '...' : ''}
     
     setChatHistory(prev => [...prev, entry]);
     
-    // Save to database
+    // Save to database with user_id
     try {
-      await supabase
-        .from('project_chat_history')
-        .insert({
-          project_id: projectId,
-          message_type: role,
-          content,
-          metadata
-        });
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        await supabase
+          .from('project_chat_history')
+          .insert({
+            project_id: projectId,
+            user_id: user.id,
+            message_type: role,
+            content,
+            metadata: metadata ? JSON.parse(JSON.stringify(metadata)) : null
+          });
+      }
     } catch (error) {
       console.error('❌ Error saving chat entry:', error);
     }
