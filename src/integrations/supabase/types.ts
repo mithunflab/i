@@ -718,6 +718,7 @@ export type Database = {
           project_id: string
           request_message: string | null
           requested_at: string | null
+          response_message: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           status: string | null
@@ -729,6 +730,7 @@ export type Database = {
           project_id: string
           request_message?: string | null
           requested_at?: string | null
+          response_message?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string | null
@@ -740,6 +742,7 @@ export type Database = {
           project_id?: string
           request_message?: string | null
           requested_at?: string | null
+          response_message?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string | null

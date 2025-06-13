@@ -42,11 +42,11 @@ const FixedProjectVerification: React.FC<FixedProjectVerificationProps> = ({
         .select('status, request_message, response_message')
         .eq('project_id', projectId)
         .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
+        .order('requested_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('❌ Error checking verification:', error);
         return;
       }

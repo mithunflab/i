@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,10 +34,10 @@ interface Project {
   youtube_url?: string;
   channel_data?: any;
   source_code?: string;
-  status: 'active' | 'pending' | 'approved' | 'rejected';
+  status: string;
   created_at: string;
   user_id: string;
-  is_verified?: boolean;
+  verified?: boolean;
   verification_status?: string;
 }
 
@@ -73,15 +74,33 @@ const Workspace = () => {
       try {
         setIsLoading(true);
         const fetchedProject = await getProject(id);
-        setProject(fetchedProject);
-        setProjectId(fetchedProject.id);
-        setProjectName(fetchedProject.name);
-        setProjectDescription(fetchedProject.description);
-        setSourceCode(fetchedProject.source_code || '');
-        setGithubUrl(fetchedProject.github_url || '');
-        setNetlifyUrl(fetchedProject.netlify_url || '');
-        setIsVerified(fetchedProject.is_verified || false);
-        setVerificationStatus(fetchedProject.status);
+        
+        // Create a properly typed project object
+        const typedProject: Project = {
+          id: fetchedProject.id,
+          name: fetchedProject.name,
+          description: fetchedProject.description,
+          github_url: fetchedProject.github_url,
+          netlify_url: fetchedProject.netlify_url,
+          youtube_url: fetchedProject.youtube_url,
+          channel_data: fetchedProject.channel_data,
+          source_code: fetchedProject.source_code,
+          status: fetchedProject.status || 'active',
+          created_at: fetchedProject.created_at,
+          user_id: fetchedProject.user_id,
+          verified: fetchedProject.verified || false,
+          verification_status: fetchedProject.status
+        };
+        
+        setProject(typedProject);
+        setProjectId(typedProject.id);
+        setProjectName(typedProject.name);
+        setProjectDescription(typedProject.description);
+        setSourceCode(typedProject.source_code || '');
+        setGithubUrl(typedProject.github_url || '');
+        setNetlifyUrl(typedProject.netlify_url || '');
+        setIsVerified(typedProject.verified || false);
+        setVerificationStatus(typedProject.status);
       } catch (error: any) {
         console.error("Error loading project:", error.message);
         toast({
@@ -127,13 +146,31 @@ const Workspace = () => {
           channelData: channelData || null,
           sourceCode: sourceCode,
         });
-        setProjectId(newProject.id);
-        setProject(newProject);
+        
+        // Create properly typed project
+        const typedProject: Project = {
+          id: newProject.id,
+          name: newProject.name,
+          description: newProject.description,
+          github_url: newProject.github_url,
+          netlify_url: newProject.netlify_url,
+          youtube_url: newProject.youtube_url,
+          channel_data: newProject.channel_data,
+          source_code: newProject.source_code,
+          status: newProject.status || 'active',
+          created_at: newProject.created_at,
+          user_id: newProject.user_id,
+          verified: newProject.verified || false,
+          verification_status: newProject.status
+        };
+        
+        setProjectId(typedProject.id);
+        setProject(typedProject);
         toast({
           title: "Success",
           description: "Project saved successfully!",
         });
-        navigate(`/workspace?projectId=${newProject.id}`, { replace: true, state: { ...location.state, projectId: newProject.id } });
+        navigate(`/workspace?projectId=${typedProject.id}`, { replace: true, state: { ...location.state, projectId: typedProject.id } });
       } catch (error: any) {
         console.error("Error creating project:", error);
         toast({
@@ -151,8 +188,8 @@ const Workspace = () => {
           name: projectName,
           description: projectDescription,
           sourceCode: sourceCode,
-          githubUrl: githubUrl,
-          netlifyUrl: netlifyUrl,
+          github_url: githubUrl,
+          netlify_url: netlifyUrl,
         });
         toast({
           title: "Success",
