@@ -43,7 +43,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
 
     setLoading(true);
     try {
-      console.log('📋 Submitting verification request...');
+      console.log('📋 Submitting enhanced verification request...');
 
       const verificationData = {
         project_id: projectId,
@@ -106,19 +106,29 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
   // Only show verified badge if actually verified AND approved
   if (isVerified && verificationStatus === 'approved') {
     return (
-      <Button variant="outline" size="sm" className="bg-green-500/20 text-green-400 border-green-500/30 text-xs" disabled>
-        <Shield size={12} className="mr-1" />
+      <Button variant="outline" size="sm" className="bg-green-500/20 text-green-400 border-green-500/30 text-xs h-7" disabled>
+        <Shield size={10} className="mr-1" />
         Verified
       </Button>
     );
   }
 
-  // Don't show verification option if already verified or pending
+  // Show pending status
   if (verificationStatus === 'pending') {
     return (
-      <Button variant="outline" size="sm" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs" disabled>
-        <Shield size={12} className="mr-1" />
+      <Button variant="outline" size="sm" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs h-7" disabled>
+        <Shield size={10} className="mr-1" />
         Pending Review
+      </Button>
+    );
+  }
+
+  // Show rejected status
+  if (verificationStatus === 'rejected') {
+    return (
+      <Button variant="outline" size="sm" className="bg-red-500/20 text-red-400 border-red-500/30 text-xs h-7" disabled>
+        <Shield size={10} className="mr-1" />
+        Rejected
       </Button>
     );
   }
@@ -130,9 +140,9 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
         <Button 
           variant="outline" 
           size="sm" 
-          className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 text-xs"
+          className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 text-xs h-7"
         >
-          <Shield size={12} className="mr-1" />
+          <Shield size={10} className="mr-1" />
           Get Verified
         </Button>
       </DialogTrigger>
@@ -160,7 +170,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
               placeholder={user?.email || "your@email.com"}
               value={formData.contact_email}
               onChange={(e) => setFormData(prev => ({ ...prev, contact_email: e.target.value }))}
-              className="mt-1 bg-gray-800 border-gray-600 text-white text-xs"
+              className="mt-1 bg-gray-800 border-gray-600 text-white text-xs h-8"
             />
           </div>
 
@@ -187,7 +197,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
               placeholder="YouTube channel verification details..."
               value={formData.channel_verification}
               onChange={(e) => setFormData(prev => ({ ...prev, channel_verification: e.target.value }))}
-              className="mt-1 bg-gray-800 border-gray-600 text-white text-xs"
+              className="mt-1 bg-gray-800 border-gray-600 text-white text-xs h-8"
             />
           </div>
 
@@ -206,13 +216,13 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
           </div>
           
           <div className="flex justify-end gap-2 pt-3">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="text-gray-300 text-xs">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="text-gray-300 text-xs h-8">
               Cancel
             </Button>
             <Button 
               type="submit"
               disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
             >
               {loading ? 'Submitting...' : 'Submit Request'}
             </Button>
