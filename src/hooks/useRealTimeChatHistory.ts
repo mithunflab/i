@@ -15,6 +15,14 @@ interface ChatMessage {
   netlifyUrl?: string;
 }
 
+interface ChatMessageMetadata {
+  feature?: string;
+  generatedCode?: string;
+  codeDescription?: string;
+  githubUrl?: string;
+  netlifyUrl?: string;
+}
+
 export const useRealTimeChatHistory = (projectId: string) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,17 +48,21 @@ export const useRealTimeChatHistory = (projectId: string) => {
       }
 
       if (chatHistory && chatHistory.length > 0) {
-        const loadedMessages: ChatMessage[] = chatHistory.map(msg => ({
-          id: msg.id,
-          type: msg.message_type as 'user' | 'bot',
-          content: msg.content,
-          timestamp: new Date(msg.created_at),
-          feature: msg.metadata?.feature,
-          generatedCode: msg.metadata?.generatedCode,
-          codeDescription: msg.metadata?.codeDescription,
-          githubUrl: msg.metadata?.githubUrl,
-          netlifyUrl: msg.metadata?.netlifyUrl
-        }));
+        const loadedMessages: ChatMessage[] = chatHistory.map(msg => {
+          const metadata = (msg.metadata as ChatMessageMetadata) || {};
+          
+          return {
+            id: msg.id,
+            type: msg.message_type as 'user' | 'bot',
+            content: msg.content,
+            timestamp: new Date(msg.created_at),
+            feature: metadata.feature,
+            generatedCode: metadata.generatedCode,
+            codeDescription: metadata.codeDescription,
+            githubUrl: metadata.githubUrl,
+            netlifyUrl: metadata.netlifyUrl
+          };
+        });
         
         setMessages(loadedMessages);
         console.log('✅ Loaded chat history:', loadedMessages.length, 'messages');
@@ -129,16 +141,18 @@ export const useRealTimeChatHistory = (projectId: string) => {
         (payload) => {
           console.log('📨 Real-time chat update received:', payload);
           
+          const metadata = (payload.new.metadata as ChatMessageMetadata) || {};
+          
           const newMessage: ChatMessage = {
             id: payload.new.id,
             type: payload.new.message_type === 'user' ? 'user' : 'bot',
             content: payload.new.content,
             timestamp: new Date(payload.new.created_at),
-            feature: payload.new.metadata?.feature,
-            generatedCode: payload.new.metadata?.generatedCode,
-            codeDescription: payload.new.metadata?.codeDescription,
-            githubUrl: payload.new.metadata?.githubUrl,
-            netlifyUrl: payload.new.metadata?.netlifyUrl
+            feature: metadata.feature,
+            generatedCode: metadata.generatedCode,
+            codeDescription: metadata.codeDescription,
+            githubUrl: metadata.githubUrl,
+            netlifyUrl: metadata.netlifyUrl
           };
           
           // Only add if it's from another user (avoid duplicates)

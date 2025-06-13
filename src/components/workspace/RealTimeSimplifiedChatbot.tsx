@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -214,7 +213,7 @@ const RealTimeSimplifiedChatbot: React.FC<RealTimeSimplifiedChatbotProps> = ({
               <div className="flex items-center gap-2">
                 {getConnectionIcon()}
                 <span className="text-xs text-gray-600 capitalize">{connectionStatus}</span>
-                <Zap className="w-3 h-3 text-yellow-500" title="Real-time enabled" />
+                <Zap className="w-3 h-3 text-yellow-500" />
               </div>
             </div>
           </div>
