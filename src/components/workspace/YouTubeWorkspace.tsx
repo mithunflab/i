@@ -22,6 +22,15 @@ import SimplifiedChatbot from './SimplifiedChatbot';
 import CodePreview from './CodePreview';
 import { useProjectFileManager } from '@/hooks/useProjectFileManager';
 
+interface FileNode {
+  name: string;
+  type: 'file' | 'folder';
+  content?: string;
+  icon?: any;
+  children?: FileNode[];
+  extension?: string;
+}
+
 const YouTubeWorkspace: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -41,6 +50,16 @@ const YouTubeWorkspace: React.FC = () => {
     fetchYouTubeData,
     generateWebsiteCode
   } = useProjectFileManager();
+
+  // Convert ProjectFile[] to FileNode[]
+  const convertProjectFilesToFileNodes = (files: any[]): FileNode[] => {
+    return files.map(file => ({
+      name: file.name,
+      type: 'file' as const,
+      content: file.content,
+      extension: file.type
+    }));
+  };
 
   useEffect(() => {
     if (channelData) {
@@ -265,7 +284,7 @@ const YouTubeWorkspace: React.FC = () => {
           {isCodeView ? (
             <CodePreview
               generatedCode={generatedCode}
-              projectFiles={projectFiles}
+              projectFiles={convertProjectFilesToFileNodes(projectFiles)}
               isLiveTyping={true}
             />
           ) : (
