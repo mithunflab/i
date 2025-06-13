@@ -19,10 +19,10 @@ interface AuthContextType {
   loading: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
   logout: () => Promise<void>;
   loginWithGoogle: () => Promise<{ error: any }>;
-  loginAsAdmin: () => Promise<{ error: any }>;
+  loginAsAdmin: (email: string, password: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -82,12 +82,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, fullName?: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`
+        emailRedirectTo: `${window.location.origin}/`,
+        data: fullName ? { full_name: fullName } : undefined
       }
     });
     return { error };
@@ -108,9 +109,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const loginAsAdmin = async () => {
-    // This is a placeholder - in a real app you'd have proper admin auth
-    return { error: new Error('Admin login not implemented') };
+  const loginAsAdmin = async (email: string, password: string) => {
+    // For now, just use regular login - you can implement special admin logic here later
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { error };
   };
 
   useEffect(() => {
