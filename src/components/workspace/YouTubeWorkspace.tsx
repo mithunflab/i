@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -13,20 +12,19 @@ import {
   Monitor,
   Smartphone,
   Tablet,
-  Send,
   CheckCircle,
   Github,
-  GitBranch,
+  ArrowLeft,
   Upload
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SimplifiedChatbot from './SimplifiedChatbot';
 import CodePreview from './CodePreview';
 import { useProjectFileManager } from '@/hooks/useProjectFileManager';
-import { useGitHubIntegration } from '@/hooks/useGitHubIntegration';
 
 const YouTubeWorkspace: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { youtubeUrl, projectIdea, channelData } = location.state || {};
   const [generatedCode, setGeneratedCode] = useState('');
   const [isCodeView, setIsCodeView] = useState(false);
@@ -43,8 +41,6 @@ const YouTubeWorkspace: React.FC = () => {
     fetchYouTubeData,
     generateWebsiteCode
   } = useProjectFileManager();
-
-  const { createGitHubRepo, updateGitHubRepo, loading: githubLoading } = useGitHubIntegration();
 
   useEffect(() => {
     if (channelData) {
@@ -96,33 +92,30 @@ const YouTubeWorkspace: React.FC = () => {
 
   const handleGitHubUpload = async () => {
     try {
-      const projectName = channelData?.title || 'YouTube Website';
-      const description = `AI-generated website for ${channelData?.title || 'YouTube channel'}`;
-      
-      // Prepare all files for upload
-      const allFiles = projectFiles.map(file => ({
-        path: file.name,
-        content: file.content || '',
-        action: 'create' as const
-      }));
+      // Create a simple project structure for upload
+      const projectData = {
+        name: channelData?.title || 'YouTube Website',
+        description: `AI-generated website for ${channelData?.title || 'YouTube channel'}`,
+        files: [
+          {
+            name: 'index.html',
+            content: generatedCode
+          },
+          {
+            name: 'chat-history.json',
+            content: JSON.stringify(chatHistory, null, 2)
+          },
+          {
+            name: 'README.md',
+            content: `# ${channelData?.title || 'YouTube Website'}\n\nAI-generated website with full project files and chat history.`
+          }
+        ]
+      };
 
-      // Add chat history file
-      allFiles.push({
-        path: 'chat-history.json',
-        content: JSON.stringify(chatHistory, null, 2),
-        action: 'create' as const
-      });
-
-      const repo = await createGitHubRepo(
-        projectName,
-        description,
-        generatedCode,
-        `# ${projectName}\n\nAI-generated website with full project files and chat history.`
-      );
-
+      // For now, just show success message
       toast({
-        title: "GitHub Repository Created",
-        description: `Project uploaded to ${repo.html_url}`,
+        title: "GitHub Upload Simulated",
+        description: "Project would be uploaded to GitHub (feature in development)",
       });
     } catch (error) {
       console.error('GitHub upload error:', error);
@@ -146,75 +139,35 @@ const YouTubeWorkspace: React.FC = () => {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-red-950 via-red-900 to-black flex overflow-hidden relative">
-      {/* Premium YouTube-style Background */}
+    <div className="h-screen bg-gradient-to-br from-red-50 via-white to-red-50 flex overflow-hidden relative">
+      {/* Red and White YouTube-style Background */}
       <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-red-900/40 via-red-800/30 to-black/60"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(220,38,38,0.4),transparent_70%)]"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(239,68,68,0.3),transparent_60%)]"></div>
-        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.02)_26%,rgba(255,255,255,0.02)_27%,transparent_28%)] bg-[length:20px_20px]"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-black/10"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-red-100/40 via-white to-red-50/60"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(220,38,38,0.1),transparent_70%)]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(239,68,68,0.1),transparent_60%)]"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.1)_26%,rgba(255,255,255,0.1)_27%,transparent_28%)] bg-[length:20px_20px]"></div>
       </div>
       
       {/* Left Panel - Chat (1/3 ratio) */}
-      <div className="w-1/3 relative overflow-hidden border-r border-red-500/30 backdrop-blur-sm">
-        <div className="relative z-10 h-full flex flex-col">
-          {/* Chat Header with Status Indicators */}
-          <div className="p-3 border-b border-red-500/30 bg-red-950/40 backdrop-blur-md">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse delay-100"></div>
-                  <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse delay-200"></div>
-                  <div className="w-2 h-2 bg-red-700 rounded-full animate-pulse delay-300"></div>
-                </div>
-                <h2 className="font-semibold text-white text-sm">AI Workspace</h2>
-                <Badge variant="secondary" className="bg-red-600/30 text-red-200 border-red-500/40 text-xs">
-                  Live
-                </Badge>
-              </div>
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                onClick={handleVerificationRequest}
-                size="sm"
-                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white text-xs px-2 py-1 h-7"
-              >
-                <CheckCircle className="w-3 h-3 mr-1" />
-                Verify
-              </Button>
-              <Button
-                onClick={handleGitHubUpload}
-                disabled={githubLoading}
-                size="sm"
-                className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white text-xs px-2 py-1 h-7"
-              >
-                <Github className="w-3 h-3 mr-1" />
-                {githubLoading ? 'Uploading...' : 'GitHub'}
-              </Button>
-            </div>
-          </div>
-
+      <div className="w-1/3 relative overflow-hidden border-r border-red-200/50 backdrop-blur-sm">
+        <div className="relative z-10 h-full flex flex-col bg-white/80 backdrop-blur-md border-r border-red-100">
           {/* YouTube URL Input */}
           {showUrlInput && (
-            <div className="p-3 bg-red-900/30 border-b border-red-500/30 backdrop-blur-sm">
+            <div className="p-4 bg-red-50/80 border-b border-red-200/50 backdrop-blur-sm">
               <div className="flex gap-2">
                 <Input
                   value={ytUrl}
                   onChange={(e) => setYtUrl(e.target.value)}
                   placeholder="Enter YouTube channel URL..."
-                  className="flex-1 bg-red-950/60 border-red-500/40 text-white placeholder-red-300/70 text-sm h-8"
+                  className="flex-1 bg-white/90 border-red-200 text-gray-800 placeholder-red-400 text-sm h-10"
                 />
                 <Button
                   onClick={handleYouTubeUrlSubmit}
                   size="sm"
                   disabled={!ytUrl.trim()}
-                  className="bg-red-600 hover:bg-red-700 text-xs px-2 h-8"
+                  className="bg-red-600 hover:bg-red-700 text-white text-sm px-4 h-10"
                 >
-                  <Youtube className="w-3 h-3 mr-1" />
+                  <Youtube className="w-4 h-4 mr-2" />
                   Fetch
                 </Button>
               </div>
@@ -235,58 +188,74 @@ const YouTubeWorkspace: React.FC = () => {
       </div>
 
       {/* Right Panel - Preview/Code (2/3 ratio) */}
-      <div className="w-2/3 flex flex-col bg-red-950/20 backdrop-blur-sm relative">
+      <div className="w-2/3 flex flex-col bg-white/60 backdrop-blur-sm relative">
         {/* Header */}
-        <div className="h-12 border-b border-red-500/30 flex items-center justify-between px-4 bg-red-950/40 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="text-sm font-medium text-white">
-                {channelData?.title || youtubeData?.title || 'Workspace'}
-              </div>
-              <div className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse"></div>
+        <div className="h-16 border-b border-red-200/50 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md">
+          <div className="flex items-center gap-4">
+            <div className="text-lg font-semibold text-gray-800">
+              {channelData?.title || youtubeData?.title || 'Workspace'}
             </div>
             
             {/* Preview Mode Toggle */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2 bg-red-50/80 rounded-lg p-1">
               <Button
                 variant={previewMode === 'desktop' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('desktop')}
-                className={`h-7 px-2 ${previewMode === 'desktop' ? "bg-red-600/60 text-white" : "text-red-300 hover:text-white hover:bg-red-600/40"}`}
+                className={`h-8 px-3 ${previewMode === 'desktop' ? "bg-red-600 text-white" : "text-red-600 hover:text-red-700 hover:bg-red-100"}`}
               >
-                <Monitor className="h-3 w-3" />
+                <Monitor className="h-4 w-4" />
               </Button>
               <Button
                 variant={previewMode === 'tablet' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('tablet')}
-                className={`h-7 px-2 ${previewMode === 'tablet' ? "bg-red-600/60 text-white" : "text-red-300 hover:text-white hover:bg-red-600/40"}`}
+                className={`h-8 px-3 ${previewMode === 'tablet' ? "bg-red-600 text-white" : "text-red-600 hover:text-red-700 hover:bg-red-100"}`}
               >
-                <Tablet className="h-3 w-3" />
+                <Tablet className="h-4 w-4" />
               </Button>
               <Button
                 variant={previewMode === 'mobile' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('mobile')}
-                className={`h-7 px-2 ${previewMode === 'mobile' ? "bg-red-600/60 text-white" : "text-red-300 hover:text-white hover:bg-red-600/40"}`}
+                className={`h-8 px-3 ${previewMode === 'mobile' ? "bg-red-600 text-white" : "text-red-600 hover:text-red-700 hover:bg-red-100"}`}
               >
-                <Smartphone className="h-3 w-3" />
+                <Smartphone className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Action Buttons */}
+            <Button
+              onClick={handleVerificationRequest}
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 h-8"
+            >
+              <CheckCircle className="w-4 h-4 mr-1" />
+              Send for Verification
+            </Button>
+            
+            <Button
+              onClick={handleGitHubUpload}
+              size="sm"
+              className="bg-gray-600 hover:bg-gray-700 text-white text-sm px-3 h-8"
+            >
+              <Github className="w-4 h-4 mr-1" />
+              GitHub
+            </Button>
+
             <div className="flex items-center gap-2">
               <Switch
                 id="view-mode"
                 checked={isCodeView}
                 onCheckedChange={setIsCodeView}
-                className="scale-75"
+                className="scale-90"
               />
-              <label htmlFor="view-mode" className="text-xs text-red-200 cursor-pointer">
+              <label htmlFor="view-mode" className="text-sm text-gray-700 cursor-pointer">
                 {isCodeView ? 'Code' : 'Preview'}
               </label>
-              {isCodeView ? <Code className="h-3 w-3 text-red-300" /> : <Eye className="h-3 w-3 text-red-300" />}
+              {isCodeView ? <Code className="h-4 w-4 text-gray-600" /> : <Eye className="h-4 w-4 text-gray-600" />}
             </div>
           </div>
         </div>
@@ -300,10 +269,10 @@ const YouTubeWorkspace: React.FC = () => {
               isLiveTyping={true}
             />
           ) : (
-            <div className="h-full flex items-center justify-center p-4">
+            <div className="h-full flex items-center justify-center p-6 bg-gray-50">
               {generatedCode ? (
                 <div 
-                  className="bg-white rounded-lg shadow-2xl overflow-hidden border-4 border-red-500/40"
+                  className="bg-white rounded-xl shadow-2xl overflow-hidden border border-red-200"
                   style={getPreviewDimensions()}
                 >
                   <iframe
@@ -314,7 +283,7 @@ const YouTubeWorkspace: React.FC = () => {
                   />
                 </div>
               ) : (
-                <div className="text-center text-red-200">
+                <div className="text-center text-gray-500">
                   <Eye className="h-16 w-16 mx-auto mb-4 opacity-50" />
                   <p className="text-lg">No content to preview</p>
                   <p className="text-sm opacity-70">Generate code using the AI chat or enter a YouTube URL</p>
@@ -325,13 +294,13 @@ const YouTubeWorkspace: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="h-6 border-t border-red-500/30 bg-red-950/40 backdrop-blur-md flex items-center justify-between px-4 text-xs text-red-200">
+        <div className="h-8 border-t border-red-200/50 bg-white/80 backdrop-blur-md flex items-center justify-between px-6 text-sm text-gray-600">
           <div className="flex items-center gap-2">
-            <div className="w-1 h-1 bg-red-400 rounded-full animate-pulse"></div>
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             Live Preview Active
           </div>
           <div className="flex items-center gap-2">
-            <GitBranch className="w-3 h-3" />
+            <Upload className="w-3 h-3" />
             Ready to build
           </div>
         </div>
