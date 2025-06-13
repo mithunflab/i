@@ -1,7 +1,5 @@
 
--- Phase 1: Fix Database & API Issues (Corrected)
-
--- Create proper project_verification_requests table
+-- Create the project_verification_requests table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.project_verification_requests (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -23,12 +21,12 @@ CREATE TABLE IF NOT EXISTS public.project_verification_requests (
 -- Enable RLS
 ALTER TABLE public.project_verification_requests ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if they exist and recreate them
+-- Drop existing policies if they exist
 DROP POLICY IF EXISTS "Users can view their own verification requests" ON public.project_verification_requests;
 DROP POLICY IF EXISTS "Users can create their own verification requests" ON public.project_verification_requests;
 DROP POLICY IF EXISTS "Users can update their own verification requests" ON public.project_verification_requests;
 
--- Create policies for verification requests
+-- Create policies (without IF NOT EXISTS as it's not supported for policies)
 CREATE POLICY "Users can view their own verification requests" 
   ON public.project_verification_requests 
   FOR SELECT 
@@ -51,30 +49,3 @@ ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT false;
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_verification_requests_user_id ON public.project_verification_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_verification_requests_status ON public.project_verification_requests(status);
-CREATE INDEX IF NOT EXISTS idx_projects_verified ON public.projects(verified);
-CREATE INDEX IF NOT EXISTS idx_projects_user_verified ON public.projects(user_id, verified);
-
--- Add updated_at trigger for verification requests
-CREATE OR REPLACE FUNCTION update_verification_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trigger_update_verification_updated_at ON public.project_verification_requests;
-CREATE TRIGGER trigger_update_verification_updated_at
-    BEFORE UPDATE ON public.project_verification_requests
-    FOR EACH ROW
-    EXECUTE FUNCTION update_verification_updated_at();
-
--- Ensure OpenRouter API keys table has proper structure
-ALTER TABLE public.openrouter_api_keys 
-ADD COLUMN IF NOT EXISTS rate_limit_remaining INTEGER DEFAULT 100000,
-ADD COLUMN IF NOT EXISTS rate_limit_reset_time TIMESTAMP WITH TIME ZONE;
-
--- Update existing API keys with default values if needed
-UPDATE public.openrouter_api_keys 
-SET rate_limit_remaining = 100000 
-WHERE rate_limit_remaining IS NULL;
