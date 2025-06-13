@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SimplifiedChatbot from './SimplifiedChatbot';
-import FileTreeViewer from './FileTreeViewer';
+import CodePreview from './CodePreview';
 import { useProjectFileManager } from '@/hooks/useProjectFileManager';
 
 const YouTubeWorkspace: React.FC = () => {
@@ -27,7 +27,6 @@ const YouTubeWorkspace: React.FC = () => {
   const [generatedCode, setGeneratedCode] = useState('');
   const [isCodeView, setIsCodeView] = useState(false);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
-  const [selectedFile, setSelectedFile] = useState<any>(null);
   const [ytUrl, setYtUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(!channelData);
   const { toast } = useToast();
@@ -37,7 +36,6 @@ const YouTubeWorkspace: React.FC = () => {
     youtubeData,
     updateFileContent,
     fetchYouTubeData,
-    getFileByName,
     generateWebsiteCode
   } = useProjectFileManager();
 
@@ -48,22 +46,17 @@ const YouTubeWorkspace: React.FC = () => {
     }
   }, [channelData, generateWebsiteCode]);
 
-  const handleCodeUpdate = (newCode: string) => {
+  const handleCodeUpdate = (newCode: string, targetFile?: string) => {
     setGeneratedCode(newCode);
-    // Update the HTML file content
-    updateFileContent('index.html', newCode);
+    if (targetFile) {
+      updateFileContent(targetFile, newCode);
+    } else {
+      updateFileContent('index.html', newCode);
+    }
     toast({
       title: "Website Updated",
       description: "Your changes have been applied successfully",
     });
-  };
-
-  const handleFileSelect = (file: any) => {
-    setSelectedFile(file);
-    if (file.content) {
-      setGeneratedCode(file.content);
-      setIsCodeView(true);
-    }
   };
 
   const handleYouTubeUrlSubmit = async () => {
@@ -106,40 +99,49 @@ const YouTubeWorkspace: React.FC = () => {
   };
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
-      {/* Left Panel - Chat & Files (2/6 ratio) */}
-      <div className="w-1/3 relative overflow-hidden bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
-        <div className="h-full flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-red-950 via-red-900 to-black flex overflow-hidden relative">
+      {/* Premium Red Shiny Texture Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 via-red-800/20 to-black/40"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(220,38,38,0.3),transparent_50%)]"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(239,68,68,0.3),transparent_50%)]"></div>
+      <div className="absolute inset-0 bg-noise opacity-10"></div>
+      
+      {/* Left Panel - Chat (2/6 ratio) */}
+      <div className="w-1/3 relative overflow-hidden border-r border-red-500/20 backdrop-blur-sm">
+        <div className="relative z-10 h-full flex flex-col">
           {/* Header */}
-          <div className="p-4 border-b border-white/10">
+          <div className="p-4 border-b border-red-500/20 bg-red-950/30 backdrop-blur-md">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                <div className="relative">
+                  <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
+                  <div className="absolute top-0 left-0 w-3 h-3 bg-red-400 rounded-full animate-ping opacity-75"></div>
+                </div>
                 <h2 className="font-semibold text-white">AI Workspace</h2>
-                <Badge variant="secondary" className="bg-white/10 text-white border-white/20">
+                <Badge variant="secondary" className="bg-red-600/20 text-red-300 border-red-500/30">
                   Active
                 </Badge>
               </div>
               <Button
                 onClick={handleVerificationRequest}
                 size="sm"
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white"
               >
                 <CheckCircle className="w-4 h-4 mr-1" />
-                Verify
+                Send for Verification
               </Button>
             </div>
           </div>
 
           {/* YouTube URL Input */}
           {showUrlInput && (
-            <div className="p-4 bg-blue-900/20 border-b border-white/10">
+            <div className="p-4 bg-red-900/20 border-b border-red-500/20 backdrop-blur-sm">
               <div className="flex gap-2">
                 <Input
                   value={ytUrl}
                   onChange={(e) => setYtUrl(e.target.value)}
                   placeholder="Enter YouTube channel URL..."
-                  className="flex-1 bg-white/10 border-white/20 text-white placeholder-gray-400"
+                  className="flex-1 bg-red-950/50 border-red-500/30 text-white placeholder-red-300/60"
                 />
                 <Button
                   onClick={handleYouTubeUrlSubmit}
@@ -154,8 +156,8 @@ const YouTubeWorkspace: React.FC = () => {
             </div>
           )}
 
-          {/* Chat Area - Takes 60% */}
-          <div className="flex-1 min-h-0" style={{ height: '60%' }}>
+          {/* Chat Area */}
+          <div className="flex-1 min-h-0">
             <SimplifiedChatbot
               projectId="youtube-workspace"
               sourceCode={generatedCode}
@@ -163,28 +165,19 @@ const YouTubeWorkspace: React.FC = () => {
               onCodeUpdate={handleCodeUpdate}
             />
           </div>
-
-          {/* File Tree - Takes 40% */}
-          <div className="border-t border-white/10" style={{ height: '40%' }}>
-            <FileTreeViewer
-              projectFiles={projectFiles}
-              selectedFile={selectedFile}
-              onFileSelect={handleFileSelect}
-            />
-          </div>
         </div>
       </div>
 
       {/* Right Panel - Preview/Code (4/6 ratio) */}
-      <div className="w-2/3 flex flex-col bg-gray-50">
+      <div className="w-2/3 flex flex-col bg-red-950/20 backdrop-blur-sm relative">
         {/* Header */}
-        <div className="h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-white">
+        <div className="h-14 border-b border-red-500/20 flex items-center justify-between px-4 bg-red-950/30 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="text-sm font-medium text-gray-600">
-                {selectedFile ? selectedFile.name : (channelData?.title || youtubeData?.title || 'Workspace')}
+              <div className="text-sm font-medium text-white">
+                {channelData?.title || youtubeData?.title || 'Workspace'}
               </div>
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
             </div>
             
             {/* Preview Mode Toggle */}
@@ -193,6 +186,7 @@ const YouTubeWorkspace: React.FC = () => {
                 variant={previewMode === 'desktop' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('desktop')}
+                className={previewMode === 'desktop' ? "bg-red-600/50 text-white" : "text-red-300 hover:text-white hover:bg-red-600/30"}
               >
                 <Monitor className="h-4 w-4" />
               </Button>
@@ -200,6 +194,7 @@ const YouTubeWorkspace: React.FC = () => {
                 variant={previewMode === 'tablet' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('tablet')}
+                className={previewMode === 'tablet' ? "bg-red-600/50 text-white" : "text-red-300 hover:text-white hover:bg-red-600/30"}
               >
                 <Tablet className="h-4 w-4" />
               </Button>
@@ -207,6 +202,7 @@ const YouTubeWorkspace: React.FC = () => {
                 variant={previewMode === 'mobile' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('mobile')}
+                className={previewMode === 'mobile' ? "bg-red-600/50 text-white" : "text-red-300 hover:text-white hover:bg-red-600/30"}
               >
                 <Smartphone className="h-4 w-4" />
               </Button>
@@ -220,10 +216,10 @@ const YouTubeWorkspace: React.FC = () => {
                 checked={isCodeView}
                 onCheckedChange={setIsCodeView}
               />
-              <label htmlFor="view-mode" className="text-sm text-gray-600 cursor-pointer">
+              <label htmlFor="view-mode" className="text-sm text-red-200 cursor-pointer">
                 {isCodeView ? 'Code' : 'Preview'}
               </label>
-              {isCodeView ? <Code className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
+              {isCodeView ? <Code className="h-4 w-4 text-red-300" /> : <Eye className="h-4 w-4 text-red-300" />}
             </div>
           </div>
         </div>
@@ -231,18 +227,16 @@ const YouTubeWorkspace: React.FC = () => {
         {/* Content Area */}
         <div className="flex-1 overflow-hidden">
           {isCodeView ? (
-            <div className="h-full p-4">
-              <div className="h-full bg-gray-900 rounded-lg p-4 font-mono text-sm text-green-400 overflow-auto">
-                <pre className="whitespace-pre-wrap">
-                  {selectedFile?.content || generatedCode || '// Your code will appear here...'}
-                </pre>
-              </div>
-            </div>
+            <CodePreview
+              generatedCode={generatedCode}
+              projectFiles={projectFiles}
+              isLiveTyping={true}
+            />
           ) : (
             <div className="h-full flex items-center justify-center p-4">
               {generatedCode ? (
                 <div 
-                  className="bg-white rounded-lg shadow-xl overflow-hidden"
+                  className="bg-white rounded-lg shadow-2xl overflow-hidden border-4 border-red-500/30"
                   style={getPreviewDimensions()}
                 >
                   <iframe
@@ -253,7 +247,7 @@ const YouTubeWorkspace: React.FC = () => {
                   />
                 </div>
               ) : (
-                <div className="text-center text-gray-500">
+                <div className="text-center text-red-200">
                   <Eye className="h-16 w-16 mx-auto mb-4 opacity-50" />
                   <p>No content to preview</p>
                   <p className="text-sm">Generate code using the AI chat or enter a YouTube URL</p>
@@ -264,13 +258,13 @@ const YouTubeWorkspace: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="h-8 border-t border-gray-200 bg-white flex items-center justify-between px-4 text-xs text-gray-500">
+        <div className="h-8 border-t border-red-500/20 bg-red-950/30 backdrop-blur-md flex items-center justify-between px-4 text-xs text-red-200">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+            <div className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse"></div>
             Live Preview Active
           </div>
           <div>
-            {selectedFile ? `Viewing: ${selectedFile.name}` : 'Ready to build'}
+            Ready to build
           </div>
         </div>
       </div>

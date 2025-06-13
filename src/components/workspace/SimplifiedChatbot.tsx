@@ -25,7 +25,7 @@ interface SimplifiedChatbotProps {
   projectId: string;
   sourceCode?: string;
   channelData?: any;
-  onCodeUpdate?: (newCode: string) => void;
+  onCodeUpdate?: (newCode: string, targetFile?: string) => void;
 }
 
 const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
@@ -52,11 +52,116 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
     const welcomeMessage: Message = {
       id: 'welcome',
       role: 'assistant',
-      content: `🤖 **AI Website Builder**\n\n${channelData ? `**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n` : ''}💬 **Tell me what you want to create:**\n• "Create a modern landing page"\n• "Build a YouTube channel website"\n• "Make a professional portfolio"\n• "Design an e-commerce site"\n\n✨ **I'll help you build your website!**`,
+      content: `🤖 **AI Website Builder**\n\n${channelData ? `**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n` : ''}💬 **Tell me what you want to create:**\n• "Create a modern landing page"\n• "Build a YouTube channel website"\n• "Make a professional portfolio"\n• "Add a contact form"\n• "Change the color scheme"\n\n✨ **I'll help you build your website step by step!**`,
       timestamp: new Date()
     };
     setMessages([welcomeMessage]);
   }, [channelData]);
+
+  const generateMockCode = (userRequest: string, channelData: any) => {
+    const isContactForm = userRequest.toLowerCase().includes('contact');
+    const isColorChange = userRequest.toLowerCase().includes('color');
+    const isLayout = userRequest.toLowerCase().includes('layout') || userRequest.toLowerCase().includes('design');
+
+    if (isContactForm) {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${channelData?.title || 'My Website'} - Contact</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        .red-gradient { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+        .glass-effect { backdrop-filter: blur(20px); background: rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-red-950 via-red-900 to-black text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="glass-effect rounded-2xl p-6 mb-8">
+            <h1 class="text-4xl font-bold text-center mb-4">${channelData?.title || 'Contact Us'}</h1>
+        </header>
+        
+        <main class="glass-effect rounded-2xl p-8">
+            <form class="max-w-md mx-auto space-y-6">
+                <div>
+                    <label class="block text-red-200 text-sm font-bold mb-2">Name</label>
+                    <input type="text" class="w-full px-3 py-2 bg-red-950/50 border border-red-500/30 rounded text-white" required>
+                </div>
+                <div>
+                    <label class="block text-red-200 text-sm font-bold mb-2">Email</label>
+                    <input type="email" class="w-full px-3 py-2 bg-red-950/50 border border-red-500/30 rounded text-white" required>
+                </div>
+                <div>
+                    <label class="block text-red-200 text-sm font-bold mb-2">Message</label>
+                    <textarea rows="4" class="w-full px-3 py-2 bg-red-950/50 border border-red-500/30 rounded text-white" required></textarea>
+                </div>
+                <button type="submit" class="w-full red-gradient text-white font-bold py-2 px-4 rounded hover:scale-105 transition-transform">
+                    Send Message
+                </button>
+            </form>
+        </main>
+    </div>
+</body>
+</html>`;
+    }
+
+    // Default website generation
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${channelData?.title || 'My Website'}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+        * { font-family: 'Poppins', sans-serif; }
+        .red-gradient { background: linear-gradient(135deg, #dc2626, #b91c1c, #991b1b); }
+        .glass-effect { backdrop-filter: blur(20px); background: rgba(255, 255, 255, 0.1); }
+        .shine { background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-red-950 via-red-900 to-black text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="glass-effect rounded-2xl p-6 mb-8 shine">
+            <div class="flex items-center justify-center gap-4">
+                ${channelData?.thumbnail ? `<img src="${channelData.thumbnail}" alt="${channelData.title}" class="w-16 h-16 rounded-full border-4 border-red-500">` : ''}
+                <div class="text-center">
+                    <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-pink-400">
+                        ${channelData?.title || 'Welcome to My Website'}
+                    </h1>
+                    ${channelData?.subscriberCount ? `<p class="text-red-300">${parseInt(channelData.subscriberCount).toLocaleString()} subscribers</p>` : ''}
+                </div>
+            </div>
+        </header>
+        
+        <main class="glass-effect rounded-2xl p-8 shine">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold mb-4">Your request: "${userRequest}"</h2>
+                <p class="text-xl text-red-300">This website was generated based on your request!</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass-effect rounded-xl p-6 hover:scale-105 transition-transform">
+                    <h3 class="text-xl font-semibold mb-4 text-red-300">Modern Design</h3>
+                    <p>Beautiful, responsive design with YouTube-inspired red theme</p>
+                </div>
+                <div class="glass-effect rounded-xl p-6 hover:scale-105 transition-transform">
+                    <h3 class="text-xl font-semibold mb-4 text-red-300">AI Powered</h3>
+                    <p>Generated with advanced AI to match your specific requirements</p>
+                </div>
+                <div class="glass-effect rounded-xl p-6 hover:scale-105 transition-transform">
+                    <h3 class="text-xl font-semibold mb-4 text-red-300">Fully Customizable</h3>
+                    <p>Ask me to modify anything and I'll update the code instantly</p>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>`;
+  };
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -74,35 +179,13 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
     setIsLoading(true);
 
     try {
-      // Simple mock response for now
-      const mockCode = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${channelData?.title || 'My Website'}</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        h1 { color: #333; text-align: center; }
-        .content { padding: 20px; background: #f5f5f5; border-radius: 8px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>${channelData?.title || 'Welcome to My Website'}</h1>
-        <div class="content">
-            <p>Your request: "${currentInput}"</p>
-            <p>This is a basic website structure. You can expand it further!</p>
-        </div>
-    </div>
-</body>
-</html>`;
+      // Generate code based on user request
+      const mockCode = generateMockCode(currentInput, channelData);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `I've created a basic website based on your request: "${currentInput}"\n\nThe website includes:\n• Clean HTML structure\n• Basic CSS styling\n• Responsive design\n• Your channel information\n\nYou can see the preview on the right!`,
+        content: `✅ **Website Updated!**\n\nI've created/updated your website based on: "${currentInput}"\n\n**Changes made:**\n• Generated responsive HTML structure\n• Applied YouTube-inspired red theme\n• Added glass morphism effects\n• Integrated your ${channelData ? 'channel data' : 'custom content'}\n\n🎨 **You can see the live preview on the right!**\n\nWant me to modify anything? Just ask!`,
         timestamp: new Date(),
         generatedCode: mockCode
       };
@@ -110,10 +193,10 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
       setMessages(prev => [...prev, assistantMessage]);
 
       if (onCodeUpdate) {
-        onCodeUpdate(mockCode);
+        onCodeUpdate(mockCode, 'index.html');
         toast({
-          title: "Website Generated!",
-          description: "Check the preview on the right!",
+          title: "🎨 Website Generated!",
+          description: "Check the preview and code files!",
         });
       }
 
@@ -123,7 +206,7 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
         role: 'assistant',
-        content: `❌ **Error Occurred**\n\nSorry, I couldn't process your request right now. Please try again with a simpler request.\n\n💡 **Example**: "Create a simple homepage"`,
+        content: `❌ **Error Occurred**\n\nSorry, I couldn't process your request right now. Please try again.\n\n💡 **Try simpler requests like:**\n• "Make it blue"\n• "Add a contact form"\n• "Change the layout"`,
         timestamp: new Date()
       };
 
@@ -147,14 +230,14 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
   };
 
   return (
-    <Card className="h-full flex flex-col bg-gray-900/50 border-gray-700">
-      <CardHeader className="pb-3">
+    <Card className="h-full flex flex-col bg-red-950/30 border-red-500/30 backdrop-blur-md">
+      <CardHeader className="pb-3 border-b border-red-500/20">
         <CardTitle className="flex items-center justify-between text-white">
           <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-blue-400" />
+            <Bot className="h-5 w-5 text-red-400" />
             AI Assistant
           </div>
-          <Badge variant="default" className="text-xs">
+          <Badge variant="default" className="text-xs bg-red-600/30 text-red-300 border-red-500/30">
             Active
           </Badge>
         </CardTitle>
@@ -168,16 +251,16 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
               className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {message.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-4 h-4 text-blue-400" />
+                <div className="w-8 h-8 rounded-full bg-red-600/30 flex items-center justify-center flex-shrink-0 border border-red-500/30">
+                  <Bot className="w-4 h-4 text-red-300" />
                 </div>
               )}
               
               <div
                 className={`max-w-[80%] p-3 rounded-lg whitespace-pre-wrap ${
                   message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-gray-100 border border-gray-700'
+                    ? 'bg-red-600/50 text-white border border-red-500/30'
+                    : 'bg-red-950/50 text-red-100 border border-red-500/30'
                 }`}
               >
                 {message.content}
@@ -193,8 +276,8 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
               </div>
 
               {message.role === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-gray-600/20 flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-gray-400" />
+                <div className="w-8 h-8 rounded-full bg-red-700/30 flex items-center justify-center flex-shrink-0 border border-red-500/30">
+                  <User className="w-4 h-4 text-red-300" />
                 </div>
               )}
             </div>
@@ -202,17 +285,17 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
           
           {isLoading && (
             <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center">
-                <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+              <div className="w-8 h-8 rounded-full bg-red-600/30 flex items-center justify-center border border-red-500/30">
+                <Loader2 className="w-4 h-4 text-red-300 animate-spin" />
               </div>
-              <div className="bg-gray-800 text-gray-100 border border-gray-700 p-3 rounded-lg">
+              <div className="bg-red-950/50 text-red-100 border border-red-500/30 p-3 rounded-lg">
                 <div className="flex items-center gap-2">
                   <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-2 h-2 bg-red-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-red-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-red-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
-                  <span className="text-sm text-gray-400">Generating your website...</span>
+                  <span className="text-sm text-red-300">Generating your website...</span>
                 </div>
               </div>
             </div>
@@ -221,20 +304,20 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="border-t border-gray-700 p-4">
+        <div className="border-t border-red-500/20 p-4 bg-red-950/20">
           <div className="flex gap-2">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Tell me what website to create..."
-              className="flex-1 bg-gray-800 border-gray-600 text-white"
+              placeholder="Tell me what to build or modify..."
+              className="flex-1 bg-red-950/50 border-red-500/30 text-white placeholder-red-300/60"
               disabled={isLoading}
             />
             <Button
               onClick={handleSendMessage}
               disabled={!input.trim() || isLoading}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-red-600 hover:bg-red-700"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
