@@ -26,6 +26,15 @@ interface SuperEnhancedChatbotProps {
   onProjectUpdate?: (project: any) => void;
 }
 
+// Helper function to format messages with markdown-like styling
+const formatMessage = (content: string): string => {
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>')
+    .replace(/\n/g, '<br>');
+};
+
 const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   youtubeUrl,
   projectIdea,

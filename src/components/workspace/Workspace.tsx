@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
@@ -273,13 +272,11 @@ const Workspace = () => {
             </div>
           )}
 
-          {/* Compact Verification Button */}
+          {/* Compact Verification Button - Fixed props */}
           {projectData && (
             <CompactProjectVerificationDialog
-              projectId={projectData.id}
-              projectName={projectData.name}
               projectData={projectData}
-              isVerified={projectData.verified}
+              onProjectUpdate={handleProjectUpdate}
             />
           )}
 
