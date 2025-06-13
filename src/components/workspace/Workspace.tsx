@@ -4,19 +4,22 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Monitor, Smartphone, Tablet, Code, Eye, Github, Globe, ArrowLeft } from 'lucide-react';
+import { Monitor, Smartphone, Tablet, Code, Eye, Github, Globe, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import PreviewFrame from './PreviewFrame';
 import OptimizedCodePreview from './OptimizedCodePreview';
 import SuperEnhancedChatbot from './SuperEnhancedChatbot';
 import ProjectVerificationDialog from './ProjectVerificationDialog';
+import ErrorBoundary from './ErrorBoundary';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const Workspace = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
   
   const [previewMode, setPreviewMode] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
@@ -139,13 +142,18 @@ const Workspace = () => {
       } catch (error) {
         console.error('❌ Error in loadProject:', error);
         setError('Failed to load workspace data');
+        toast({
+          title: "Workspace Error",
+          description: "Failed to load workspace. Please try refreshing the page.",
+          variant: "destructive"
+        });
       } finally {
         setLoading(false);
       }
     };
 
     loadProject();
-  }, [user, youtubeUrl, projectId]);
+  }, [user, youtubeUrl, projectId, toast]);
 
   const handleCodeGenerated = (code: string) => {
     console.log('🔄 Code generated in workspace, updating preview...');
@@ -158,6 +166,11 @@ const Workspace = () => {
 
   const handleProjectUpdate = (updatedProject: any) => {
     setProjectData(updatedProject);
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    window.location.reload();
   };
 
   if (loading) {
@@ -174,189 +187,208 @@ const Workspace = () => {
   if (error) {
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
-          <Button onClick={handleBackToDashboard} variant="outline">
-            Back to Dashboard
-          </Button>
+        <div className="text-center max-w-md mx-auto p-6">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">Workspace Error</h2>
+          <p className="text-red-400 mb-6">{error}</p>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={handleRetry} variant="outline">
+              Try Again
+            </Button>
+            <Button onClick={handleBackToDashboard}>
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-      {/* Clean Header */}
-      <div className="h-14 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm flex items-center justify-between px-4">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleBackToDashboard}
-            className="text-gray-400 hover:text-white"
-          >
-            <ArrowLeft size={16} className="mr-2" />
-            Dashboard
-          </Button>
-          
-          <div className="flex items-center gap-3">
-            {(channelData?.thumbnail || projectData?.channel_data?.thumbnail) && (
-              <img 
-                src={channelData?.thumbnail || projectData?.channel_data?.thumbnail} 
-                alt={channelData?.title || projectData?.channel_data?.title || 'Channel'}
-                className="w-8 h-8 rounded-full object-cover border border-cyan-400"
+    <ErrorBoundary>
+      <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
+        {/* Clean Header */}
+        <div className="h-14 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm flex items-center justify-between px-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBackToDashboard}
+              className="text-gray-400 hover:text-white"
+            >
+              <ArrowLeft size={16} className="mr-2" />
+              Dashboard
+            </Button>
+            
+            <div className="flex items-center gap-3">
+              {(channelData?.thumbnail || projectData?.channel_data?.thumbnail) && (
+                <img 
+                  src={channelData?.thumbnail || projectData?.channel_data?.thumbnail} 
+                  alt={channelData?.title || projectData?.channel_data?.title || 'Channel'}
+                  className="w-8 h-8 rounded-full object-cover border border-cyan-400"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              )}
+              <div>
+                <h1 className="text-lg font-semibold text-white">
+                  {projectData?.name || channelData?.title || 'AI Website Builder'}
+                </h1>
+                <p className="text-xs text-gray-400">
+                  {(channelData || projectData?.channel_data) ? 
+                    `${parseInt((channelData?.subscriberCount || projectData?.channel_data?.subscriberCount) || '0').toLocaleString()} subscribers` : 
+                    'Enhanced Workspace'
+                  }
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Project Status */}
+            {projectData && (
+              <div className="flex items-center gap-2 mr-4">
+                <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
+                  {projectData.status || 'Active'}
+                </Badge>
+                {projectData.verified && (
+                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                    Verified
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* External Links */}
+            {projectData?.github_url && (
+              <a
+                href={projectData.github_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                title="Open GitHub Repository"
+              >
+                <Github size={16} />
+              </a>
+            )}
+            
+            {projectData?.netlify_url && (
+              <a
+                href={projectData.netlify_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 text-gray-400 hover:text-white hover:bg-blue-600 rounded transition-colors"
+                title="Open Live Site"
+              >
+                <Globe size={16} />
+              </a>
+            )}
+
+            {/* Verification Button */}
+            {projectData && (
+              <ProjectVerificationDialog
+                projectId={projectData.id}
+                projectName={projectData.name}
+                projectData={projectData}
+                isVerified={projectData.verified}
               />
             )}
-            <div>
-              <h1 className="text-lg font-semibold text-white">
-                {projectData?.name || channelData?.title || 'AI Website Builder'}
-              </h1>
-              <p className="text-xs text-gray-400">
-                {(channelData || projectData?.channel_data) ? 
-                  `${parseInt((channelData?.subscriberCount || projectData?.channel_data?.subscriberCount) || '0').toLocaleString()} subscribers` : 
-                  'Enhanced Workspace'
-                }
-              </p>
+
+            {/* Preview Mode Controls */}
+            <div className="flex items-center gap-1 bg-black/30 rounded-lg p-1">
+              <Button
+                variant={previewMode === 'mobile' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setPreviewMode('mobile')}
+                className="p-2"
+              >
+                <Smartphone size={16} />
+              </Button>
+              <Button
+                variant={previewMode === 'tablet' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setPreviewMode('tablet')}
+                className="p-2"
+              >
+                <Tablet size={16} />
+              </Button>
+              <Button
+                variant={previewMode === 'desktop' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setPreviewMode('desktop')}
+                className="p-2"
+              >
+                <Monitor size={16} />
+              </Button>
             </div>
+
+            {/* View Toggle */}
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'preview' | 'code')} className="w-auto">
+              <TabsList className="bg-black/30">
+                <TabsTrigger value="preview" className="flex items-center gap-2">
+                  <Eye size={16} />
+                  Preview
+                </TabsTrigger>
+                <TabsTrigger value="code" className="flex items-center gap-2">
+                  <Code size={16} />
+                  Code
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Project Status */}
-          {projectData && (
-            <div className="flex items-center gap-2 mr-4">
-              <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
-                {projectData.status || 'Active'}
-              </Badge>
-              {projectData.verified && (
-                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                  Verified
-                </Badge>
-              )}
-            </div>
-          )}
-
-          {/* External Links */}
-          {projectData?.github_url && (
-            <a
-              href={projectData.github_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
-              title="Open GitHub Repository"
-            >
-              <Github size={16} />
-            </a>
-          )}
-          
-          {projectData?.netlify_url && (
-            <a
-              href={projectData.netlify_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 text-gray-400 hover:text-white hover:bg-blue-600 rounded transition-colors"
-              title="Open Live Site"
-            >
-              <Globe size={16} />
-            </a>
-          )}
-
-          {/* Verification Button */}
-          {projectData && (
-            <ProjectVerificationDialog
-              projectId={projectData.id}
-              projectName={projectData.name}
-              projectData={projectData}
-              isVerified={projectData.verified}
-            />
-          )}
-
-          {/* Preview Mode Controls */}
-          <div className="flex items-center gap-1 bg-black/30 rounded-lg p-1">
-            <Button
-              variant={previewMode === 'mobile' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setPreviewMode('mobile')}
-              className="p-2"
-            >
-              <Smartphone size={16} />
-            </Button>
-            <Button
-              variant={previewMode === 'tablet' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setPreviewMode('tablet')}
-              className="p-2"
-            >
-              <Tablet size={16} />
-            </Button>
-            <Button
-              variant={previewMode === 'desktop' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setPreviewMode('desktop')}
-              className="p-2"
-            >
-              <Monitor size={16} />
-            </Button>
-          </div>
-
-          {/* View Toggle */}
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'preview' | 'code')} className="w-auto">
-            <TabsList className="bg-black/30">
-              <TabsTrigger value="preview" className="flex items-center gap-2">
-                <Eye size={16} />
-                Preview
-              </TabsTrigger>
-              <TabsTrigger value="code" className="flex items-center gap-2">
-                <Code size={16} />
-                Code
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="h-[calc(100vh-3.5rem)]">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* Chatbot Panel */}
-          <ResizablePanel defaultSize={35} minSize={30} maxSize={50}>
-            <SuperEnhancedChatbot
-              youtubeUrl={youtubeUrl || projectData?.youtube_url || ''}
-              projectIdea={projectIdea || projectData?.description || ''}
-              channelData={channelData || projectData?.channel_data}
-              onCodeGenerated={handleCodeGenerated}
-              projectData={projectData}
-              onProjectUpdate={handleProjectUpdate}
-            />
-          </ResizablePanel>
-          
-          <ResizableHandle />
-          
-          {/* Preview/Code Panel */}
-          <ResizablePanel defaultSize={65} minSize={50}>
-            <Tabs value={activeTab} className="h-full">
-              <TabsContent value="preview" className="h-full m-0">
-                <PreviewFrame
+        {/* Main Content */}
+        <div className="h-[calc(100vh-3.5rem)]">
+          <ResizablePanelGroup direction="horizontal" className="h-full">
+            {/* Chatbot Panel */}
+            <ResizablePanel defaultSize={35} minSize={30} maxSize={50}>
+              <ErrorBoundary>
+                <SuperEnhancedChatbot
                   youtubeUrl={youtubeUrl || projectData?.youtube_url || ''}
                   projectIdea={projectIdea || projectData?.description || ''}
-                  previewMode={previewMode}
-                  generatedCode={generatedCode}
                   channelData={channelData || projectData?.channel_data}
-                />
-              </TabsContent>
-              
-              <TabsContent value="code" className="h-full m-0">
-                <OptimizedCodePreview
-                  generatedCode={generatedCode}
-                  isLiveTyping={false}
+                  onCodeGenerated={handleCodeGenerated}
                   projectData={projectData}
+                  onProjectUpdate={handleProjectUpdate}
                 />
-              </TabsContent>
-            </Tabs>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+              </ErrorBoundary>
+            </ResizablePanel>
+            
+            <ResizableHandle />
+            
+            {/* Preview/Code Panel */}
+            <ResizablePanel defaultSize={65} minSize={50}>
+              <Tabs value={activeTab} className="h-full">
+                <TabsContent value="preview" className="h-full m-0">
+                  <ErrorBoundary>
+                    <PreviewFrame
+                      youtubeUrl={youtubeUrl || projectData?.youtube_url || ''}
+                      projectIdea={projectIdea || projectData?.description || ''}
+                      previewMode={previewMode}
+                      generatedCode={generatedCode}
+                      channelData={channelData || projectData?.channel_data}
+                    />
+                  </ErrorBoundary>
+                </TabsContent>
+                
+                <TabsContent value="code" className="h-full m-0">
+                  <ErrorBoundary>
+                    <OptimizedCodePreview
+                      generatedCode={generatedCode}
+                      isLiveTyping={false}
+                      projectData={projectData}
+                    />
+                  </ErrorBoundary>
+                </TabsContent>
+              </Tabs>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 

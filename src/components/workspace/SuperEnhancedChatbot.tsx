@@ -74,7 +74,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
           content: entry.content,
           timestamp: new Date(entry.timestamp),
           component: entry.metadata?.component,
-          parseResult: entry.metadata?.parseResult as any
+          parseResult: entry.metadata?.parseResult as 'success' | 'failed' | 'error'
         }));
         setMessages(historicalMessages);
       } else {
@@ -135,50 +135,88 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
 
       const originalCode = currentProject?.source_code || '';
 
-      const result = await generateWebsiteWithRealData(
-        channelData,
-        projectIdea,
-        parseResult.prompt!
-      );
-
-      if (result?.generatedCode) {
-        console.log('🔄 Intelligent edit applied, validating...');
-        
-        const isValid = validateAndApplyEdit(
-          originalCode,
-          result.generatedCode,
-          parseResult.targetComponent!,
-          currentInput
+      // Try to generate code with better error handling
+      try {
+        const result = await generateWebsiteWithRealData(
+          channelData,
+          projectIdea,
+          parseResult.prompt!
         );
 
-        if (isValid) {
-          onCodeGenerated(result.generatedCode);
+        if (result?.generatedCode) {
+          console.log('🔄 Intelligent edit applied, validating...');
           
-          if (memory && saveChange) {
-            await saveChange(
-              parseResult.targetComponent!,
-              currentInput,
-              originalCode,
-              result.generatedCode
-            );
+          const isValid = validateAndApplyEdit(
+            originalCode,
+            result.generatedCode,
+            parseResult.targetComponent!,
+            currentInput
+          );
+
+          if (isValid) {
+            onCodeGenerated(result.generatedCode);
+            
+            if (memory && saveChange) {
+              await saveChange(
+                parseResult.targetComponent!,
+                currentInput,
+                originalCode,
+                result.generatedCode
+              );
+            }
+            
+            await saveProject(result.generatedCode, result.reply);
+          } else {
+            throw new Error('Edit validation failed - changes may have been too broad');
           }
-          
-          await saveProject(result.generatedCode, result.reply);
+
+          const assistantMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: `✅ **${parseResult.targetComponent} Updated!**\n\n**Action**: ${parseResult.action}\n**Changes**: ${parseResult.changes}\n\n${result?.reply || 'I\'ve made the targeted changes while preserving your existing design and functionality!'}`,
+            timestamp: new Date(),
+            component: parseResult.targetComponent,
+            parseResult: parseResult.parseResult
+          };
+
+          setMessages(prev => [...prev, assistantMessage]);
         } else {
-          throw new Error('Edit validation failed - changes may have been too broad');
+          throw new Error('No code generated from AI service');
         }
+      } catch (codeGenError) {
+        console.error('❌ Code generation error:', codeGenError);
+        
+        // Provide helpful error message based on the type of error
+        let errorContent = `❌ **Code Generation Failed**\n\n`;
+        
+        if (codeGenError instanceof Error) {
+          if (codeGenError.message.includes('402') || codeGenError.message.includes('payment')) {
+            errorContent += `**Payment Issue**: The AI service requires payment to process requests.\n\n🔧 **Solutions**:\n• Check API key billing status\n• Contact administrator about payment\n• Try again later if this is temporary`;
+          } else if (codeGenError.message.includes('timeout') || codeGenError.message.includes('network')) {
+            errorContent += `**Network Issue**: Connection to AI service failed.\n\n🔧 **Solutions**:\n• Check internet connection\n• Try again in a few moments\n• Contact support if issue persists`;
+          } else {
+            errorContent += `**Service Error**: ${codeGenError.message}\n\n🔧 **Try**:\n• Simplifying your request\n• Being more specific about changes\n• Trying again with different wording`;
+          }
+        } else {
+          errorContent += `**Unknown Error**: Something went wrong with code generation.\n\n🔧 **Try**:\n• Refreshing the page\n• Simplifying your request\n• Contact support if issue continues`;
+        }
+
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: errorContent,
+          timestamp: new Date(),
+          parseResult: 'error'
+        };
+        
+        setMessages(prev => [...prev, errorMessage]);
+        
+        toast({
+          title: "Code Generation Failed",
+          description: "Unable to generate code. Please check the error message for details.",
+          variant: "destructive"
+        });
       }
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `✅ **${parseResult.targetComponent} Updated!**\n\n**Action**: ${parseResult.action}\n**Changes**: ${parseResult.changes}\n\n${result?.reply || 'I\'ve made the targeted changes while preserving your existing design and functionality!'}`,
-        timestamp: new Date(),
-        component: parseResult.targetComponent,
-        parseResult: parseResult.parseResult
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
 
     } catch (error) {
       console.error('❌ Intelligent chat error:', error);
@@ -252,7 +290,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   const formatMessage = (content: string) => {
     return content
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\*(.*?)\*\*/g, '<em>$1</em>')
       .replace(/\n/g, '<br/>');
   };
 

@@ -41,9 +41,10 @@ interface ChangeEntry {
   userRequest: string;
 }
 
-interface ChannelData {
+interface SafeChannelData {
   components?: Record<string, ComponentInfo>;
   design_tokens?: DesignTokens;
+  [key: string]: any;
 }
 
 export const useAdvancedAIMemory = (projectId: string) => {
@@ -77,26 +78,50 @@ export const useAdvancedAIMemory = (projectId: string) => {
       }
 
       if (project) {
-        // Type assertion with safe fallbacks
-        const channelData = project.channel_data as ChannelData | null;
+        // Safely parse channel_data
+        let channelData: SafeChannelData = {};
+        if (project.channel_data) {
+          try {
+            if (typeof project.channel_data === 'string') {
+              channelData = JSON.parse(project.channel_data);
+            } else if (typeof project.channel_data === 'object') {
+              channelData = project.channel_data as SafeChannelData;
+            }
+          } catch (e) {
+            console.warn('Failed to parse channel_data:', e);
+            channelData = {};
+          }
+        }
         
         setMemory({
           id: project.id,
-          components: channelData?.components || {},
-          designTokens: channelData?.design_tokens || {
+          components: channelData.components || {},
+          designTokens: channelData.design_tokens || {
             primaryColor: '#000000',
             secondaryColor: '#666666',
             fontFamily: 'Arial, sans-serif',
             spacing: '16px'
           },
           chatHistory: (chatHistory || []).map(chat => {
-            const metadata = chat.metadata as any;
+            let metadata: any = {};
+            if (chat.metadata) {
+              try {
+                if (typeof chat.metadata === 'string') {
+                  metadata = JSON.parse(chat.metadata);
+                } else if (typeof chat.metadata === 'object') {
+                  metadata = chat.metadata;
+                }
+              } catch (e) {
+                console.warn('Failed to parse chat metadata:', e);
+              }
+            }
+            
             return {
               id: chat.id,
               role: chat.message_type as 'user' | 'assistant',
               content: chat.content,
               timestamp: new Date(chat.created_at),
-              componentTarget: metadata?.component
+              componentTarget: metadata.component
             };
           }),
           lastUpdated: new Date(project.updated_at)
@@ -116,7 +141,7 @@ export const useAdvancedAIMemory = (projectId: string) => {
     setMemory(updatedMemory);
 
     try {
-      // Prepare channel_data with proper typing
+      // Prepare channel_data update
       const channelDataUpdate = {
         components: updatedMemory.components,
         design_tokens: updatedMemory.designTokens
@@ -125,7 +150,7 @@ export const useAdvancedAIMemory = (projectId: string) => {
       await supabase
         .from('projects')
         .update({
-          channel_data: channelDataUpdate as any,
+          channel_data: channelDataUpdate,
           updated_at: new Date().toISOString()
         })
         .eq('id', projectId);
