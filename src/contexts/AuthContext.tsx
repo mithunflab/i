@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,19 +40,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let mounted = true;
+    console.log('AuthProvider: Starting initialization');
 
     const initializeAuth = async () => {
       try {
+        console.log('AuthProvider: Setting up auth state listener');
+        
         // Set up auth state listener FIRST
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             if (!mounted) return;
             
-            console.log('Auth state change:', event, session);
+            console.log('AuthProvider: Auth state change:', event, 'Session exists:', !!session);
             setSession(session);
             setUser(session?.user ?? null);
             
             if (session?.user) {
+              console.log('AuthProvider: User found, loading profile for:', session.user.email);
               // Use setTimeout to defer the profile loading
               setTimeout(() => {
                 if (mounted) {
@@ -61,6 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
               }, 0);
             } else {
+              console.log('AuthProvider: No user session, clearing profile');
               setProfile(null);
               if (mounted) {
                 setLoading(false);
@@ -69,27 +73,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         );
 
+        console.log('AuthProvider: Getting initial session');
         // THEN get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         if (!mounted) return;
         
-        console.log('Initial session:', initialSession);
+        console.log('AuthProvider: Initial session:', !!initialSession, initialSession?.user?.email);
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
         
         if (initialSession?.user) {
           await loadProfile(initialSession.user.id, initialSession.user.email);
         } else {
+          console.log('AuthProvider: No initial session, setting loading to false');
           setLoading(false);
         }
         
         setInitialized(true);
+        console.log('AuthProvider: Initialization complete');
 
         return () => {
           subscription.unsubscribe();
         };
       } catch (error) {
-        console.error('Auth initialization error:', error);
+        console.error('AuthProvider: Auth initialization error:', error);
         if (mounted) {
           setLoading(false);
           setInitialized(true);
@@ -106,12 +113,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadProfile = async (userId: string, userEmail?: string) => {
     try {
-      console.log('Loading profile for user:', userId, 'email:', userEmail);
+      console.log('AuthProvider: Loading profile for user:', userId, 'email:', userEmail);
       
       // Validate that userId is a proper UUID
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(userId)) {
-        console.error('Invalid UUID format:', userId);
+        console.error('AuthProvider: Invalid UUID format:', userId);
         setLoading(false);
         return;
       }
@@ -123,21 +130,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error) {
-        console.error('Error loading profile:', error);
+        console.error('AuthProvider: Error loading profile:', error);
         // If profile doesn't exist, create one
         if (error.code === 'PGRST116') {
           const email = userEmail || session?.user?.email;
           if (email) {
             const isAdmin = ADMIN_EMAILS.includes(email);
+            console.log('AuthProvider: Creating new profile for:', email, 'isAdmin:', isAdmin);
             await createProfile(userId, email, isAdmin);
           }
         }
       } else if (data) {
-        console.log('Profile loaded:', data);
+        console.log('AuthProvider: Profile loaded:', data);
         // Check if this should be an admin but isn't
         const email = userEmail || session?.user?.email;
         if (email && ADMIN_EMAILS.includes(email) && data.role !== 'admin') {
-          console.log('Updating profile to admin role for:', email);
+          console.log('AuthProvider: Updating profile to admin role for:', email);
           await updateProfileToAdmin(userId, email);
         } else {
           // Ensure role is properly typed
@@ -149,8 +157,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch (err) {
-      console.error('Exception loading profile:', err);
+      console.error('AuthProvider: Exception loading profile:', err);
     } finally {
+      console.log('AuthProvider: Setting loading to false');
       setLoading(false);
     }
   };
@@ -325,6 +334,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Don't render children until context is initialized
   if (!initialized) {
+    console.log('AuthProvider: Not initialized yet, showing initialization screen');
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
@@ -335,6 +345,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }
 
+  console.log('AuthProvider: Rendering children, loading:', loading, 'user:', !!user, 'profile:', !!profile);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
