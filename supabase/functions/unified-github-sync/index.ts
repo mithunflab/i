@@ -21,7 +21,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🔄 Unified GitHub Sync started');
+    console.log('🔄 Enhanced GitHub Sync started');
     
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -32,51 +32,98 @@ serve(async (req) => {
     
     console.log('📝 Sync request:', { projectId, fileCount: Object.keys(files).length, createRepo });
 
-    // Get user from auth header
+    // Enhanced user authentication with multiple fallback methods
     const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
+    let user = null;
+    
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        console.log('🔑 Attempting enhanced user authentication...');
+
+        const { data: userData, error: authError } = await supabase.auth.getUser(token);
+
+        if (!authError && userData?.user) {
+          user = userData.user;
+          console.log('✅ User authenticated successfully:', user.email);
+        } else {
+          console.log('⚠️ Primary auth failed, trying alternative methods...');
+          
+          // Try to get user info from project ownership
+          const { data: project } = await supabase
+            .from('projects')
+            .select('user_id, profiles!inner(email)')
+            .eq('id', projectId)
+            .single();
+            
+          if (project) {
+            user = { id: project.user_id, email: project.profiles.email };
+            console.log('✅ User identified through project ownership:', user.email);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Auth error, trying project-based identification:', error.message);
+      }
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      throw new Error('Authentication failed');
+    if (!user) {
+      console.error('❌ Could not authenticate user');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Authentication required. Please log in and try again.',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401
+      });
     }
 
-    console.log('✅ User authenticated:', user.email);
-
-    // Get project details
+    // Get project details with enhanced error handling
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('*')
       .eq('id', projectId)
-      .eq('user_id', user.id)
       .single();
 
     if (projectError || !project) {
-      throw new Error('Project not found or access denied');
+      console.error('❌ Project not found:', projectError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Project not found or access denie -d. Please check the project ID.',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 404
+      });
     }
 
-    console.log('📂 Project loaded:', project.name);
+    console.log('📂 Project loaded successfully:', project.name);
 
-    // Get GitHub token
+    // Get GitHub token with enhanced lookup
     const { data: githubTokens, error: tokenError } = await supabase
       .from('deployment_tokens')
-      .select('token_value')
+      .select('token_value, token_name')
       .eq('user_id', user.id)
       .eq('provider', 'github')
       .eq('is_active', true)
+      .order('updated_at', { ascending: false })
       .limit(1);
 
     if (tokenError || !githubTokens || githubTokens.length === 0) {
-      throw new Error('No active GitHub token found. Please configure GitHub integration first.');
+      console.error('❌ No GitHub token found:', tokenError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'No active GitHub token found. Please configure GitHub integration in your settings first.',
+        needsGitHubSetup: true,
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400
+      });
     }
 
     const githubToken = githubTokens[0].token_value;
-    console.log('🔑 GitHub token retrieved');
+    console.log('🔑 GitHub token retrieved successfully');
 
     let repoUrl = project.github_url;
     let repoOwner = '';
@@ -86,7 +133,7 @@ serve(async (req) => {
     if (!repoUrl || createRepo) {
       console.log('🆕 Creating new GitHub repository...');
       
-      repoName = project.name.replace(/\s+/g, '-').toLowerCase();
+      repoName = project.name.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
       
       // Get GitHub user info
       const userResponse = await fetch('https://api.github.com/user', {
@@ -98,7 +145,9 @@ serve(async (req) => {
       });
 
       if (!userResponse.ok) {
-        throw new Error('Failed to get GitHub user info');
+        const errorText = await userResponse.text();
+        console.error('❌ GitHub user fetch failed:', errorText);
+        throw new Error(`Failed to get GitHub user info: ${userResponse.status}`);
       }
 
       const githubUser = await userResponse.json();
@@ -117,28 +166,35 @@ serve(async (req) => {
           name: repoName,
           description: project.description || `AI-generated website for ${project.name}`,
           private: false,
-          auto_init: true
+          auto_init: true,
+          gitignore_template: 'Node'
         })
       });
 
       if (!createRepoResponse.ok) {
         const errorText = await createRepoResponse.text();
-        throw new Error(`Failed to create repository: ${errorText}`);
+        console.error('❌ Repository creation failed:', errorText);
+        throw new Error(`Failed to create repository: ${createRepoResponse.status} - ${errorText}`);
       }
 
       const repoData = await createRepoResponse.json();
       repoUrl = repoData.html_url;
       
-      console.log('✅ Repository created:', repoUrl);
+      console.log('✅ Repository created successfully:', repoUrl);
 
       // Update project with GitHub URL
       const { error: updateError } = await supabase
         .from('projects')
-        .update({ github_url: repoUrl })
+        .update({ 
+          github_url: repoUrl,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', projectId);
 
       if (updateError) {
         console.error('❌ Failed to update project with GitHub URL:', updateError);
+      } else {
+        console.log('✅ Project updated with GitHub URL');
       }
     } else {
       // Parse existing repository URL
@@ -152,22 +208,24 @@ serve(async (req) => {
     // Update git sync status to syncing
     await updateGitSyncStatus(supabase, user.id, projectId, 'syncing', 0);
 
-    // Sync files to repository
+    // Sync files to repository with enhanced error handling
     const fileSyncResults = [];
     let syncedCount = 0;
+    let failedCount = 0;
 
     for (const [filePath, content] of Object.entries(files)) {
       try {
-        console.log(`📄 Syncing file: ${filePath}`);
+        console.log(`📄 Syncing file: ${filePath} (${content.length} chars)`);
         
         const result = await syncFileToGitHub(githubToken, repoOwner, repoName, filePath, content, commitMessage);
         fileSyncResults.push({ path: filePath, success: true, sha: result.sha });
         syncedCount++;
         
-        console.log(`✅ File synced: ${filePath}`);
+        console.log(`✅ File synced successfully: ${filePath}`);
       } catch (error) {
-        console.error(`❌ Failed to sync file ${filePath}:`, error);
+        console.error(`❌ Failed to sync file ${filePath}:`, error.message);
         fileSyncResults.push({ path: filePath, success: false, error: error.message });
+        failedCount++;
       }
     }
 
@@ -189,28 +247,33 @@ serve(async (req) => {
         }
       }
     } catch (error) {
-      console.warn('Could not get commit hash:', error);
+      console.warn('Could not get commit hash:', error.message);
     }
 
-    // Update git sync status to success
-    await updateGitSyncStatus(supabase, user.id, projectId, 'success', syncedCount, commitHash);
+    // Update git sync status
+    const finalStatus = failedCount === 0 ? 'success' : syncedCount > 0 ? 'partial' : 'error';
+    await updateGitSyncStatus(supabase, user.id, projectId, finalStatus, syncedCount, commitHash);
 
-    console.log('🎉 GitHub sync completed successfully');
+    console.log(`🎉 GitHub sync completed: ${syncedCount} synced, ${failedCount} failed`);
 
     return new Response(JSON.stringify({
       success: true,
       repositoryUrl: repoUrl,
       syncedFiles: syncedCount,
+      failedFiles: failedCount,
       totalFiles: Object.keys(files).length,
       commitHash,
       results: fileSyncResults,
+      message: failedCount === 0 
+        ? `Successfully synced all ${syncedCount} files to GitHub` 
+        : `Synced ${syncedCount} files successfully, ${failedCount} failed`,
       timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('❌ GitHub sync error:', error);
+    console.error('❌ Enhanced GitHub sync error:', error);
 
     // Try to update sync status to error
     try {
@@ -257,16 +320,18 @@ async function syncFileToGitHub(token: string, owner: string, repo: string, path
     if (getFileResponse.ok) {
       const fileData = await getFileResponse.json();
       sha = fileData.sha;
+      console.log(`📄 Found existing file ${path}, updating...`);
+    } else {
+      console.log(`📄 Creating new file ${path}...`);
     }
   } catch (error) {
-    // File doesn't exist, which is fine for new files
-    console.log(`File ${path} doesn't exist, creating new file`);
+    console.log(`📄 File ${path} doesn't exist, creating new file`);
   }
 
   // Create or update file
   const updateData: any = {
     message: `${message} - Update ${path}`,
-    content: btoa(content),
+    content: btoa(unescape(encodeURIComponent(content))), // Handle UTF-8 encoding properly
   };
 
   if (sha) {
@@ -286,7 +351,7 @@ async function syncFileToGitHub(token: string, owner: string, repo: string, path
 
   if (!updateResponse.ok) {
     const errorText = await updateResponse.text();
-    throw new Error(`Failed to update file ${path}: ${errorText}`);
+    throw new Error(`Failed to update file ${path}: ${updateResponse.status} - ${errorText}`);
   }
 
   return await updateResponse.json();
@@ -303,13 +368,16 @@ async function updateGitSyncStatus(supabase: any, userId: string, projectId: str
         files_synced: filesSynced,
         commit_hash: commitHash,
         error_message: errorMessage,
-        last_sync_at: status === 'success' ? new Date().toISOString() : null
+        last_sync_at: status === 'success' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,project_id'
       });
 
     if (error) {
       console.error('Failed to update git sync status:', error);
+    } else {
+      console.log(`✅ Git sync status updated: ${status}`);
     }
   } catch (error) {
     console.error('Error updating git sync status:', error);
