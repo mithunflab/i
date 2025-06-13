@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +7,8 @@ import { Send, Bot, User, Loader2, Users, Eye, ChevronDown, ChevronUp, Maximize2
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAdvancedAIMemory } from '@/hooks/useAdvancedAIMemory';
+import { useTargetedChanges } from '@/hooks/useTargetedChanges';
+import { useAdvancedProjectMemory } from '@/hooks/useAdvancedProjectMemory';
 import { useYouTubeIntegration } from '@/hooks/useYouTubeIntegration';
 
 interface Message {
@@ -15,6 +17,7 @@ interface Message {
   content: string;
   timestamp: Date;
   isTyping?: boolean;
+  component?: string;
 }
 
 interface SuperEnhancedChatbotProps {
@@ -45,8 +48,9 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   
   const { user } = useAuth();
   const { toast } = useToast();
-  const { memory, generateTargetedPrompt } = useAdvancedAIMemory(currentProject?.id || '');
+  const { generateTargetedPrompt } = useTargetedChanges();
   const { generateWebsiteWithRealData } = useYouTubeIntegration();
+  const { memory, generateContextualPrompt, saveChange } = useAdvancedProjectMemory(currentProject?.id || '');
 
   useEffect(() => {
     setCurrentProject(projectData);
@@ -57,7 +61,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
       const welcomeMessage: Message = {
         id: '1',
         role: 'assistant',
-        content: `🎉 **Professional Website Builder Ready!**\n\n**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n🧠 **Enhanced AI Memory Active** - I remember everything and only change what you request!\n\n💡 **Tell me exactly what to modify** (e.g., "change the hero title to..." or "add a contact form")\n\n✨ **Features**:\n• Real video integration with ${channelData.videos?.length || 0} latest videos\n• Professional multi-page structure\n• Targeted modifications that preserve your design\n• Working YouTube embeds and subscribe buttons`,
+        content: `🎉 **Component-Level Website Editor Ready!**\n\n**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n🧠 **Advanced Component Memory Active** - I can edit specific parts without changing your entire website!\n\n💡 **Component-Level Commands**:\n• "Change the subscribe button text to 'Join Now'"\n• "Update the hero title to 'Welcome to My Channel'"\n• "Make the header background blue"\n• "Add contact info to footer"\n\n✨ **Smart Features**:\n• Real video integration with ${channelData.videos?.length || 0} latest videos\n• Component mapping for precise edits\n• Design preservation system\n• Multi-file code generation (HTML/CSS/JS)`,
         timestamp: new Date()
       };
       setMessages([welcomeMessage]);
@@ -79,49 +83,83 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue.trim();
     setInputValue('');
     setIsLoading(true);
 
     try {
-      console.log('🎯 Sending enhanced AI request with memory...');
+      console.log('🎯 Processing component-level edit request...');
       
-      // Generate enhanced website with real data and AI memory
+      // Generate contextual prompt using project memory
+      let enhancedPrompt = '';
+      
+      if (memory && currentProject?.source_code) {
+        // Use advanced project memory for existing projects
+        enhancedPrompt = generateContextualPrompt(currentInput, currentProject.source_code);
+        console.log('🧠 Using advanced project memory for targeted editing');
+      } else {
+        // Use targeted changes for new projects or fallback
+        enhancedPrompt = generateTargetedPrompt(
+          currentInput,
+          currentProject?.source_code || '',
+          currentProject,
+          channelData
+        );
+        console.log('🎯 Using targeted changes system');
+      }
+
+      // Store original code for change tracking
+      const originalCode = currentProject?.source_code || '';
+
+      // Generate website with enhanced targeting
       const result = await generateWebsiteWithRealData(
         channelData,
         projectIdea,
-        inputValue.trim()
+        enhancedPrompt // Use the enhanced prompt instead of raw user input
       );
 
       if (result?.generatedCode) {
-        console.log('🔄 Professional code generated, updating preview...');
+        console.log('🔄 Component-level code generated, updating preview...');
         onCodeGenerated(result.generatedCode);
+        
+        // Save the change to project memory
+        if (memory && saveChange) {
+          await saveChange(
+            'auto-detected', // Component detection could be improved
+            currentInput,
+            originalCode,
+            result.generatedCode
+          );
+        }
+        
         await saveProject(result.generatedCode, result.reply);
       }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: result?.reply || '✅ I\'ve made your requested changes while preserving your existing design!',
-        timestamp: new Date()
+        content: result?.reply || '✅ I\'ve made the targeted changes you requested while preserving your existing website design and all other components!',
+        timestamp: new Date(),
+        component: 'auto-detected'
       };
 
       setMessages(prev => [...prev, assistantMessage]);
 
     } catch (error) {
-      console.error('❌ Enhanced AI Error:', error);
+      console.error('❌ Component-level edit error:', error);
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `❌ **Error Processing Request**\n\nI encountered an issue: ${error instanceof Error ? error.message : 'Unknown error'}\n\n🔄 Please try again with a more specific request.`,
+        content: `❌ **Component Edit Error**\n\nI encountered an issue while making your targeted changes: ${error instanceof Error ? error.message : 'Unknown error'}\n\n🔄 **Try Again With**:\n• More specific component names (e.g., "header", "button", "video section")\n• Clear action words (e.g., "change", "update", "modify")\n• Specific values (e.g., colors, text, sizes)`,
         timestamp: new Date()
       };
       
       setMessages(prev => [...prev, errorMessage]);
       
       toast({
-        title: "Error",
-        description: "Failed to process your request. Please try again.",
+        title: "Component Edit Error",
+        description: "Failed to process your targeted request. Please be more specific about which component to modify.",
         variant: "destructive"
       });
     } finally {
@@ -208,7 +246,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
               <Bot size={12} className="text-white" />
             </div>
             <div>
-              <h3 className="text-white font-medium text-xs">AI Assistant</h3>
+              <h3 className="text-white font-medium text-xs">Component Editor</h3>
               {channelData && (
                 <p className="text-gray-400 text-xs truncate max-w-32">{channelData.title}</p>
               )}
@@ -216,6 +254,11 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
           </div>
           
           <div className="flex items-center gap-1">
+            {memory && (
+              <Badge variant="outline" className="text-xs px-1 py-0 text-green-400 border-green-400/30">
+                Memory: {Object.keys(memory.componentMap || {}).length}
+              </Badge>
+            )}
             {isExpanded && (
               <Button
                 variant="ghost"
@@ -294,8 +337,15 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
                     __html: formatMessage(message.content) 
                   }} 
                 />
-                <div className="text-xs opacity-50 mt-1">
-                  {message.timestamp.toLocaleTimeString()}
+                <div className="flex items-center justify-between mt-1">
+                  <div className="text-xs opacity-50">
+                    {message.timestamp.toLocaleTimeString()}
+                  </div>
+                  {message.component && (
+                    <Badge variant="outline" className="text-xs px-1 py-0">
+                      {message.component}
+                    </Badge>
+                  )}
                 </div>
               </div>
               {message.role === 'user' && (
@@ -314,7 +364,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
               <div className="bg-gray-800/50 text-gray-100 p-2 rounded-lg">
                 <div className="flex items-center gap-2">
                   <Loader2 size={10} className="animate-spin" />
-                  <span className="text-xs">Processing with AI memory...</span>
+                  <span className="text-xs">Analyzing components & applying targeted changes...</span>
                 </div>
               </div>
             </div>
@@ -331,7 +381,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Tell me exactly what to change (e.g., 'update hero title')"
+              placeholder="Component edit (e.g., 'change button text to Subscribe Now')"
               className="flex-1 bg-gray-800/50 border-gray-600 text-white placeholder-gray-400 text-xs h-8"
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
               disabled={isLoading}
@@ -344,6 +394,11 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
               <Send size={10} />
             </Button>
           </div>
+          {memory && (
+            <div className="mt-1 text-xs text-gray-500">
+              Memory: {Object.keys(memory.componentMap || {}).length} components tracked
+            </div>
+          )}
         </div>
       )}
     </div>
