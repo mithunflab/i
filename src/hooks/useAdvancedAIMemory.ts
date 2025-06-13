@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -42,8 +41,8 @@ interface ChangeEntry {
 }
 
 interface SafeChannelData {
-  components?: Record<string, ComponentInfo>;
-  design_tokens?: DesignTokens;
+  components?: Record<string, any>;
+  design_tokens?: any;
   [key: string]: any;
 }
 
@@ -141,10 +140,10 @@ export const useAdvancedAIMemory = (projectId: string) => {
     setMemory(updatedMemory);
 
     try {
-      // Prepare channel_data update
+      // Prepare channel_data update - convert to plain objects
       const channelDataUpdate = {
-        components: updatedMemory.components,
-        design_tokens: updatedMemory.designTokens
+        components: JSON.parse(JSON.stringify(updatedMemory.components)),
+        design_tokens: JSON.parse(JSON.stringify(updatedMemory.designTokens))
       };
 
       await supabase
