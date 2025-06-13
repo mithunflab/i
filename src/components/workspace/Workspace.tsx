@@ -231,25 +231,27 @@ const Workspace = () => {
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-      {/* Enhanced Header */}
+      {/* Enhanced Header - Rearranged for better fit */}
       <div className="h-14 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm flex items-center justify-between px-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleBackToDashboard}
-            className="text-gray-400 hover:text-white"
+            className="text-gray-400 hover:text-white flex-shrink-0"
           >
-            <ArrowLeft size={16} className="mr-2" />
-            Dashboard
+            <ArrowLeft size={16} className="mr-1" />
+            Back
           </Button>
           
-          {/* Channel Info Display */}
-          <ChannelInfo channelData={channelData || projectData?.channel_data} />
+          {/* Channel Info Display - Compact */}
+          <div className="min-w-0 flex-1">
+            <ChannelInfo channelData={channelData || projectData?.channel_data} />
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Real-time API Status Indicators */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Real-time API Status Indicators - Only dots with tooltips */}
           <RealTimeApiStatusIndicators />
 
           {/* Real-time Git Indicator */}
@@ -258,21 +260,21 @@ const Workspace = () => {
             projectData={projectData} 
           />
 
-          {/* Project Status */}
+          {/* Project Status - Compact */}
           {projectData && (
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
+            <div className="flex items-center gap-1">
+              <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-xs px-1 py-0">
                 {projectData.status || 'Active'}
               </Badge>
               {projectData.verified && (
-                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                  Verified
+                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs px-1 py-0">
+                  ✓
                 </Badge>
               )}
             </div>
           )}
 
-          {/* Compact Verification Button - Fixed props */}
+          {/* Compact Verification Button */}
           {projectData && (
             <CompactProjectVerificationDialog
               projectData={projectData}
@@ -280,47 +282,47 @@ const Workspace = () => {
             />
           )}
 
-          {/* Preview Mode Controls */}
+          {/* Preview Mode Controls - Compact */}
           <div className="flex items-center gap-1 bg-black/30 rounded-lg p-1">
             <Button
               variant={previewMode === 'mobile' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setPreviewMode('mobile')}
-              className="p-2"
+              className="p-1 h-6 w-6"
             >
-              <Smartphone size={16} />
+              <Smartphone size={12} />
             </Button>
             <Button
               variant={previewMode === 'tablet' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setPreviewMode('tablet')}
-              className="p-2"
+              className="p-1 h-6 w-6"
             >
-              <Tablet size={16} />
+              <Tablet size={12} />
             </Button>
             <Button
               variant={previewMode === 'desktop' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setPreviewMode('desktop')}
-              className="p-2"
+              className="p-1 h-6 w-6"
             >
-              <Monitor size={16} />
+              <Monitor size={12} />
             </Button>
           </div>
 
-          {/* Enhanced View Toggle */}
+          {/* Enhanced View Toggle - Compact */}
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'preview' | 'code' | 'files')} className="w-auto">
-            <TabsList className="bg-black/30">
-              <TabsTrigger value="preview" className="flex items-center gap-2">
-                <Eye size={16} />
+            <TabsList className="bg-black/30 h-8">
+              <TabsTrigger value="preview" className="flex items-center gap-1 px-2 py-1 text-xs">
+                <Eye size={12} />
                 Preview
               </TabsTrigger>
-              <TabsTrigger value="code" className="flex items-center gap-2">
-                <Code size={16} />
+              <TabsTrigger value="code" className="flex items-center gap-1 px-2 py-1 text-xs">
+                <Code size={12} />
                 Code
               </TabsTrigger>
-              <TabsTrigger value="files" className="flex items-center gap-2">
-                <FileText size={16} />
+              <TabsTrigger value="files" className="flex items-center gap-1 px-2 py-1 text-xs">
+                <FileText size={12} />
                 Files
               </TabsTrigger>
             </TabsList>
