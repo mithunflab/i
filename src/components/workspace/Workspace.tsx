@@ -7,7 +7,7 @@ import { Monitor, Smartphone, Tablet, Code, Eye, ArrowLeft, FileText } from 'luc
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import PreviewFrame from './PreviewFrame';
 import CompactProjectVerificationDialog from './CompactProjectVerificationDialog';
-import EnhancedChatInterface from './EnhancedChatInterface';
+import UnifiedChatbot from './UnifiedChatbot';
 import EnhancedFileManager from './EnhancedFileManager';
 import RealTimeCodePreview from './RealTimeCodePreview';
 import ChannelInfo from './ChannelInfo';
@@ -16,7 +16,6 @@ import RealTimeGitIndicator from './RealTimeGitIndicator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useFileManager } from '@/hooks/useFileManager';
-import { useEnhancedGitHubSync } from '@/hooks/useEnhancedGitHubSync';
 
 const Workspace = () => {
   const [searchParams] = useSearchParams();
@@ -49,11 +48,6 @@ const Workspace = () => {
     syncToGitHub 
   } = useFileManager();
   
-  const { 
-    syncProjectFiles, 
-    loadProjectFromGitHub 
-  } = useEnhancedGitHubSync();
-
   // Load existing project data
   useEffect(() => {
     const loadProject = async () => {
@@ -181,7 +175,7 @@ const Workspace = () => {
     };
 
     loadProject();
-  }, [user, youtubeUrl, projectId, initializeProjectFiles, loadProjectFromGitHub]);
+  }, [user, youtubeUrl, projectId, initializeProjectFiles]);
 
   const handleCodeGenerated = (code: string) => {
     console.log('🔄 Code generated in workspace, updating preview...');
@@ -335,7 +329,7 @@ const Workspace = () => {
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* Enhanced Chatbot Panel */}
           <ResizablePanel defaultSize={35} minSize={30} maxSize={50}>
-            <EnhancedChatInterface
+            <UnifiedChatbot
               projectData={projectData}
               channelData={channelData || projectData?.channel_data}
               onCodeGenerated={handleCodeGenerated}
