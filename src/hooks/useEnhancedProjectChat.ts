@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +16,7 @@ interface ChatMessage {
   codeDescription?: string;
   githubUrl?: string;
   netlifyUrl?: string;
+  fileChanges?: Array<{ path: string; content: string }>;
 }
 
 interface DeploymentStatus {
@@ -26,6 +28,7 @@ interface DeploymentStatus {
 export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, channelData?: any) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [projectId, setProjectId] = useState<string>('');
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus>({
@@ -115,7 +118,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
           type: msg.message_type === 'user' ? 'user' : 'bot',
           content: msg.content,
           timestamp: new Date(msg.created_at),
-          feature: msg.metadata?.feature || 'chat'
+          feature: (msg.metadata as any)?.feature || 'chat'
         }));
 
         setMessages(formattedMessages);
@@ -124,7 +127,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
         const welcomeMessage: ChatMessage = {
           id: 'welcome',
           type: 'bot',
-          content: `Welcome back! I've loaded your project: **${currentProject?.name || 'YouTube Channel Website'}**.\n\n📁 **Project Files Ready**\n🔄 **GitHub Sync Available**\n💬 **Chat History Restored**\n\nHow can I help you continue developing your website?`,
+          content: `Welcome back! I've loaded your project: **${currentProject?.name || 'YouTube Channel Website'}**.\\n\\n📁 **Project Files Ready**\\n🔄 **GitHub Sync Available**\\n💬 **Chat History Restored**\\n\\nHow can I help you continue developing your website?`,
           timestamp: new Date(),
           feature: 'website'
         };
@@ -1386,6 +1389,7 @@ document.addEventListener('DOMContentLoaded', () => {
   return {
     messages,
     loading,
+    isProcessing,
     sendMessage,
     projectId,
     currentProject,
