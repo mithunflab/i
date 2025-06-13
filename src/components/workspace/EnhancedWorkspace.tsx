@@ -16,7 +16,7 @@ import {
   Zap,
   Eye
 } from 'lucide-react';
-import { useProjectContext } from '@/hooks/useEnhancedProjectContext';
+import { useProjectContext as useProjectContextData } from '@/hooks/useProjectContext';
 import { useEnhancedProjectChat } from '@/hooks/useEnhancedProjectChat';
 import { useEnhancedRepositoryManager } from '@/hooks/useEnhancedRepositoryManager';
 import SuperEnhancedChatbot from './SuperEnhancedChatbot';
@@ -47,7 +47,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
   const { 
     context, 
     loading: contextLoading 
-  } = useProjectContext(projectId, youtubeUrl, channelData);
+  } = useProjectContextData(projectId, youtubeUrl, channelData);
 
   const { 
     checkRepositoryStatus, 
@@ -251,27 +251,20 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="h-full overflow-auto">
-                  {context?.files ? (
+                  {context?.currentStructure ? (
                     <div className="space-y-3">
-                      {Object.entries(context.files).map(([filename, content]) => {
-                        const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
-                        return (
-                          <div key={filename} className="p-3 bg-gray-800/50 rounded-lg border border-gray-600">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-mono text-sm text-cyan-400">{filename}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {contentStr.length} chars
-                              </Badge>
-                            </div>
-                            <div className="text-xs text-gray-400 max-h-20 overflow-hidden">
-                              {filename.endsWith('.json') ? 
-                                <pre>{contentStr.substring(0, 200)}...</pre> :
-                                contentStr.substring(0, 200) + '...'
-                              }
-                            </div>
-                          </div>
-                        );
-                      })}
+                      <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-600">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-mono text-sm text-cyan-400">Project Structure</span>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          <div>Components: {context.currentStructure.components.join(', ')}</div>
+                          <div>Layout: {context.currentStructure.layout}</div>
+                          {context.currentStructure.styling.colors && (
+                            <div>Colors: {context.currentStructure.styling.colors.join(', ')}</div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-400">
@@ -293,7 +286,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                 <CardContent className="h-full">
                   <div className="h-full bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-auto">
                     <pre className="text-green-400">
-                      {(context?.files?.['index.html'] as string) || '// No code generated yet\n// Start chatting to generate website code'}
+                      {currentProject?.source_code || '// No code generated yet\n// Start chatting to generate website code'}
                     </pre>
                   </div>
                 </CardContent>
@@ -315,21 +308,10 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
               </CardHeader>
               <CardContent className="h-full p-0">
                 <div className="w-full h-full bg-white rounded-lg overflow-hidden">
-                  {context?.files?.['index.html'] ? (
+                  {currentProject?.source_code ? (
                     <iframe
                       key={previewKey}
-                      srcDoc={`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                          <style>${(context.files['styles.css'] as string) || ''}</style>
-                        </head>
-                        <body>
-                          ${context.files['index.html'] as string}
-                          <script>${(context.files['scripts.js'] as string) || ''}</script>
-                        </body>
-                        </html>
-                      `}
+                      srcDoc={currentProject.source_code}
                       className="w-full h-full border-0"
                       title="Website Preview"
                     />
