@@ -3,6 +3,13 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface ChatHistoryMetadata {
+  component?: string;
+  beforeCode?: string;
+  afterCode?: string;
+  timestamp?: string;
+}
+
 interface ProjectMemory {
   id: string;
   currentDesign: {
@@ -18,7 +25,6 @@ interface ProjectMemory {
     footer: any;
     navigation: any;
   };
-  componentMap: { [key: string]: any }; // Added for compatibility
   codeStructure: {
     html: string;
     css: string;
@@ -67,7 +73,6 @@ export const useAdvancedAIMemory = (projectId: string) => {
         id: projectId,
         currentDesign: designElements,
         components: components,
-        componentMap: components, // Map components to componentMap for compatibility
         codeStructure: codeStructure,
         chatHistory: chatHistory || [],
         lastModified: new Date(project.updated_at),
@@ -163,6 +168,72 @@ ${memory.preservationRules.map(rule => `- ${rule}`).join('\n')}
 `;
   }, [memory]);
 
+  const generateTargetedPrompt = useCallback((
+    userRequest: string,
+    channelData: any,
+    currentCode: string
+  ) => {
+    if (!memory) return '';
+
+    // Analyze user request to identify target
+    const targetElement = identifyTargetElement(userRequest);
+    const changeScope = determineChangeScope(userRequest);
+
+    return `
+# 🎯 CRITICAL: ENHANCED AI MEMORY & TARGETED MODIFICATION
+
+## MANDATORY PRESERVATION SYSTEM
+**NEVER MODIFY ANYTHING EXCEPT THE SPECIFIC ELEMENT REQUESTED**
+
+### Current Project Memory (PRESERVE EXACTLY)
+- **Design Colors**: ${memory.currentDesign.colors.join(', ')}
+- **Layout Style**: ${memory.currentDesign.layout}
+- **Branding Elements**: Channel logo, YouTube integration
+- **Component Structure**: ${Object.keys(memory.components).join(', ')}
+- **File Structure**: ${memory.codeStructure.pages.join(', ')}
+
+### User Request Analysis
+- **Request**: "${userRequest}"
+- **Target Element**: ${targetElement}
+- **Change Scope**: ${changeScope}
+- **Preservation Level**: MAXIMUM (95% of code unchanged)
+
+### STRICT MODIFICATION RULES
+1. 🚫 **NEVER** rewrite the entire website
+2. 🚫 **NEVER** change existing color schemes or layout
+3. 🚫 **NEVER** remove YouTube branding or channel data
+4. 🚫 **NEVER** modify components not mentioned in request
+5. ✅ **ONLY** change the specific ${targetElement} as requested
+
+### Real Channel Data (USE EXACTLY)
+${channelData ? `
+- Channel: ${channelData.title}
+- Subscribers: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}
+- Videos: ${parseInt(channelData.videoCount || '0').toLocaleString()}
+- Thumbnail: ${channelData.thumbnail}
+- Real Video Data: Use actual video thumbnails and titles
+` : 'No channel data available'}
+
+### Current Code Structure (PRESERVE)
+\`\`\`html
+${currentCode.substring(0, 500)}...
+\`\`\`
+
+### PRESERVATION RULES
+${memory.preservationRules.map(rule => `- ${rule}`).join('\n')}
+
+## OUTPUT REQUIREMENTS
+1. **Minimal Change**: Modify ONLY the requested ${targetElement}
+2. **Preserve Design**: Keep ALL existing styling and colors
+3. **Real Data**: Use actual YouTube channel information
+4. **Professional Quality**: Generate clean, production-ready code
+5. **Multi-File Structure**: Create separate HTML, CSS, JS files
+6. **Component Modularity**: Header, Footer, Pages as separate files
+
+**CRITICAL**: This is a TARGETED modification. Change ONLY what the user specifically requested while preserving EVERYTHING else exactly as it was.
+`;
+  }, [memory]);
+
   const saveChange = useCallback(async (
     component: string,
     userRequest: string,
@@ -203,8 +274,8 @@ ${memory.preservationRules.map(rule => `- ${rule}`).join('\n')}
     loading,
     updateMemory,
     generateContextualPrompt,
+    generateTargetedPrompt,
     saveChange,
-    generateTargetedPrompt: generateContextualPrompt, // Alias for compatibility
     refreshMemory: loadProjectMemory
   };
 };
