@@ -18,6 +18,7 @@ interface ProjectMemory {
     footer: any;
     navigation: any;
   };
+  componentMap: { [key: string]: any }; // Added for compatibility
   codeStructure: {
     html: string;
     css: string;
@@ -66,6 +67,7 @@ export const useAdvancedAIMemory = (projectId: string) => {
         id: projectId,
         currentDesign: designElements,
         components: components,
+        componentMap: components, // Map components to componentMap for compatibility
         codeStructure: codeStructure,
         chatHistory: chatHistory || [],
         lastModified: new Date(project.updated_at),
@@ -106,12 +108,11 @@ export const useAdvancedAIMemory = (projectId: string) => {
     }
   }, [memory, projectId]);
 
-  const generateTargetedPrompt = useCallback((
+  const generateContextualPrompt = useCallback((
     userRequest: string,
-    channelData: any,
     currentCode: string
   ) => {
-    if (!memory) return '';
+    if (!memory) return userRequest;
 
     // Analyze user request to identify target
     const targetElement = identifyTargetElement(userRequest);
@@ -143,15 +144,6 @@ export const useAdvancedAIMemory = (projectId: string) => {
 4. 🚫 **NEVER** modify components not mentioned in request
 5. ✅ **ONLY** change the specific ${targetElement} as requested
 
-### Real Channel Data (USE EXACTLY)
-${channelData ? `
-- Channel: ${channelData.title}
-- Subscribers: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}
-- Videos: ${parseInt(channelData.videoCount || '0').toLocaleString()}
-- Thumbnail: ${channelData.thumbnail}
-- Real Video Data: Use actual video thumbnails and titles
-` : 'No channel data available'}
-
 ### Current Code Structure (PRESERVE)
 \`\`\`html
 ${currentCode.substring(0, 500)}...
@@ -163,14 +155,43 @@ ${memory.preservationRules.map(rule => `- ${rule}`).join('\n')}
 ## OUTPUT REQUIREMENTS
 1. **Minimal Change**: Modify ONLY the requested ${targetElement}
 2. **Preserve Design**: Keep ALL existing styling and colors
-3. **Real Data**: Use actual YouTube channel information
-4. **Professional Quality**: Generate clean, production-ready code
-5. **Multi-File Structure**: Create separate HTML, CSS, JS files
-6. **Component Modularity**: Header, Footer, Pages as separate files
+3. **Professional Quality**: Generate clean, production-ready code
+4. **Multi-File Structure**: Create separate HTML, CSS, JS files
+5. **Component Modularity**: Header, Footer, Pages as separate files
 
 **CRITICAL**: This is a TARGETED modification. Change ONLY what the user specifically requested while preserving EVERYTHING else exactly as it was.
 `;
   }, [memory]);
+
+  const saveChange = useCallback(async (
+    component: string,
+    userRequest: string,
+    beforeCode: string,
+    afterCode: string
+  ) => {
+    if (!projectId || !user) return;
+
+    try {
+      // Save change to chat history
+      await supabase
+        .from('project_chat_history')
+        .insert({
+          project_id: projectId,
+          user_id: user.id,
+          message: userRequest,
+          response: `Modified ${component}`,
+          metadata: {
+            component,
+            beforeCode: beforeCode.substring(0, 1000), // Limit size
+            afterCode: afterCode.substring(0, 1000)
+          }
+        });
+
+      console.log('💾 Change saved to project memory');
+    } catch (error) {
+      console.error('❌ Error saving change:', error);
+    }
+  }, [projectId, user]);
 
   useEffect(() => {
     loadProjectMemory();
@@ -180,7 +201,9 @@ ${memory.preservationRules.map(rule => `- ${rule}`).join('\n')}
     memory,
     loading,
     updateMemory,
-    generateTargetedPrompt,
+    generateContextualPrompt,
+    saveChange,
+    generateTargetedPrompt: generateContextualPrompt, // Alias for compatibility
     refreshMemory: loadProjectMemory
   };
 };

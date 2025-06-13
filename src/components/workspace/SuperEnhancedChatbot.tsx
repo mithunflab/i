@@ -255,7 +255,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
           <div className="flex items-center gap-1">
             {memory && (
               <Badge variant="outline" className="text-xs px-1 py-0 text-green-400 border-green-400/30">
-                Memory: {Object.keys(memory.componentMap || {}).length}
+                Memory: {Object.keys(memory.components || {}).length}
               </Badge>
             )}
             {isExpanded && (
@@ -395,7 +395,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
           </div>
           {memory && (
             <div className="mt-1 text-xs text-gray-500">
-              Memory: {Object.keys(memory.componentMap || {}).length} components tracked
+              Memory: {Object.keys(memory.components || {}).length} components tracked
             </div>
           )}
         </div>
