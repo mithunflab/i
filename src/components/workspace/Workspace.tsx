@@ -1,17 +1,19 @@
+
 import React, { useState, useEffect } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Monitor, Smartphone, Tablet, Code, Eye, Github, Globe, ArrowLeft, FileText, Settings } from 'lucide-react';
+import { Monitor, Smartphone, Tablet, Code, Eye, ArrowLeft, FileText } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import PreviewFrame from './PreviewFrame';
-import ProjectVerificationDialog from './ProjectVerificationDialog';
+import CompactProjectVerificationDialog from './CompactProjectVerificationDialog';
 import EnhancedChatInterface from './EnhancedChatInterface';
 import EnhancedFileManager from './EnhancedFileManager';
 import RealTimeCodePreview from './RealTimeCodePreview';
 import ChannelInfo from './ChannelInfo';
-import ApiStatusIndicators from './ApiStatusIndicators';
+import RealTimeApiStatusIndicators from './RealTimeApiStatusIndicators';
+import RealTimeGitIndicator from './RealTimeGitIndicator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useFileManager } from '@/hooks/useFileManager';
@@ -248,8 +250,14 @@ const Workspace = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* API Status Indicators */}
-          <ApiStatusIndicators />
+          {/* Real-time API Status Indicators */}
+          <RealTimeApiStatusIndicators />
+
+          {/* Real-time Git Indicator */}
+          <RealTimeGitIndicator 
+            projectId={projectData?.id} 
+            projectData={projectData} 
+          />
 
           {/* Project Status */}
           {projectData && (
@@ -265,34 +273,9 @@ const Workspace = () => {
             </div>
           )}
 
-          {/* External Links */}
-          {projectData?.github_url && (
-            <a
-              href={projectData.github_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
-              title="Open GitHub Repository"
-            >
-              <Github size={16} />
-            </a>
-          )}
-          
-          {projectData?.netlify_url && (
-            <a
-              href={projectData.netlify_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 text-gray-400 hover:text-white hover:bg-blue-600 rounded transition-colors"
-              title="Open Live Site"
-            >
-              <Globe size={16} />
-            </a>
-          )}
-
-          {/* Verification Button */}
+          {/* Compact Verification Button */}
           {projectData && (
-            <ProjectVerificationDialog
+            <CompactProjectVerificationDialog
               projectId={projectData.id}
               projectName={projectData.name}
               projectData={projectData}

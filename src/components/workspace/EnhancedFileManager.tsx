@@ -1,21 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  FileText, 
-  Code, 
-  Settings, 
-  History, 
-  GitBranch, 
-  Save,
-  RefreshCw,
-  Eye,
-  EyeOff
-} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { FileText, Plus, Save, Github, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useFileManager } from '@/hooks/useFileManager';
-import { useEnhancedGitHubSync } from '@/hooks/useEnhancedGitHubSync';
+import { useRealTimeGitSync } from '@/hooks/useRealTimeGitSync';
+import { useToast } from '@/hooks/use-toast';
 
 interface EnhancedFileManagerProps {
   projectData: any;
@@ -28,253 +20,287 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   onFileChange,
   onCodeUpdate
 }) => {
-  const [activeFile, setActiveFile] = useState<string>('index.html');
-  const [isVisible, setIsVisible] = useState(true);
+  const [selectedFile, setSelectedFile] = useState<string>('index.html');
+  const [fileContent, setFileContent] = useState<string>('');
+  const [newFileName, setNewFileName] = useState<string>('');
+  const [isCreatingFile, setIsCreatingFile] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
   
-  const { files, loading, updateFile, syncToGitHub } = useFileManager();
-  const { syncStatus, syncProjectFiles, loadProjectFromGitHub } = useEnhancedGitHubSync();
+  const { files, updateFile, createFile, deleteFile } = useFileManager();
+  const { syncStatus, syncToGit } = useRealTimeGitSync(projectData?.id);
+  const { toast } = useToast();
 
+  // Load file content when selected file changes
   useEffect(() => {
-    if (projectData?.github_url && Object.keys(files).length === 0) {
-      // Load files from GitHub when project loads
-      loadProjectFromGitHub(projectData.github_url);
+    if (selectedFile && files[selectedFile]) {
+      setFileContent(files[selectedFile]);
     }
-  }, [projectData?.github_url, files, loadProjectFromGitHub]);
+  }, [selectedFile, files]);
 
-  const fileStructure = [
-    { 
-      name: 'index.html', 
-      icon: <Code size={14} />, 
-      type: 'html',
-      description: 'Main HTML structure'
-    },
-    { 
-      name: 'styles.css', 
-      icon: <FileText size={14} />, 
-      type: 'css',
-      description: 'Styling and design'
-    },
-    { 
-      name: 'scripts.js', 
-      icon: <Code size={14} />, 
-      type: 'javascript',
-      description: 'Interactive functionality'
-    },
-    { 
-      name: 'intentParser.js', 
-      icon: <Settings size={14} />, 
-      type: 'javascript',
-      description: 'AI intent parsing logic'
-    },
-    { 
-      name: 'aiEditor.js', 
-      icon: <Settings size={14} />, 
-      type: 'javascript',
-      description: 'AI editing engine'
-    },
-    { 
-      name: 'componentMap.json', 
-      icon: <FileText size={14} />, 
-      type: 'json',
-      description: 'Component relationships'
-    },
-    { 
-      name: 'design.json', 
-      icon: <FileText size={14} />, 
-      type: 'json',
-      description: 'Design system'
-    },
-    { 
-      name: 'changelog.md', 
-      icon: <History size={14} />, 
-      type: 'markdown',
-      description: 'Change history'
-    },
-    { 
-      name: 'chatHistory.txt', 
-      icon: <FileText size={14} />, 
-      type: 'text',
-      description: 'Chat conversations'
-    },
-    { 
-      name: 'ytdata.json', 
-      icon: <FileText size={14} />, 
-      type: 'json',
-      description: 'YouTube channel data'
+  // Auto-save functionality
+  useEffect(() => {
+    if (autoSave && selectedFile && fileContent !== files[selectedFile]) {
+      const timeoutId = setTimeout(() => {
+        handleSaveFile();
+      }, 2000); // Auto-save after 2 seconds of inactivity
+
+      return () => clearTimeout(timeoutId);
     }
-  ];
+  }, [fileContent, autoSave, selectedFile]);
 
-  const handleFileSelect = (fileName: string) => {
-    setActiveFile(fileName);
-  };
+  const handleSaveFile = async () => {
+    if (!selectedFile || !fileContent) return;
 
-  const handleFileContentChange = async (content: string) => {
-    if (autoSave) {
-      await updateFile(activeFile as any, content);
-      onFileChange(activeFile, content);
+    try {
+      await updateFile(selectedFile, fileContent);
+      onFileChange(selectedFile, fileContent);
       
-      if (activeFile === 'index.html') {
-        onCodeUpdate(content);
+      // Update main preview if it's the index.html
+      if (selectedFile === 'index.html') {
+        onCodeUpdate(fileContent);
       }
-    }
-  };
 
-  const handleSyncToGitHub = async () => {
-    if (projectData?.github_url) {
-      // Convert ProjectFiles to Record<string, string> for compatibility
-      const filesRecord: Record<string, string> = {};
-      Object.entries(files).forEach(([key, value]) => {
-        filesRecord[key] = value || '';
+      // Auto-sync to GitHub if connected
+      if (projectData?.github_url) {
+        await syncToGit({ [selectedFile]: fileContent }, `Update ${selectedFile}`);
+      }
+
+      toast({
+        title: "File Saved",
+        description: `${selectedFile} has been saved successfully.`,
       });
-      await syncProjectFiles(projectData.github_url, filesRecord);
+    } catch (error) {
+      console.error('Error saving file:', error);
+      toast({
+        title: "Save Error",
+        description: "Failed to save file. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
-  const getFileLanguage = (fileName: string) => {
-    const extension = fileName.split('.').pop();
-    switch (extension) {
-      case 'js': return 'javascript';
-      case 'json': return 'json';
-      case 'md': return 'markdown';
-      case 'css': return 'css';
-      case 'html': return 'html';
-      case 'txt': return 'text';
-      default: return 'text';
+  const handleCreateFile = async () => {
+    if (!newFileName.trim()) return;
+
+    try {
+      const fileName = newFileName.trim();
+      await createFile(fileName, '');
+      setSelectedFile(fileName);
+      setFileContent('');
+      setNewFileName('');
+      setIsCreatingFile(false);
+      
+      toast({
+        title: "File Created",
+        description: `${fileName} has been created successfully.`,
+      });
+    } catch (error) {
+      console.error('Error creating file:', error);
+      toast({
+        title: "Creation Error",
+        description: "Failed to create file. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
-  if (!isVisible) {
-    return (
-      <div className="fixed bottom-4 left-4 z-50">
-        <Button
-          onClick={() => setIsVisible(true)}
-          className="w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700"
-        >
-          <Eye size={20} />
-        </Button>
-      </div>
-    );
-  }
+  const handleSyncAllFiles = async () => {
+    if (!projectData?.github_url) {
+      toast({
+        title: "No Git Repository",
+        description: "This project is not connected to a GitHub repository.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await syncToGit(files, 'Sync all project files');
+      toast({
+        title: "Sync Complete",
+        description: "All files have been synced to GitHub successfully.",
+      });
+    } catch (error) {
+      console.error('Error syncing files:', error);
+      toast({
+        title: "Sync Error",
+        description: "Failed to sync files to GitHub.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getFileIcon = (fileName: string) => {
+    if (fileName.endsWith('.html')) return '🌐';
+    if (fileName.endsWith('.css')) return '🎨';
+    if (fileName.endsWith('.js')) return '⚡';
+    if (fileName.endsWith('.json')) return '📋';
+    if (fileName.endsWith('.md')) return '📝';
+    return '📄';
+  };
+
+  const getSyncStatusIcon = () => {
+    switch (syncStatus.syncStatus) {
+      case 'syncing':
+        return <Loader2 size={12} className="animate-spin text-blue-400" />;
+      case 'success':
+        return <CheckCircle size={12} className="text-green-400" />;
+      case 'error':
+        return <AlertCircle size={12} className="text-red-400" />;
+      default:
+        return <Github size={12} className="text-gray-400" />;
+    }
+  };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900 text-white">
+    <div className="h-full flex flex-col bg-gray-900">
       {/* Header */}
-      <div className="p-3 border-b border-gray-700 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Code size={16} className="text-purple-400" />
-          <span className="font-medium text-sm">File Manager</span>
-          <Badge variant="outline" className="text-xs">
-            {Object.keys(files).length} files
-          </Badge>
+      <div className="p-4 border-b border-gray-700 bg-gray-800">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-white font-medium">File Manager</h3>
+          <div className="flex items-center gap-2">
+            {/* Auto-save toggle */}
+            <Button
+              variant={autoSave ? "default" : "outline"}
+              size="sm"
+              onClick={() => setAutoSave(!autoSave)}
+              className="text-xs h-7"
+            >
+              Auto-save {autoSave ? 'ON' : 'OFF'}
+            </Button>
+            
+            {/* Git sync button */}
+            {projectData?.github_url && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncAllFiles}
+                disabled={syncStatus.syncStatus === 'syncing'}
+                className="text-xs h-7 flex items-center gap-1"
+              >
+                {getSyncStatusIcon()}
+                Sync Git
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSyncToGitHub}
-            disabled={syncStatus === 'syncing'}
-            className="p-1 h-6 w-6"
-          >
-            <GitBranch size={12} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsVisible(false)}
-            className="p-1 h-6 w-6"
-          >
-            <EyeOff size={12} />
-          </Button>
-        </div>
+
+        {/* Sync Status */}
+        {projectData?.github_url && (
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            {getSyncStatusIcon()}
+            <span>
+              {syncStatus.syncStatus === 'syncing' ? `Syncing ${syncStatus.filesSynced} files...` :
+               syncStatus.syncStatus === 'success' ? `Last sync: ${syncStatus.lastSyncAt?.toLocaleTimeString() || 'Just now'}` :
+               syncStatus.syncStatus === 'error' ? `Error: ${syncStatus.errorMessage}` :
+               'Ready to sync'}
+            </span>
+          </div>
+        )}
       </div>
 
-      <Tabs defaultValue="files" className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 bg-gray-800 m-2">
-          <TabsTrigger value="files" className="text-xs">Files</TabsTrigger>
-          <TabsTrigger value="editor" className="text-xs">Editor</TabsTrigger>
-        </TabsList>
+      <div className="flex-1 flex">
+        {/* File List */}
+        <div className="w-1/3 border-r border-gray-700 bg-gray-800">
+          <div className="p-3 border-b border-gray-700">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreatingFile(true)}
+              className="w-full text-xs h-8 flex items-center gap-1"
+            >
+              <Plus size={12} />
+              New File
+            </Button>
+          </div>
 
-        <TabsContent value="files" className="flex-1 p-2 m-0">
-          <ScrollArea className="h-full">
-            <div className="space-y-1">
-              {fileStructure.map((file) => (
+          {/* New file input */}
+          {isCreatingFile && (
+            <div className="p-3 border-b border-gray-700">
+              <div className="flex gap-2">
+                <Input
+                  value={newFileName}
+                  onChange={(e) => setNewFileName(e.target.value)}
+                  placeholder="filename.html"
+                  className="flex-1 h-7 text-xs"
+                  onKeyPress={(e) => e.key === 'Enter' && handleCreateFile()}
+                />
+                <Button size="sm" onClick={handleCreateFile} className="h-7 text-xs">
+                  Create
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              {Object.keys(files).map((fileName) => (
                 <div
-                  key={file.name}
-                  onClick={() => handleFileSelect(file.name)}
-                  className={`p-2 rounded cursor-pointer transition-colors text-xs ${
-                    activeFile === file.name
-                      ? 'bg-purple-600 text-white'
-                      : 'hover:bg-gray-700'
+                  key={fileName}
+                  onClick={() => setSelectedFile(fileName)}
+                  className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-gray-700 transition-colors ${
+                    selectedFile === fileName ? 'bg-gray-700 border border-gray-600' : ''
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    {file.icon}
-                    <div className="flex-1">
-                      <div className="font-medium">{file.name}</div>
-                      <div className="text-xs opacity-70">{file.description}</div>
-                    </div>
-                    {files[file.name as keyof typeof files] && (
-                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    )}
-                  </div>
+                  <span className="text-sm">{getFileIcon(fileName)}</span>
+                  <span className="text-white text-xs flex-1 truncate">{fileName}</span>
+                  {fileContent !== files[fileName] && selectedFile === fileName && (
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full" title="Unsaved changes" />
+                  )}
                 </div>
               ))}
             </div>
           </ScrollArea>
-        </TabsContent>
+        </div>
 
-        <TabsContent value="editor" className="flex-1 p-2 m-0">
-          {activeFile && (
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between mb-2">
+        {/* Editor */}
+        <div className="flex-1 flex flex-col">
+          {selectedFile ? (
+            <>
+              {/* Editor Header */}
+              <div className="p-3 border-b border-gray-700 bg-gray-800 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium">{activeFile}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {getFileLanguage(activeFile)}
-                  </Badge>
+                  <span className="text-sm">{getFileIcon(selectedFile)}</span>
+                  <span className="text-white text-sm">{selectedFile}</span>
+                  {fileContent !== files[selectedFile] && (
+                    <Badge variant="outline" className="text-xs">
+                      Modified
+                    </Badge>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAutoSave(!autoSave)}
-                    className="p-1 h-6 text-xs"
-                  >
-                    <Save size={10} />
-                    {autoSave ? 'Auto' : 'Manual'}
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveFile}
+                  disabled={fileContent === files[selectedFile]}
+                  className="text-xs h-7 flex items-center gap-1"
+                >
+                  <Save size={12} />
+                  Save
+                </Button>
               </div>
-              
-              <textarea
-                value={files[activeFile as keyof typeof files] || ''}
-                onChange={(e) => handleFileContentChange(e.target.value)}
-                className="flex-1 bg-gray-800 text-white p-3 text-xs font-mono resize-none border border-gray-600 rounded"
-                placeholder={`Enter ${activeFile} content...`}
-                spellCheck={false}
-              />
-              
-              <div className="mt-2 text-xs text-gray-400 flex items-center justify-between">
-                <span>
-                  {files[activeFile as keyof typeof files]?.length || 0} characters
-                </span>
-                <div className="flex items-center gap-2">
-                  {syncStatus === 'syncing' && (
-                    <div className="flex items-center gap-1">
-                      <RefreshCw size={10} className="animate-spin" />
-                      <span>Syncing...</span>
-                    </div>
-                  )}
-                  {syncStatus === 'success' && (
-                    <span className="text-green-400">✓ Synced</span>
-                  )}
-                </div>
+
+              {/* Editor */}
+              <div className="flex-1">
+                <textarea
+                  value={fileContent}
+                  onChange={(e) => setFileContent(e.target.value)}
+                  className="w-full h-full bg-gray-900 text-white p-4 text-sm font-mono resize-none border-none outline-none"
+                  placeholder="Start typing your code..."
+                  spellCheck={false}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <FileText size={48} className="mx-auto mb-4 opacity-50" />
+                <p>Select a file to edit</p>
               </div>
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   );
 };

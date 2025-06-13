@@ -10,14 +10,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-interface ProjectVerificationDialogProps {
+interface CompactProjectVerificationDialogProps {
   projectId: string;
   projectName: string;
   projectData: any;
   isVerified?: boolean;
 }
 
-const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({ 
+const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialogProps> = ({ 
   projectId,
   projectName,
   projectData,
@@ -40,9 +40,9 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
     if (user && projectId) {
       checkVerificationStatus();
       
-      // Set up real-time subscription for verification status changes
+      // Set up real-time subscription
       const channel = supabase
-        .channel('verification-status-changes')
+        .channel('verification-status')
         .on(
           'postgres_changes',
           {
@@ -55,22 +55,6 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
             console.log('Verification status changed:', payload);
             if (payload.new) {
               setVerificationStatus(payload.new.status);
-              
-              // Show notification for status changes
-              if (payload.eventType === 'UPDATE') {
-                if (payload.new.status === 'approved') {
-                  toast({
-                    title: "Verification Approved! 🎉",
-                    description: "Your project has been verified successfully.",
-                  });
-                } else if (payload.new.status === 'rejected') {
-                  toast({
-                    title: "Verification Rejected",
-                    description: payload.new.response_message || "Your project verification was rejected.",
-                    variant: "destructive"
-                  });
-                }
-              }
             }
           }
         )
@@ -80,13 +64,13 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
         supabase.removeChannel(channel);
       };
     }
-  }, [user, projectId, toast]);
+  }, [user, projectId]);
 
   const checkVerificationStatus = async () => {
     try {
       const { data, error } = await supabase
         .from('project_verification_requests')
-        .select('status, response_message')
+        .select('status')
         .eq('project_id', projectId)
         .eq('user_id', user?.id)
         .single();
@@ -146,7 +130,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
 
       toast({
         title: "Verification Requested",
-        description: "Your project has been submitted for verification review. You'll receive real-time updates on the status.",
+        description: "Your project has been submitted for verification review.",
       });
 
       setOpen(false);
@@ -167,7 +151,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
     if (isVerified) {
       return (
         <>
-          <CheckCircle className="w-4 h-4 text-green-500" />
+          <CheckCircle className="w-3 h-3 text-green-500" />
           <span className="text-green-500">Verified</span>
         </>
       );
@@ -177,29 +161,29 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
       case 'pending':
         return (
           <>
-            <Clock className="w-4 h-4 text-yellow-500" />
-            <span className="text-yellow-500">Pending Review</span>
+            <Clock className="w-3 h-3 text-yellow-500" />
+            <span className="text-yellow-500">Pending</span>
           </>
         );
       case 'approved':
         return (
           <>
-            <CheckCircle className="w-4 h-4 text-green-500" />
+            <CheckCircle className="w-3 h-3 text-green-500" />
             <span className="text-green-500">Approved</span>
           </>
         );
       case 'rejected':
         return (
           <>
-            <XCircle className="w-4 h-4 text-red-500" />
+            <XCircle className="w-3 h-3 text-red-500" />
             <span className="text-red-500">Rejected</span>
           </>
         );
       default:
         return (
           <>
-            <Shield className="w-4 h-4" />
-            <span>Get Verified</span>
+            <Shield className="w-3 h-3" />
+            <span>Verify</span>
           </>
         );
     }
@@ -213,7 +197,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
         <Button 
           variant="outline" 
           size="sm" 
-          className="flex items-center gap-2 h-9 px-3"
+          className="flex items-center gap-1 h-8 px-2 text-xs"
           disabled={isDisabled}
         >
           {getButtonContent()}
@@ -274,13 +258,13 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
           </div>
           
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={() => setOpen(false)} className="text-xs h-8">
               Cancel
             </Button>
             <Button 
               onClick={handleSubmit} 
               disabled={loading || !formData.contactEmail.trim() || !formData.websiteDescription.trim()}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-xs h-8"
             >
               {loading ? 'Submitting...' : 'Submit Request'}
             </Button>
@@ -291,4 +275,4 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
   );
 };
 
-export default ProjectVerificationDialog;
+export default CompactProjectVerificationDialog;
