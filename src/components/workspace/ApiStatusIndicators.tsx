@@ -17,7 +17,9 @@ const ApiStatusIndicators = () => {
   }
 
   const indicators = [
-    { name: 'AI', status: apiStatus.openrouter, color: 'bg-purple-500' },
+    { name: 'Together', status: apiStatus.together, color: 'bg-blue-500' },
+    { name: 'Groq', status: apiStatus.groq, color: 'bg-green-500' },
+    { name: 'OpenRouter', status: apiStatus.openrouter, color: 'bg-purple-500' },
     { name: 'YT', status: apiStatus.youtube, color: 'bg-red-500' },
     { name: 'Git', status: apiStatus.github, color: 'bg-orange-500' },
     { name: 'Net', status: apiStatus.netlify, color: 'bg-teal-500' }

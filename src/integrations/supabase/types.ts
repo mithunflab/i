@@ -526,6 +526,42 @@ export type Database = {
         }
         Relationships: []
       }
+      groq_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          name: string
+          requests_count: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name: string
+          requests_count?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name?: string
+          requests_count?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       model_pricing: {
         Row: {
           created_at: string | null
@@ -863,6 +899,42 @@ export type Database = {
           metric_unit?: string | null
           metric_value?: number
           recorded_at?: string | null
+        }
+        Relationships: []
+      }
+      together_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          name: string
+          requests_count: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name: string
+          requests_count?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name?: string
+          requests_count?: number | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }

@@ -23,24 +23,34 @@ serve(async (req) => {
       currentCode = ''
     } = await req.json();
 
-    console.log('🤖 Enhanced AI processing with two-stage workflow...');
+    console.log('🤖 Enhanced AI processing with Together AI and Groq fallback...');
 
-    // Get OpenRouter API key
+    // Get Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { data: apiKeyData } = await supabase
-      .from('openrouter_api_keys')
+    // Get Together AI API key first
+    const { data: togetherKeyData } = await supabase
+      .from('together_api_keys')
       .select('api_key')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
 
-    if (!apiKeyData?.api_key) {
-      throw new Error('OpenRouter API key not found');
+    // Get Groq API key as fallback
+    const { data: groqKeyData } = await supabase
+      .from('groq_api_keys')
+      .select('api_key')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!togetherKeyData?.api_key && !groqKeyData?.api_key) {
+      throw new Error('No Together AI or Groq API keys found');
     }
 
     // Stage 1: Intent Parsing
@@ -74,30 +84,79 @@ Parse the user request and return ONLY a JSON object with this exact structure:
 Return ONLY the JSON object, no other text.
 `;
 
-    const intentResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKeyData.api_key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
-        messages: [
-          { role: 'system', content: 'You are an intent parsing AI. Return only valid JSON.' },
-          { role: 'user', content: intentPrompt }
-        ],
-        max_tokens: 300,
-        temperature: 0.1
-      }),
-    });
-
-    const intentData = await intentResponse.json();
     let parsedIntent;
-    
+    let usingProvider = 'together';
+
     try {
-      parsedIntent = JSON.parse(intentData.choices[0].message.content);
-      console.log('✅ Intent parsed:', parsedIntent);
-    } catch (e) {
+      // Try Together AI first
+      if (togetherKeyData?.api_key) {
+        console.log('🤝 Using Together AI for intent parsing...');
+        
+        const togetherResponse = await fetch('https://api.together.xyz/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${togetherKeyData.api_key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
+            messages: [
+              { role: 'system', content: 'You are an intent parsing AI. Return only valid JSON.' },
+              { role: 'user', content: intentPrompt }
+            ],
+            max_tokens: 300,
+            temperature: 0.1
+          }),
+        });
+
+        if (togetherResponse.ok) {
+          const togetherData = await togetherResponse.json();
+          parsedIntent = JSON.parse(togetherData.choices[0].message.content);
+          console.log('✅ Intent parsed with Together AI:', parsedIntent);
+        } else {
+          throw new Error('Together AI request failed');
+        }
+      } else {
+        throw new Error('No Together AI key available');
+      }
+    } catch (togetherError) {
+      console.log('❌ Together AI failed, trying Groq fallback...', togetherError.message);
+      
+      if (groqKeyData?.api_key) {
+        usingProvider = 'groq';
+        console.log('⚡ Using Groq for intent parsing...');
+        
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqKeyData.api_key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'llama3-70b-8192',
+            messages: [
+              { role: 'system', content: 'You are an intent parsing AI. Return only valid JSON.' },
+              { role: 'user', content: intentPrompt }
+            ],
+            max_tokens: 300,
+            temperature: 0.1
+          }),
+        });
+
+        if (groqResponse.ok) {
+          const groqData = await groqResponse.json();
+          parsedIntent = JSON.parse(groqData.choices[0].message.content);
+          console.log('✅ Intent parsed with Groq:', parsedIntent);
+        } else {
+          throw new Error('Both Together AI and Groq failed');
+        }
+      } else {
+        throw new Error('No API keys available');
+      }
+    }
+    
+    // Fallback if parsing fails
+    if (!parsedIntent) {
       console.log('❌ Intent parsing failed, using fallback');
       parsedIntent = {
         action: 'change',
@@ -153,28 +212,95 @@ ${parsedIntent.target.selectors.join(', ')}
 Generate the complete HTML with ONLY the targeted modification applied.
 `;
 
-    const codeResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKeyData.api_key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a targeted code editor AI. Apply only the specific changes requested while preserving everything else exactly.' 
-          },
-          { role: 'user', content: codePrompt }
-        ],
-        max_tokens: 4000,
-        temperature: 0.2
-      }),
-    });
+    let generatedCode;
 
-    const codeData = await codeResponse.json();
-    const generatedCode = codeData.choices[0].message.content;
+    try {
+      if (usingProvider === 'together' && togetherKeyData?.api_key) {
+        console.log('🤝 Using Together AI for code generation...');
+        
+        const codeResponse = await fetch('https://api.together.xyz/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${togetherKeyData.api_key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
+            messages: [
+              { 
+                role: 'system', 
+                content: 'You are a targeted code editor AI. Apply only the specific changes requested while preserving everything else exactly.' 
+              },
+              { role: 'user', content: codePrompt }
+            ],
+            max_tokens: 4000,
+            temperature: 0.2
+          }),
+        });
+
+        if (codeResponse.ok) {
+          const codeData = await codeResponse.json();
+          generatedCode = codeData.choices[0].message.content;
+        } else {
+          throw new Error('Together AI code generation failed');
+        }
+      } else {
+        throw new Error('Falling back to Groq');
+      }
+    } catch (codeError) {
+      console.log('❌ Together AI code generation failed, using Groq...', codeError.message);
+      
+      if (groqKeyData?.api_key) {
+        console.log('⚡ Using Groq for code generation...');
+        
+        // Try different Groq models
+        const groqModels = ['llama3-70b-8192', 'mixtral-8x7b-32768', 'deepseek-coder-33b'];
+        
+        for (const model of groqModels) {
+          try {
+            const codeResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${groqKeyData.api_key}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: model,
+                messages: [
+                  { 
+                    role: 'system', 
+                    content: 'You are a targeted code editor AI. Apply only the specific changes requested while preserving everything else exactly.' 
+                  },
+                  { role: 'user', content: codePrompt }
+                ],
+                max_tokens: 4000,
+                temperature: 0.2
+              }),
+            });
+
+            if (codeResponse.ok) {
+              const codeData = await codeResponse.json();
+              generatedCode = codeData.choices[0].message.content;
+              console.log(`✅ Code generated with Groq model: ${model}`);
+              break;
+            }
+          } catch (modelError) {
+            console.log(`❌ Groq model ${model} failed:`, modelError.message);
+            continue;
+          }
+        }
+        
+        if (!generatedCode) {
+          throw new Error('All Groq models failed');
+        }
+      } else {
+        throw new Error('No Groq API key available');
+      }
+    }
+
+    if (!generatedCode) {
+      throw new Error('Failed to generate code with any provider');
+    }
 
     // Clean up the generated code
     const cleanCode = generatedCode
@@ -183,7 +309,7 @@ Generate the complete HTML with ONLY the targeted modification applied.
       .trim();
 
     // Generate response
-    const reply = `🎯 **Targeted Modification Applied!**\n\n` +
+    const reply = `🎯 **Targeted Modification Applied!** (Using ${usingProvider === 'together' ? 'Together AI' : 'Groq'})\n\n` +
       `**Intent**: ${parsedIntent.action} ${parsedIntent.target.component}\n` +
       `**Scope**: ${parsedIntent.scope} changes\n` +
       `**Preserved**: All existing design and functionality\n\n` +
@@ -194,14 +320,15 @@ Generate the complete HTML with ONLY the targeted modification applied.
       `• Preserved existing styling\n\n` +
       `🚀 **Your website has been updated with precision targeting!**`;
 
-    console.log('✅ Two-stage AI workflow completed successfully');
+    console.log(`✅ Two-stage AI workflow completed successfully using ${usingProvider}`);
 
     return new Response(JSON.stringify({ 
       generatedCode: cleanCode,
       reply,
       parsedIntent,
       codeDescription: `Applied ${parsedIntent.action} to ${parsedIntent.target.component}`,
-      feature: 'targeted-modification'
+      feature: 'targeted-modification',
+      provider: usingProvider
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

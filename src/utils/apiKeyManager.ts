@@ -36,6 +36,8 @@ interface AllKeysResponse {
   openrouter: ProviderSpecificKey[];
   github: ProviderSpecificKey[];
   netlify: ProviderSpecificKey[];
+  together: ProviderSpecificKey[];
+  groq: ProviderSpecificKey[];
 }
 
 class ApiKeyManager {
@@ -56,18 +58,22 @@ class ApiKeyManager {
   async getAllProviderKeys(): Promise<AllKeysResponse> {
     console.log('🔍 Getting all provider keys...');
     
-    const [youtube, openrouter, github, netlify] = await Promise.all([
+    const [youtube, openrouter, github, netlify, together, groq] = await Promise.all([
       this.getProviderSpecificKeys('youtube'),
       this.getProviderSpecificKeys('openrouter'),
       this.getProviderSpecificKeys('github'),
-      this.getProviderSpecificKeys('netlify')
+      this.getProviderSpecificKeys('netlify'),
+      this.getProviderSpecificKeys('together'),
+      this.getProviderSpecificKeys('groq')
     ]);
 
     return {
       youtube,
       openrouter,
       github,
-      netlify
+      netlify,
+      together,
+      groq
     };
   }
 
@@ -103,6 +109,28 @@ class ApiKeyManager {
         case 'openrouter': {
           const result = await supabase
             .from('openrouter_api_keys')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+          data = result.data || [];
+          error = result.error;
+          break;
+        }
+
+        case 'together': {
+          const result = await supabase
+            .from('together_api_keys')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+          data = result.data || [];
+          error = result.error;
+          break;
+        }
+
+        case 'groq': {
+          const result = await supabase
+            .from('groq_api_keys')
             .select('*')
             .eq('is_active', true)
             .order('created_at', { ascending: false });
@@ -228,6 +256,38 @@ class ApiKeyManager {
     return null;
   }
 
+  async getTogetherKey(): Promise<string | null> {
+    console.log('🤝 Getting Together AI API key...');
+    
+    const providerKeys = await this.getProviderSpecificKeys('together');
+    if (providerKeys.length > 0) {
+      const activeKey = providerKeys.find(key => key.is_active && key.api_key);
+      if (activeKey?.api_key) {
+        console.log('✅ Found Together AI key in provider-specific table');
+        return activeKey.api_key;
+      }
+    }
+
+    console.log('❌ No Together AI API key found');
+    return null;
+  }
+
+  async getGroqKey(): Promise<string | null> {
+    console.log('⚡ Getting Groq API key...');
+    
+    const providerKeys = await this.getProviderSpecificKeys('groq');
+    if (providerKeys.length > 0) {
+      const activeKey = providerKeys.find(key => key.is_active && key.api_key);
+      if (activeKey?.api_key) {
+        console.log('✅ Found Groq key in provider-specific table');
+        return activeKey.api_key;
+      }
+    }
+
+    console.log('❌ No Groq API key found');
+    return null;
+  }
+
   async getGitHubToken(): Promise<string | null> {
     console.log('🐙 Getting GitHub token...');
     
@@ -264,14 +324,18 @@ class ApiKeyManager {
   async checkKeyAvailability(): Promise<{
     youtube: boolean;
     openrouter: boolean;
+    together: boolean;
+    groq: boolean;
     github: boolean;
     netlify: boolean;
   }> {
     console.log('🔍 Checking API key availability...');
     
-    const [youtubeKey, openrouterKey, githubKey, netlifyKey] = await Promise.all([
+    const [youtubeKey, openrouterKey, togetherKey, groqKey, githubKey, netlifyKey] = await Promise.all([
       this.getYouTubeKey(),
       this.getOpenRouterKey(),
+      this.getTogetherKey(),
+      this.getGroqKey(),
       this.getGitHubToken(),
       this.getNetlifyToken()
     ]);
@@ -279,6 +343,8 @@ class ApiKeyManager {
     const availability = {
       youtube: !!youtubeKey,
       openrouter: !!openrouterKey,
+      together: !!togetherKey,
+      groq: !!groqKey,
       github: !!githubKey,
       netlify: !!netlifyKey
     };
@@ -307,6 +373,8 @@ class ApiKeyManager {
       const [
         youtubeKeysResult,
         openrouterKeysResult,
+        togetherKeysResult,
+        groqKeysResult,
         githubKeysResult,
         netlifyKeysResult,
         deploymentTokensResult
@@ -317,6 +385,14 @@ class ApiKeyManager {
           .eq('is_active', true),
         supabase
           .from('openrouter_api_keys')
+          .select('id', { count: 'exact' })
+          .eq('is_active', true),
+        supabase
+          .from('together_api_keys')
+          .select('id', { count: 'exact' })
+          .eq('is_active', true),
+        supabase
+          .from('groq_api_keys')
           .select('id', { count: 'exact' })
           .eq('is_active', true),
         supabase
@@ -336,6 +412,8 @@ class ApiKeyManager {
       const totalCount = 
         (youtubeKeysResult.count || 0) +
         (openrouterKeysResult.count || 0) +
+        (togetherKeysResult.count || 0) +
+        (groqKeysResult.count || 0) +
         (githubKeysResult.count || 0) +
         (netlifyKeysResult.count || 0) +
         (deploymentTokensResult.count || 0);
