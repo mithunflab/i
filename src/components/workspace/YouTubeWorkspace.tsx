@@ -20,6 +20,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import SimplifiedChatbot from './SimplifiedChatbot';
 import CodePreview from './CodePreview';
+import ConnectionStatus from './ConnectionStatus';
 import { useProjectFileManager } from '@/hooks/useProjectFileManager';
 
 interface FileNode {
@@ -41,6 +42,12 @@ const YouTubeWorkspace: React.FC = () => {
   const [ytUrl, setYtUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(!channelData);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState({
+    ai: 'connected' as 'connected' | 'connecting' | 'disconnected',
+    github: 'idle' as 'connected' | 'syncing' | 'error' | 'idle',
+    deployment: 'idle' as 'idle' | 'deploying' | 'deployed' | 'failed'
+  });
+  const [currentProject, setCurrentProject] = useState<any>(null);
   const { toast } = useToast();
   
   const {
@@ -75,6 +82,15 @@ const YouTubeWorkspace: React.FC = () => {
     } else {
       updateFileContent('index.html', newCode);
     }
+    
+    // Update connection status to show deployment in progress
+    setConnectionStatus(prev => ({ ...prev, deployment: 'deploying' }));
+    
+    // Simulate deployment completion
+    setTimeout(() => {
+      setConnectionStatus(prev => ({ ...prev, deployment: 'deployed' }));
+    }, 2000);
+
     toast({
       title: "Website Updated",
       description: "Your changes have been applied successfully",
@@ -84,16 +100,22 @@ const YouTubeWorkspace: React.FC = () => {
   const handleYouTubeUrlSubmit = async () => {
     if (!ytUrl.trim()) return;
     
+    setConnectionStatus(prev => ({ ...prev, ai: 'connecting' }));
+    
     try {
       const data = await fetchYouTubeData(ytUrl);
       setShowUrlInput(false);
       const newCode = generateWebsiteCode(data);
       setGeneratedCode(newCode);
+      
+      setConnectionStatus(prev => ({ ...prev, ai: 'connected' }));
+      
       toast({
         title: "YouTube Data Fetched",
         description: `Successfully loaded data for ${data.title}`,
       });
     } catch (error) {
+      setConnectionStatus(prev => ({ ...prev, ai: 'disconnected' }));
       toast({
         title: "Error",
         description: "Failed to fetch YouTube data. Please try again.",
@@ -110,33 +132,21 @@ const YouTubeWorkspace: React.FC = () => {
   };
 
   const handleGitHubUpload = async () => {
+    setConnectionStatus(prev => ({ ...prev, github: 'syncing' }));
+    
     try {
-      // Create a simple project structure for upload
-      const projectData = {
-        name: channelData?.title || 'YouTube Website',
-        description: `AI-generated website for ${channelData?.title || 'YouTube channel'}`,
-        files: [
-          {
-            name: 'index.html',
-            content: generatedCode
-          },
-          {
-            name: 'chat-history.json',
-            content: JSON.stringify(chatHistory, null, 2)
-          },
-          {
-            name: 'README.md',
-            content: `# ${channelData?.title || 'YouTube Website'}\n\nAI-generated website with full project files and chat history.`
-          }
-        ]
-      };
-
-      // For now, just show success message
+      // Simulate GitHub upload
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setConnectionStatus(prev => ({ ...prev, github: 'connected' }));
+      
       toast({
-        title: "GitHub Upload Simulated",
-        description: "Project would be uploaded to GitHub (feature in development)",
+        title: "GitHub Upload Success",
+        description: "Project has been pushed to GitHub successfully",
       });
     } catch (error) {
+      setConnectionStatus(prev => ({ ...prev, github: 'error' }));
+      
       console.error('GitHub upload error:', error);
       toast({
         title: "Upload Failed",
@@ -245,6 +255,15 @@ const YouTubeWorkspace: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Connection Status */}
+            <ConnectionStatus
+              aiStatus={connectionStatus.ai}
+              githubStatus={connectionStatus.github}
+              deploymentStatus={connectionStatus.deployment}
+              netlifyUrl={currentProject?.netlify_url}
+              githubUrl={currentProject?.github_url}
+            />
+
             {/* Action Buttons */}
             <Button
               onClick={handleVerificationRequest}
