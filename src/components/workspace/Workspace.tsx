@@ -1,9 +1,9 @@
 
 import React from 'react';
-import PremiumWorkspace from './PremiumWorkspace';
+import YouTubeWorkspace from './YouTubeWorkspace';
 
 const Workspace: React.FC = () => {
-  return <PremiumWorkspace />;
+  return <YouTubeWorkspace />;
 };
 
 export default Workspace;
