@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef } from 'react';
 import { useFileManager } from './useFileManager';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,8 +43,9 @@ export const useRealTimeCodeGeneration = () => {
       // Log chat history
       appendToChatHistory(userRequest, 'user');
 
-      // Parse intent using AI workflow
-      const intentParser = new (window as any).IntentParser?.() || null;
+      // Parse intent using AI workflow - Fixed optional chaining issue
+      const IntentParserClass = (window as any).IntentParser;
+      const intentParser = IntentParserClass ? new IntentParserClass() : null;
       const parsedIntent = intentParser ? intentParser.parseIntent(userRequest) : null;
 
       console.log('🎯 Parsed Intent:', parsedIntent);
@@ -82,11 +82,12 @@ export const useRealTimeCodeGeneration = () => {
 
       console.log('✅ AI generation completed');
 
-      // Apply changes using AI Editor
+      // Apply changes using AI Editor - Fixed optional chaining issue
       let finalCode = response.generatedCode;
       
-      if (parsedIntent && (window as any).AIEditor) {
-        const aiEditor = new (window as any).AIEditor();
+      const AIEditorClass = (window as any).AIEditor;
+      if (parsedIntent && AIEditorClass) {
+        const aiEditor = new AIEditorClass();
         finalCode = aiEditor.applyEdit(parsedIntent, finalCode);
         console.log('🎯 Targeted edit applied');
       }
