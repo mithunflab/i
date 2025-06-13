@@ -264,7 +264,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                           <div className="text-xs text-gray-400 max-h-20 overflow-hidden">
                             {filename.endsWith('.json') ? 
                               <pre>{content.substring(0, 200)}...</pre> :
-                              content.substring(0, 200)...
+                              content.substring(0, 200) + '...'
                             }
                           </div>
                         </div>
