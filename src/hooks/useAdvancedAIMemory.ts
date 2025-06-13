@@ -37,11 +37,14 @@ export const useAdvancedAIMemory = (projectId: string) => {
     if (!user || !projectId) return;
 
     try {
+      // Use project_chat_history to simulate AI edit history
       const { data, error } = await supabase
-        .from('ai_edit_history')
+        .from('project_chat_history')
         .select('*')
         .eq('project_id', projectId)
         .eq('user_id', user.id)
+        .eq('message_type', 'assistant')
+        .not('metadata->generatedCode', 'is', null)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -53,12 +56,12 @@ export const useAdvancedAIMemory = (projectId: string) => {
       const memoryEntries: AIMemoryEntry[] = data?.map(entry => ({
         id: entry.id,
         projectId: entry.project_id,
-        component: entry.component,
-        userRequest: entry.user_request,
-        beforeCode: entry.before_code || '',
-        afterCode: entry.after_code || '',
-        timestamp: new Date(entry.created_at),
-        success: entry.success || false
+        component: entry.metadata?.component || 'unknown',
+        userRequest: entry.content,
+        beforeCode: entry.metadata?.beforeCode || '',
+        afterCode: entry.metadata?.generatedCode || '',
+        timestamp: new Date(entry.created_at || ''),
+        success: true
       })) || [];
 
       setMemory(memoryEntries);
@@ -83,16 +86,17 @@ export const useAdvancedAIMemory = (projectId: string) => {
 
     try {
       const { data, error } = await supabase
-        .from('ai_edit_history')
+        .from('project_chat_history')
         .insert({
           project_id: projectId,
           user_id: user.id,
-          component,
-          user_request: userRequest,
-          before_code: beforeCode,
-          after_code: afterCode,
-          success,
+          message_type: 'assistant',
+          content: userRequest,
           metadata: {
+            component,
+            beforeCode,
+            generatedCode: afterCode,
+            success,
             timestamp: new Date().toISOString(),
             component_type: component.includes('button') ? 'button' : 'content'
           }
