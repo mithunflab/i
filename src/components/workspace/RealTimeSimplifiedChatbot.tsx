@@ -1,32 +1,31 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Send, 
-  Bot, 
-  User, 
-  Code, 
-  Loader2,
-  CheckCircle,
-  Github,
-  Clock,
-  Wifi,
-  WifiOff,
-  Zap
-} from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Send, Bot, User, Zap, Code, Globe, Github, Settings, AlertCircle } from 'lucide-react';
 import { useRealTimeAIGeneration } from '@/hooks/useRealTimeAIGeneration';
-import { useRealTimeGitHub } from '@/hooks/useRealTimeGitHub';
-import { useRealTimeChatHistory } from '@/hooks/useRealTimeChatHistory';
-import { useRealTimeDeployment } from '@/hooks/useRealTimeDeployment';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+
+interface Message {
+  id: string;
+  type: 'user' | 'ai';
+  content: string;
+  timestamp: Date;
+  feature?: string;
+  generatedCode?: string;
+  codeDescription?: string;
+}
 
 interface RealTimeSimplifiedChatbotProps {
   projectId: string;
   sourceCode: string;
   channelData?: any;
   onCodeUpdate: (newCode: string, targetFile?: string) => void;
-  onChatHistoryUpdate: (history: any[]) => void;
+  onChatHistoryUpdate: (history: Message[]) => void;
 }
 
 const RealTimeSimplifiedChatbot: React.FC<RealTimeSimplifiedChatbotProps> = ({
@@ -36,188 +35,159 @@ const RealTimeSimplifiedChatbot: React.FC<RealTimeSimplifiedChatbotProps> = ({
   onCodeUpdate,
   onChatHistoryUpdate
 }) => {
-  const [input, setInput] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connected');
-  const [verificationStatus, setVerificationStatus] = useState<'none' | 'in-progress' | 'approved' | 'rejected'>('none');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isConnected, setIsConnected] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const { generateWithAI, loading } = useRealTimeAIGeneration();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  // Real-time hooks
-  const { generateWithAI, loading: aiLoading } = useRealTimeAIGeneration();
-  const { uploadToGitHub, uploading: githubUploading } = useRealTimeGitHub();
-  const { deployToNetlify, deploymentStatus } = useRealTimeDeployment();
-  const { messages, addMessage } = useRealTimeChatHistory(projectId);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  useEffect(() => {
+    if (messages.length === 0) {
+      const welcomeMessage: Message = {
+        id: crypto.randomUUID(),
+        type: 'ai',
+        content: `🎯 **Real-Time AI Website Builder Ready!**\n\n${channelData?.title ? `Building for **${channelData.title}** (${parseInt(channelData.subscriberCount || '0').toLocaleString()} subscribers)` : 'Ready to build your website!'}\n\n**What I can do:**\n• Generate complete website code\n• Make real-time modifications\n• Add new features and pages\n• Deploy to GitHub & Netlify\n\n**Example requests:**\n• "Create a modern portfolio homepage"\n• "Add a video gallery section"\n• "Make the design more professional"\n• "Add a contact form with animation"\n\n💡 **Tip:** Be specific about what you want - I'll generate it instantly!`,
+        timestamp: new Date(),
+        feature: 'welcome'
+      };
+      setMessages([welcomeMessage]);
+    }
+  }, [channelData]);
 
   useEffect(() => {
     scrollToBottom();
     onChatHistoryUpdate(messages);
   }, [messages, onChatHistoryUpdate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || aiLoading) return;
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
-    const userInput = input;
-    setInput('');
-    setConnectionStatus('connecting');
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || loading) return;
+
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to use the AI assistant",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      type: 'user',
+      content: inputMessage.trim(),
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputMessage.trim();
+    setInputMessage('');
 
     try {
-      // Add user message immediately
-      await addMessage({
-        type: 'user',
-        content: userInput
-      });
-
-      // Generate AI response in real-time
-      const aiResponse = await generateWithAI(
-        userInput,
+      console.log('🤖 Sending message to AI:', currentInput);
+      
+      const projectContext = {
+        sourceCode,
+        channelData,
         projectId,
-        channelData
+        currentMessages: messages
+      };
+
+      const aiResponse = await generateWithAI(
+        currentInput,
+        projectId,
+        channelData,
+        projectContext
       );
 
-      if (aiResponse && aiResponse.generatedCode) {
-        // Update code preview immediately
-        onCodeUpdate(aiResponse.generatedCode);
-
-        let githubUrl: string | null = null;
-        let netlifyUrl: string | null = null;
-
-        // Upload to GitHub in real-time
-        if (aiResponse.generatedCode) {
-          console.log('🚀 Starting real-time GitHub upload...');
-          
-          const projectName = channelData?.title 
-            ? `${channelData.title}-website`
-            : `ai-website-${Date.now()}`;
-
-          const files = [
-            {
-              path: 'index.html',
-              content: aiResponse.generatedCode,
-              message: `🎯 Real-time update: ${userInput.substring(0, 50)}...`
-            },
-            {
-              path: 'README.md',
-              content: `# ${projectName}\n\nAI-generated website with real-time updates.\n\n## Features\n- Modern responsive design\n- Real-time AI generation\n- YouTube integration\n- Professional animations\n\n## Last Updated\n${new Date().toISOString()}\n\n## Generated by\nAI Website Builder with real-time capabilities`
-            }
-          ];
-
-          githubUrl = await uploadToGitHub(projectId, projectName, files);
-        }
-
-        // Deploy to Netlify in real-time
-        if (aiResponse.generatedCode) {
-          console.log('🌐 Starting real-time deployment...');
-          const projectName = channelData?.title 
-            ? `${channelData.title}-website`
-            : `ai-website-${Date.now()}`;
-          
-          netlifyUrl = await deployToNetlify(
-            projectId,
-            projectName,
-            aiResponse.generatedCode
-          );
-        }
-
-        // Add bot response with GitHub and Netlify links
-        await addMessage({
-          type: 'bot',
+      if (aiResponse) {
+        const aiMessage: Message = {
+          id: crypto.randomUUID(),
+          type: 'ai',
           content: aiResponse.reply,
+          timestamp: new Date(),
           feature: aiResponse.feature,
           generatedCode: aiResponse.generatedCode,
-          codeDescription: aiResponse.codeDescription,
-          githubUrl: githubUrl || undefined,
-          netlifyUrl: netlifyUrl || undefined
-        });
+          codeDescription: aiResponse.codeDescription
+        };
 
-        // Set verification as in progress
-        setVerificationStatus('in-progress');
-      } else if (aiResponse) {
-        // Add bot response without code
-        await addMessage({
-          type: 'bot',
-          content: aiResponse.reply,
-          feature: aiResponse.feature
-        });
+        setMessages(prev => [...prev, aiMessage]);
+
+        // Update code if generated
+        if (aiResponse.generatedCode) {
+          console.log('🔄 Updating code with AI response');
+          onCodeUpdate(aiResponse.generatedCode);
+          
+          toast({
+            title: "✨ Code Updated!",
+            description: aiResponse.codeDescription || "Website updated with AI-generated code",
+          });
+        }
+
+        console.log('✅ AI response processed successfully');
       }
 
-      setConnectionStatus('connected');
     } catch (error) {
-      console.error('❌ Error in chat submission:', error);
-      setConnectionStatus('disconnected');
+      console.error('❌ Error in AI chat:', error);
       
-      await addMessage({
-        type: 'bot',
-        content: `❌ **Error Processing Request**\n\nSorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}\n\n🔄 Please try again with a more specific request.`
-      });
+      const errorMessage: Message = {
+        id: crypto.randomUUID(),
+        type: 'ai',
+        content: `❌ **AI Generation Error**\n\nSorry, I encountered an issue processing your request. This could be due to:\n\n• **API Configuration**: OpenRouter API key might not be configured\n• **Network Issues**: Connection problems\n• **Rate Limits**: Too many requests\n\n🔄 **Please try:**\n• Refreshing the page\n• Using a simpler request\n• Checking your internet connection\n\n💡 **Example**: "Create a simple homepage with my channel info"`,
+        timestamp: new Date(),
+        feature: 'error-handling'
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
-  const getConnectionIcon = () => {
-    switch (connectionStatus) {
-      case 'connected':
-        return <Wifi className="w-4 h-4 text-green-500" />;
-      case 'connecting':
-        return <Loader2 className="w-4 h-4 text-yellow-500 animate-spin" />;
-      case 'disconnected':
-        return <WifiOff className="w-4 h-4 text-red-500" />;
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
   };
 
-  const getStatusBadge = () => {
-    if (aiLoading || githubUploading) {
-      return <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-        Generating
-      </Badge>;
+  const getFeatureBadge = (feature?: string) => {
+    switch (feature) {
+      case 'website-generation':
+        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs"><Code size={10} className="mr-1" />Code Generated</Badge>;
+      case 'deployment':
+        return <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs"><Globe size={10} className="mr-1" />Deployed</Badge>;
+      case 'github-integration':
+        return <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs"><Github size={10} className="mr-1" />GitHub</Badge>;
+      case 'error-handling':
+        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs"><AlertCircle size={10} className="mr-1" />Error</Badge>;
+      default:
+        return null;
     }
-    
-    if (deploymentStatus.status === 'deploying') {
-      return <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-        Deploying
-      </Badge>;
-    }
-    
-    if (deploymentStatus.status === 'deployed') {
-      return <Badge variant="secondary" className="bg-green-100 text-green-700">
-        <CheckCircle className="w-3 h-3 mr-1" />
-        Live
-      </Badge>;
-    }
-    
-    if (verificationStatus === 'in-progress') {
-      return <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-        <Clock className="w-3 h-3 mr-1" />
-        Verification in Progress
-      </Badge>;
-    }
-    
-    return null;
   };
 
   return (
-    <div className="h-full flex flex-col bg-white/90 backdrop-blur-sm">
+    <div className="flex flex-col h-full bg-gray-900">
       {/* Header */}
-      <div className="p-4 border-b border-red-200/50 bg-red-50/80">
+      <div className="p-4 border-b border-gray-700 bg-gray-800/50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
-              <Bot className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <Bot className="w-5 h-5 text-blue-400" />
+              <span className="font-semibold text-white text-sm">AI Assistant</span>
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-800">Real-Time AI Assistant</h3>
-              <div className="flex items-center gap-2">
-                {getConnectionIcon()}
-                <span className="text-xs text-gray-600 capitalize">{connectionStatus}</span>
-                <Zap className="w-3 h-3 text-yellow-500" />
-              </div>
-            </div>
+            <Badge variant={isConnected ? "default" : "destructive"} className="text-xs">
+              {isConnected ? "Connected" : "Disconnected"}
+            </Badge>
           </div>
-          {getStatusBadge()}
+          <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+            <Zap className="w-3 h-3 mr-1" />
+            Real-time
+          </Badge>
         </div>
       </div>
 
@@ -225,96 +195,58 @@ const RealTimeSimplifiedChatbot: React.FC<RealTimeSimplifiedChatbotProps> = ({
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              {message.type === 'bot' && (
-                <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0">
+            <div key={message.id} className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : ''}`}>
+              {message.type === 'ai' && (
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
                   <Bot className="w-4 h-4 text-white" />
                 </div>
               )}
               
-              <div className={`max-w-[80%] ${message.type === 'user' ? 'order-1' : ''}`}>
-                <div
-                  className={`rounded-lg p-3 ${
-                    message.type === 'user'
-                      ? 'bg-red-600 text-white ml-auto'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-                  
+              <div className={`max-w-[80%] ${message.type === 'user' ? 'order-first' : ''}`}>
+                <div className={`rounded-lg p-3 ${
+                  message.type === 'user' 
+                    ? 'bg-blue-600 text-white ml-auto' 
+                    : 'bg-gray-800 text-gray-100'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {message.type === 'user' && <User className="w-3 h-3" />}
+                    {getFeatureBadge(message.feature)}
+                  </div>
+                  <div className="text-sm whitespace-pre-wrap">{message.content}</div>
                   {message.generatedCode && (
-                    <div className="mt-2 p-2 bg-black/10 rounded border-l-2 border-green-500">
-                      <div className="flex items-center gap-1 text-xs font-medium mb-1">
+                    <div className="mt-2 p-2 bg-gray-700 rounded text-xs">
+                      <div className="flex items-center gap-1 mb-1">
                         <Code className="w-3 h-3" />
-                        <Zap className="w-3 h-3" />
-                        Real-Time Code Generated
+                        <span className="text-green-400">Code Generated</span>
                       </div>
-                      <div className="text-xs opacity-80">
-                        {message.codeDescription}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {message.githubUrl && (
-                    <div className="mt-2">
-                      <a 
-                        href={message.githubUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs bg-black/10 hover:bg-black/20 px-2 py-1 rounded transition-colors"
-                      >
-                        <Github className="w-3 h-3" />
-                        <Zap className="w-3 h-3" />
-                        Real-Time GitHub Upload
-                      </a>
-                    </div>
-                  )}
-                  
-                  {message.netlifyUrl && (
-                    <div className="mt-2">
-                      <a 
-                        href={message.netlifyUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors"
-                      >
-                        <CheckCircle className="w-3 h-3" />
-                        <Zap className="w-3 h-3" />
-                        Live Deployment
-                      </a>
+                      <div className="text-gray-300">{message.codeDescription}</div>
                     </div>
                   )}
                 </div>
-                
-                <div className="text-xs text-gray-500 mt-1 px-1">
-                  {message.timestamp.toLocaleTimeString([], { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
+                <div className="text-xs text-gray-500 mt-1 px-3">
+                  {message.timestamp.toLocaleTimeString()}
                 </div>
               </div>
 
               {message.type === 'user' && (
-                <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0">
                   <User className="w-4 h-4 text-white" />
                 </div>
               )}
             </div>
           ))}
           
-          {aiLoading && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+          {loading && (
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
                 <Bot className="w-4 h-4 text-white" />
               </div>
-              <div className="bg-gray-100 rounded-lg p-3">
+              <div className="bg-gray-800 text-gray-100 rounded-lg p-3">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <Zap className="w-4 h-4 text-yellow-500" />
-                  <span className="text-sm text-gray-600">Real-time AI generation...</span>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                  <span className="text-sm text-gray-400 ml-1">AI is generating...</span>
                 </div>
               </div>
             </div>
@@ -323,34 +255,31 @@ const RealTimeSimplifiedChatbot: React.FC<RealTimeSimplifiedChatbotProps> = ({
         <div ref={messagesEndRef} />
       </ScrollArea>
 
+      <Separator />
+
       {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-red-200/50 bg-red-50/80">
+      <div className="p-4 bg-gray-800/50">
         <div className="flex gap-2">
           <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask AI to create your website in real-time..."
-            disabled={aiLoading}
-            className="flex-1 bg-white/90 border-red-200 focus:border-red-400"
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Describe what you want to build or modify..."
+            className="bg-gray-700 border-gray-600 text-white text-sm"
+            disabled={loading}
           />
-          <Button
-            type="submit"
-            disabled={aiLoading || !input.trim()}
-            className="bg-red-600 hover:bg-red-700 text-white"
+          <Button 
+            onClick={handleSendMessage}
+            disabled={loading || !inputMessage.trim()}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4"
           >
-            {aiLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+            <Send className="w-4 h-4" />
           </Button>
         </div>
-        
-        <div className="mt-2 text-xs text-gray-600 text-center flex items-center justify-center gap-1">
-          <Zap className="w-3 h-3 text-yellow-500" />
-          Real-time AI • GitHub • Deployment • Chat History
+        <div className="text-xs text-gray-500 mt-2">
+          Press Enter to send • Shift+Enter for new line
         </div>
-      </form>
+      </div>
     </div>
   );
 };

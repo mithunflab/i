@@ -154,7 +154,6 @@ const UserProjects = () => {
   };
 
   const getVerificationBadge = (status: string | null, verified?: boolean) => {
-    // Only show verified badge if both verified AND approved
     if (verified && status === 'approved') {
       return (
         <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
@@ -184,7 +183,6 @@ const UserProjects = () => {
   };
 
   const canRequestVerification = (status: string | null, verified?: boolean) => {
-    // Only allow verification request if not verified AND (no status OR rejected)
     return !verified && (status === null || status === 'rejected');
   };
 
@@ -219,14 +217,14 @@ const UserProjects = () => {
         {projects.length === 0 ? (
           <div className="text-center py-8 text-gray-400">
             <Globe className="mx-auto h-12 w-12 mb-4 opacity-50" />
-            <h3 className="text-base font-semibold mb-2">No projects yet</h3>
+            <h3 className="text-lg font-semibold mb-2">No projects yet</h3>
             <p className="text-sm">Create your first AI-generated website to get started!</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
               <Card key={project.id} className="bg-gray-800/50 border-gray-700 hover:bg-gray-800/70 transition-colors">
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-3">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="relative">
                       <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
@@ -271,10 +269,10 @@ const UserProjects = () => {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="flex-1 text-xs h-7"
+                      className="flex-1 text-xs h-8"
                       onClick={() => handleEditProject(project)}
                     >
-                      <Settings size={10} className="mr-1" />
+                      <Settings size={12} className="mr-1" />
                       Edit
                     </Button>
                     
@@ -282,10 +280,10 @@ const UserProjects = () => {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="flex-1 text-xs h-7"
+                        className="flex-1 text-xs h-8"
                         onClick={() => window.open(project.netlify_url, '_blank')}
                       >
-                        <ExternalLink size={10} className="mr-1" />
+                        <ExternalLink size={12} className="mr-1" />
                         View
                       </Button>
                     )}
@@ -294,26 +292,25 @@ const UserProjects = () => {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="px-2 h-7"
+                        className="px-3 h-8"
                         onClick={() => window.open(project.github_url, '_blank')}
                         title="GitHub Repository"
                       >
-                        <Github size={10} />
+                        <Github size={12} />
+                      </Button>
+                    )}
+
+                    {canRequestVerification(project.verification_status, project.verified) && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleGetVerified(project)}
+                        className="px-3 h-8 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30"
+                      >
+                        <Shield size={12} />
                       </Button>
                     )}
                   </div>
-
-                  {canRequestVerification(project.verification_status, project.verified) && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleGetVerified(project)}
-                      className="w-full mt-2 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 text-xs h-7"
-                    >
-                      <Award size={10} className="mr-1" />
-                      Get Verified
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
             ))}
