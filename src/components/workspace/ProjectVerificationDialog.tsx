@@ -27,53 +27,58 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    contact_email: '',
-    website_description: '',
-    channel_verification: '',
-    additional_info: ''
-  });
+  const [message, setMessage] = useState('');
   
   const { user } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || loading) return;
+    if (!user || loading || !message.trim()) return;
 
     setLoading(true);
     try {
-      console.log('📋 Submitting enhanced verification request...');
+      console.log('📋 Submitting verification request...');
 
+      // Check if request already exists
+      const { data: existingRequest, error: checkError } = await supabase
+        .from('project_verification_requests')
+        .select('id, status')
+        .eq('project_id', projectId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('❌ Error checking existing request:', checkError);
+        throw new Error('Failed to check existing verification requests');
+      }
+
+      if (existingRequest) {
+        toast({
+          title: "Already Requested",
+          description: `You've already submitted a verification request for this project. Status: ${existingRequest.status}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Create new verification request with correct schema
       const verificationData = {
         project_id: projectId,
         user_id: user.id,
-        project_name: projectName,
-        project_url: projectData?.netlify_url || projectData?.github_url || '',
-        contact_email: formData.contact_email || user.email || '',
-        website_description: formData.website_description || projectData?.description || '',
-        channel_verification: formData.channel_verification,
-        additional_info: formData.additional_info,
-        project_data: projectData,
-        status: 'pending',
-        verification_type: 'youtube_website'
+        request_message: message.trim(),
+        status: 'pending'
       };
 
-      const { error } = await supabase
+      console.log('💾 Inserting verification request:', verificationData);
+
+      const { error: insertError } = await supabase
         .from('project_verification_requests')
         .insert(verificationData);
 
-      if (error) {
-        console.error('❌ Verification request error:', error);
-        if (error.code === '23505') {
-          toast({
-            title: "Already Requested",
-            description: "You've already submitted a verification request for this project.",
-            variant: "destructive"
-          });
-          return;
-        }
-        throw error;
+      if (insertError) {
+        console.error('❌ Verification request error:', insertError);
+        throw new Error(insertError.message || 'Failed to submit verification request');
       }
 
       console.log('✅ Verification request submitted successfully');
@@ -84,18 +89,13 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
       });
 
       setOpen(false);
-      setFormData({
-        contact_email: '',
-        website_description: '',
-        channel_verification: '',
-        additional_info: ''
-      });
+      setMessage('');
 
     } catch (error) {
       console.error('❌ Error submitting verification:', error);
       toast({
         title: "Submission Failed",
-        description: "Unable to submit verification request. Please try again.",
+        description: error instanceof Error ? error.message : "Unable to submit verification request. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -103,7 +103,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
     }
   };
 
-  // Only show verified badge if actually verified AND approved
+  // Show verified badge if actually verified AND approved
   if (isVerified && verificationStatus === 'approved') {
     return (
       <Button variant="outline" size="sm" className="bg-green-500/20 text-green-400 border-green-500/30 text-xs h-7" disabled>
@@ -157,61 +157,21 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <Label className="text-xs font-medium text-gray-300">Project: {projectName}</Label>
-            <p className="text-xs text-gray-500 mt-1">{projectData?.description}</p>
+            <p className="text-xs text-gray-500 mt-1">{projectData?.description || 'No description available'}</p>
           </div>
           
           <div>
-            <Label htmlFor="contact_email" className="text-xs font-medium text-gray-300">
-              Contact Email
-            </Label>
-            <Input
-              id="contact_email"
-              type="email"
-              placeholder={user?.email || "your@email.com"}
-              value={formData.contact_email}
-              onChange={(e) => setFormData(prev => ({ ...prev, contact_email: e.target.value }))}
-              className="mt-1 bg-gray-800 border-gray-600 text-white text-xs h-8"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="website_description" className="text-xs font-medium text-gray-300">
-              Website Description
+            <Label htmlFor="message" className="text-xs font-medium text-gray-300">
+              Why should this project be verified?
             </Label>
             <Textarea
-              id="website_description"
-              placeholder="Describe your website and its purpose..."
-              value={formData.website_description}
-              onChange={(e) => setFormData(prev => ({ ...prev, website_description: e.target.value }))}
+              id="message"
+              placeholder="Explain why your project deserves verification (quality, originality, usefulness, etc.)"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
               className="mt-1 bg-gray-800 border-gray-600 text-white text-xs"
-              rows={2}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="channel_verification" className="text-xs font-medium text-gray-300">
-              Channel Verification (Optional)
-            </Label>
-            <Input
-              id="channel_verification"
-              placeholder="YouTube channel verification details..."
-              value={formData.channel_verification}
-              onChange={(e) => setFormData(prev => ({ ...prev, channel_verification: e.target.value }))}
-              className="mt-1 bg-gray-800 border-gray-600 text-white text-xs h-8"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="additional_info" className="text-xs font-medium text-gray-300">
-              Additional Information
-            </Label>
-            <Textarea
-              id="additional_info"
-              placeholder="Any additional details about your project..."
-              value={formData.additional_info}
-              onChange={(e) => setFormData(prev => ({ ...prev, additional_info: e.target.value }))}
-              className="mt-1 bg-gray-800 border-gray-600 text-white text-xs"
-              rows={2}
+              rows={4}
+              required
             />
           </div>
           
@@ -221,7 +181,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
             </Button>
             <Button 
               type="submit"
-              disabled={loading}
+              disabled={loading || !message.trim()}
               className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
             >
               {loading ? 'Submitting...' : 'Submit Request'}

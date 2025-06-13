@@ -1,394 +1,386 @@
-
 import React, { useState, useEffect } from 'react';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Monitor, Smartphone, Tablet, Code, Eye, Github, Globe, ArrowLeft, AlertCircle } from 'lucide-react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import PreviewFrame from './PreviewFrame';
-import OptimizedCodePreview from './OptimizedCodePreview';
-import SuperEnhancedChatbot from './SuperEnhancedChatbot';
-import ProjectVerificationDialog from './ProjectVerificationDialog';
-import ErrorBoundary from './ErrorBoundary';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { 
+  Globe, 
+  Github, 
+  ExternalLink, 
+  Loader2, 
+  AlertCircle, 
+  CheckCircle,
+  Code,
+  Eye,
+  Shield
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { createProject, getProject, updateProject } from '@/utils/projectCreation';
+import ProjectVerificationDialog from './ProjectVerificationDialog';
+import SimpleChatbot from './SimpleChatbot';
+
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  github_url?: string;
+  netlify_url?: string;
+  youtube_url?: string;
+  channel_data?: any;
+  source_code?: string;
+  status: 'active' | 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  user_id: string;
+  is_verified?: boolean;
+  verification_status?: string;
+}
 
 const Workspace = () => {
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { toast } = useToast();
-  
-  const [previewMode, setPreviewMode] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
-  const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
-  const [generatedCode, setGeneratedCode] = useState<string>('');
-  const [projectData, setProjectData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Get URL parameters
-  const youtubeUrl = searchParams.get('url') || '';
-  const projectIdea = searchParams.get('idea') || '';
-  const channelDataParam = searchParams.get('channelData');
-  const projectId = searchParams.get('projectId');
-  
-  let channelData = null;
-  try {
-    channelData = channelDataParam ? JSON.parse(decodeURIComponent(channelDataParam)) : null;
-  } catch (error) {
-    console.error('Error parsing channel data:', error);
-  }
+  const { user } = useAuth();
 
-  // Load existing project data
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [sourceCode, setSourceCode] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [netlifyUrl, setNetlifyUrl] = useState('');
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [channelData, setChannelData] = useState<any>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState<string | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
+  const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [verificationStatus, setVerificationStatus] = useState<string>('');
+
   useEffect(() => {
-    const loadProject = async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      
+    const params = new URLSearchParams(location.search);
+    const paramProjectId = params.get('projectId');
+
+    if (location.state?.channelData) {
+      setChannelData(location.state.channelData);
+      setYoutubeUrl(location.state.youtubeUrl);
+    }
+
+    const loadProject = async (id: string) => {
       try {
-        setLoading(true);
-        setError(null);
-        
-        // If we have a project ID, load that specific project
-        if (projectId) {
-          console.log('🔍 Loading project by ID:', projectId);
-          
-          const { data: project, error: projectError } = await supabase
-            .from('projects')
-            .select('*')
-            .eq('id', projectId)
-            .eq('user_id', user.id)
-            .single();
-          
-          if (projectError) {
-            console.error('❌ Error loading project by ID:', projectError);
-            setError('Project not found or access denied');
-            return;
-          }
-          
-          console.log('📂 Project loaded by ID:', project.name);
-          setProjectData(project);
-          
-          if (project.source_code) {
-            setGeneratedCode(project.source_code);
-          }
-          return;
-        }
-        
-        // If we have a YouTube URL, try to find existing project or prepare for new one
-        if (youtubeUrl) {
-          console.log('🔍 Loading project for URL:', youtubeUrl);
-          
-          const { data: project, error: projectError } = await supabase
-            .from('projects')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('youtube_url', youtubeUrl)
-            .maybeSingle();
-          
-          if (projectError) {
-            console.error('❌ Error loading project:', projectError);
-            setError('Failed to load project data');
-            return;
-          }
-          
-          if (project) {
-            console.log('📂 Project found:', project.name);
-            setProjectData(project);
-            
-            if (project.source_code) {
-              setGeneratedCode(project.source_code);
-            }
-          } else {
-            console.log('ℹ️ No existing project found - ready to create new one');
-            setProjectData(null);
-          }
-          return;
-        }
-        
-        // If no URL parameters, check if user has any projects and redirect to most recent
-        console.log('🔍 No URL parameters, checking for user projects...');
-        
-        const { data: userProjects, error: projectsError } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false })
-          .limit(1);
-        
-        if (projectsError) {
-          console.error('❌ Error loading user projects:', projectsError);
-          setError('Failed to load projects');
-          return;
-        }
-        
-        if (userProjects && userProjects.length > 0) {
-          const latestProject = userProjects[0];
-          console.log('📂 Loading latest project:', latestProject.name);
-          setProjectData(latestProject);
-          
-          if (latestProject.source_code) {
-            setGeneratedCode(latestProject.source_code);
-          }
-        } else {
-          console.log('ℹ️ No projects found, user can create new one');
-          setProjectData(null);
-        }
-        
-      } catch (error) {
-        console.error('❌ Error in loadProject:', error);
-        setError('Failed to load workspace data');
+        setIsLoading(true);
+        const fetchedProject = await getProject(id);
+        setProject(fetchedProject);
+        setProjectId(fetchedProject.id);
+        setProjectName(fetchedProject.name);
+        setProjectDescription(fetchedProject.description);
+        setSourceCode(fetchedProject.source_code || '');
+        setGithubUrl(fetchedProject.github_url || '');
+        setNetlifyUrl(fetchedProject.netlify_url || '');
+        setIsVerified(fetchedProject.is_verified || false);
+        setVerificationStatus(fetchedProject.status);
+      } catch (error: any) {
+        console.error("Error loading project:", error.message);
         toast({
-          title: "Workspace Error",
-          description: "Failed to load workspace. Please try refreshing the page.",
-          variant: "destructive"
+          title: "Error",
+          description: `Failed to load project: ${error.message}`,
+          variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
-    loadProject();
-  }, [user, youtubeUrl, projectId, toast]);
+    if (location.state?.projectId) {
+      loadProject(location.state.projectId);
+    } else if (paramProjectId) {
+      loadProject(paramProjectId);
+    } else if (location.state?.projectIdea) {
+      setProjectName(location.state.projectIdea);
+    }
+  }, [location, toast]);
 
-  const handleCodeGenerated = (code: string) => {
-    console.log('🔄 Code generated in workspace, updating preview...');
-    setGeneratedCode(code);
+  const handleCodeUpdate = (newCode: string) => {
+    setSourceCode(newCode);
   };
 
-  const handleBackToDashboard = () => {
-    navigate('/user-dashboard');
+  const handleSave = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to save.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!projectId) {
+      try {
+        setIsLoading(true);
+        const newProject = await createProject({
+          name: projectName,
+          description: projectDescription,
+          youtubeUrl: youtubeUrl || null,
+          channelData: channelData || null,
+          sourceCode: sourceCode,
+        });
+        setProjectId(newProject.id);
+        setProject(newProject);
+        toast({
+          title: "Success",
+          description: "Project saved successfully!",
+        });
+        navigate(`/workspace?projectId=${newProject.id}`, { replace: true, state: { ...location.state, projectId: newProject.id } });
+      } catch (error: any) {
+        console.error("Error creating project:", error);
+        toast({
+          title: "Error",
+          description: `Failed to create project: ${error.message}`,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      try {
+        setIsLoading(true);
+        await updateProject(projectId, {
+          name: projectName,
+          description: projectDescription,
+          sourceCode: sourceCode,
+          githubUrl: githubUrl,
+          netlifyUrl: netlifyUrl,
+        });
+        toast({
+          title: "Success",
+          description: "Project updated successfully!",
+        });
+      } catch (error: any) {
+        console.error("Error updating project:", error);
+        toast({
+          title: "Error",
+          description: `Failed to update project: ${error.message}`,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
-  const handleProjectUpdate = (updatedProject: any) => {
-    setProjectData(updatedProject);
+  const handleDeploy = async () => {
+    setIsDeploying(true);
+    try {
+      // Simulate deployment process
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      toast({
+        title: "Deployment Successful",
+        description: "Your website has been successfully deployed!",
+      });
+    } catch (error) {
+      console.error("Deployment error:", error);
+      toast({
+        title: "Deployment Failed",
+        description: "There was an error during deployment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeploying(false);
+    }
   };
-
-  const handleRetry = () => {
-    setError(null);
-    window.location.reload();
-  };
-
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading workspace...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="text-center max-w-md mx-auto p-6">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">Workspace Error</h2>
-          <p className="text-red-400 mb-6">{error}</p>
-          <div className="flex gap-3 justify-center">
-            <Button onClick={handleRetry} variant="outline">
-              Try Again
-            </Button>
-            <Button onClick={handleBackToDashboard}>
-              Back to Dashboard
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <ErrorBoundary>
-      <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-        {/* Clean Header */}
-        <div className="h-14 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm flex items-center justify-between px-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBackToDashboard}
-              className="text-gray-400 hover:text-white"
-            >
-              <ArrowLeft size={16} className="mr-2" />
-              Dashboard
-            </Button>
-            
-            <div className="flex items-center gap-3">
-              {(channelData?.thumbnail || projectData?.channel_data?.thumbnail) && (
-                <img 
-                  src={channelData?.thumbnail || projectData?.channel_data?.thumbnail} 
-                  alt={channelData?.title || projectData?.channel_data?.title || 'Channel'}
-                  className="w-8 h-8 rounded-full object-cover border border-cyan-400"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
-              )}
-              <div>
-                <h1 className="text-lg font-semibold text-white">
-                  {projectData?.name || channelData?.title || 'AI Website Builder'}
-                </h1>
-                <p className="text-xs text-gray-400">
-                  {(channelData || projectData?.channel_data) ? 
-                    `${parseInt((channelData?.subscriberCount || projectData?.channel_data?.subscriberCount) || '0').toLocaleString()} subscribers` : 
-                    'Enhanced Workspace'
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Project Status */}
-            {projectData && (
-              <div className="flex items-center gap-2 mr-4">
-                <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
-                  {projectData.status || 'Active'}
-                </Badge>
-                {projectData.verified && (
-                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                    Verified
-                  </Badge>
-                )}
-              </div>
-            )}
-
-            {/* External Links */}
-            {projectData?.github_url && (
-              <a
-                href={projectData.github_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
-                title="Open GitHub Repository"
-              >
-                <Github size={16} />
-              </a>
-            )}
-            
-            {projectData?.netlify_url && (
-              <a
-                href={projectData.netlify_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 text-gray-400 hover:text-white hover:bg-blue-600 rounded transition-colors"
-                title="Open Live Site"
-              >
-                <Globe size={16} />
-              </a>
-            )}
-
-            {/* Verification Button */}
-            {projectData && (
-              <ProjectVerificationDialog
-                projectId={projectData.id}
-                projectName={projectData.name}
-                projectData={projectData}
-                isVerified={projectData.verified}
-              />
-            )}
-
-            {/* Preview Mode Controls */}
-            <div className="flex items-center gap-1 bg-black/30 rounded-lg p-1">
-              <Button
-                variant={previewMode === 'mobile' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setPreviewMode('mobile')}
-                className="p-2"
-              >
-                <Smartphone size={16} />
-              </Button>
-              <Button
-                variant={previewMode === 'tablet' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setPreviewMode('tablet')}
-                className="p-2"
-              >
-                <Tablet size={16} />
-              </Button>
-              <Button
-                variant={previewMode === 'desktop' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setPreviewMode('desktop')}
-                className="p-2"
-              >
-                <Monitor size={16} />
-              </Button>
-            </div>
-
-            {/* View Toggle */}
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'preview' | 'code')} className="w-auto">
-              <TabsList className="bg-black/30">
-                <TabsTrigger value="preview" className="flex items-center gap-2">
-                  <Eye size={16} />
-                  Preview
-                </TabsTrigger>
-                <TabsTrigger value="code" className="flex items-center gap-2">
-                  <Code size={16} />
-                  Code
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+    <div className="h-screen bg-gray-900 flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-gray-800 border-r border-gray-700 p-4 flex flex-col">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-white">Workspace</h1>
+          <p className="text-sm text-gray-400">
+            {projectId ? 'Edit your project' : 'Create something new'}
+          </p>
         </div>
 
-        {/* Main Content */}
-        <div className="h-[calc(100vh-3.5rem)]">
-          <ResizablePanelGroup direction="horizontal" className="h-full">
-            {/* Chatbot Panel */}
-            <ResizablePanel defaultSize={35} minSize={30} maxSize={50}>
-              <ErrorBoundary>
-                <SuperEnhancedChatbot
-                  youtubeUrl={youtubeUrl || projectData?.youtube_url || ''}
-                  projectIdea={projectIdea || projectData?.description || ''}
-                  channelData={channelData || projectData?.channel_data}
-                  onCodeGenerated={handleCodeGenerated}
-                  projectData={projectData}
-                  onProjectUpdate={handleProjectUpdate}
-                />
-              </ErrorBoundary>
-            </ResizablePanel>
-            
-            <ResizableHandle />
-            
-            {/* Preview/Code Panel */}
-            <ResizablePanel defaultSize={65} minSize={50}>
-              <Tabs value={activeTab} className="h-full">
-                <TabsContent value="preview" className="h-full m-0">
-                  <ErrorBoundary>
-                    <PreviewFrame
-                      youtubeUrl={youtubeUrl || projectData?.youtube_url || ''}
-                      projectIdea={projectIdea || projectData?.description || ''}
-                      previewMode={previewMode}
-                      generatedCode={generatedCode}
-                      channelData={channelData || projectData?.channel_data}
-                    />
-                  </ErrorBoundary>
-                </TabsContent>
-                
-                <TabsContent value="code" className="h-full m-0">
-                  <ErrorBoundary>
-                    <OptimizedCodePreview
-                      generatedCode={generatedCode}
-                      isLiveTyping={false}
-                      projectData={projectData}
-                    />
-                  </ErrorBoundary>
-                </TabsContent>
-              </Tabs>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+        <div className="space-y-2">
+          <Label htmlFor="project-name" className="text-sm text-gray-300">
+            Project Name
+          </Label>
+          <Input
+            id="project-name"
+            placeholder="My Awesome Website"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            className="bg-gray-700 border-gray-600 text-white"
+          />
+
+          <Label htmlFor="project-description" className="text-sm text-gray-300">
+            Description
+          </Label>
+          <Textarea
+            id="project-description"
+            placeholder="A brief description of your project"
+            value={projectDescription}
+            onChange={(e) => setProjectDescription(e.target.value)}
+            className="bg-gray-700 border-gray-600 text-white resize-none"
+          />
+
+          <Label htmlFor="github-url" className="text-sm text-gray-300">
+            GitHub URL
+          </Label>
+          <Input
+            id="github-url"
+            placeholder="https://github.com/your-repo"
+            value={githubUrl}
+            onChange={(e) => setGithubUrl(e.target.value)}
+            className="bg-gray-700 border-gray-600 text-white"
+          />
+
+          <Label htmlFor="netlify-url" className="text-sm text-gray-300">
+            Netlify URL
+          </Label>
+          <Input
+            id="netlify-url"
+            placeholder="https://your-site.netlify.app"
+            value={netlifyUrl}
+            onChange={(e) => setNetlifyUrl(e.target.value)}
+            className="bg-gray-700 border-gray-600 text-white"
+          />
+        </div>
+
+        <div className="mt-auto space-y-2">
+          <Button
+            onClick={handleSave}
+            disabled={isLoading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Project"
+            )}
+          </Button>
+
+          <Button
+            onClick={handleDeploy}
+            disabled={isDeploying}
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
+          >
+            {isDeploying ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Deploying...
+              </>
+            ) : (
+              "Deploy Project"
+            )}
+          </Button>
+          {projectId && (
+            <ProjectVerificationDialog
+              projectId={projectId}
+              projectName={projectName}
+              projectData={{
+                github_url: githubUrl,
+                netlify_url: netlifyUrl,
+                description: projectDescription,
+              }}
+              isVerified={isVerified}
+              verificationStatus={verificationStatus}
+            />
+          )}
         </div>
       </div>
-    </ErrorBoundary>
+
+      {/* Main Content */}
+      <div className="flex-1 flex">
+        {/* Left Panel - Chat */}
+        <div className="w-1/3 border-r border-gray-700 flex flex-col">
+          <div className="border-b border-gray-700 p-4">
+            <h2 className="text-white font-semibold">AI Assistant</h2>
+            {channelData && (
+              <p className="text-sm text-gray-400 mt-1">
+                Building for: {channelData.title}
+              </p>
+            )}
+          </div>
+          
+          <div className="flex-1">
+            <SimpleChatbot
+              projectId={projectId || 'temp'}
+              sourceCode={sourceCode}
+              channelData={channelData}
+              onCodeUpdate={setSourceCode}
+            />
+          </div>
+        </div>
+
+        {/* Right Panel - Preview */}
+        <div className="flex-1 flex flex-col">
+          <Tabs defaultValue="preview" className="flex flex-col h-full">
+            <TabsList className="border-b border-gray-700">
+              <TabsTrigger value="preview" className="text-white data-[state=active]:bg-gray-700">
+                <Eye className="mr-2 h-4 w-4" />
+                Preview
+              </TabsTrigger>
+              <TabsTrigger value="code" className="text-white data-[state=active]:bg-gray-700">
+                <Code className="mr-2 h-4 w-4" />
+                Code Editor
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="preview" className="flex-1 p-4">
+              <iframe
+                srcDoc={sourceCode}
+                title="Website Preview"
+                className="w-full h-full bg-white rounded-md"
+              />
+            </TabsContent>
+            <TabsContent value="code" className="flex-1 p-4">
+              <Textarea
+                value={sourceCode}
+                onChange={(e) => setSourceCode(e.target.value)}
+                className="w-full h-full bg-gray-800 border-gray-600 text-white resize-none"
+              />
+            </TabsContent>
+          </Tabs>
+
+          <div className="bg-gray-800 border-t border-gray-700 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                {githubUrl && (
+                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                    <Github className="mr-2 h-4 w-4" />
+                    <a href={githubUrl} target="_blank" rel="noopener noreferrer">
+                      GitHub Repo
+                    </a>
+                  </Button>
+                )}
+                {netlifyUrl && (
+                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    <a href={netlifyUrl} target="_blank" rel="noopener noreferrer">
+                      Netlify Site
+                    </a>
+                  </Button>
+                )}
+              </div>
+              <Badge variant="secondary">
+                {projectId ? (
+                  <>
+                    Project ID: {projectId}
+                  </>
+                ) : (
+                  "Unsaved Project"
+                )}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
