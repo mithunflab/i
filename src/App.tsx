@@ -28,31 +28,27 @@ const LoadingSpinner = () => (
   </div>
 );
 
-// Protected Route component that uses AuthContext with error boundary
+// Protected Route component
 const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode, requiredRole?: string }) => {
   try {
     const { user, profile, isLoading } = useAuth();
 
     console.log('ProtectedRoute - user:', user?.email, 'profile:', profile?.role, 'requiredRole:', requiredRole, 'loading:', isLoading);
 
-    // Show loading while authentication state is being determined
     if (isLoading) {
       return <LoadingSpinner />;
     }
 
-    // If not authenticated, redirect to login
     if (!user) {
       console.log('No user, redirecting to login');
       return <Navigate to="/login" replace />;
     }
 
-    // If user doesn't have profile yet, show loading
     if (!profile) {
       console.log('No profile, waiting for profile to load...');
       return <LoadingSpinner />;
     }
 
-    // If specific role is required and user doesn't have it, redirect to appropriate dashboard
     if (requiredRole && profile.role !== requiredRole) {
       console.log('Role mismatch, redirecting based on actual role');
       if (profile.role === 'admin') {
@@ -62,11 +58,9 @@ const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode,
       }
     }
 
-    // All checks passed, render the protected content
     return <>{children}</>;
   } catch (error) {
     console.error('ProtectedRoute error:', error);
-    // Fallback to login page if auth context is not available
     return <Navigate to="/login" replace />;
   }
 };
@@ -75,18 +69,13 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Routes>
-        {/* Public routes */}
         <Route path="/home" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/features" element={<Features />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/login" element={<LoginForm />} />
-        
-        {/* Root route - handles authentication logic */}
         <Route path="/" element={<Index />} />
-        
-        {/* Protected routes */}
         <Route 
           path="/dashboard" 
           element={
@@ -111,8 +100,6 @@ const AppRoutes = () => {
             </ProtectedRoute>
           } 
         />
-        
-        {/* 404 */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
@@ -120,7 +107,6 @@ const AppRoutes = () => {
 };
 
 const App = () => {
-  // Create QueryClient inside the component to ensure proper React context
   const queryClient = useMemo(() => new QueryClient({
     defaultOptions: {
       queries: {
