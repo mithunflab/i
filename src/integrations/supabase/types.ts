@@ -611,6 +611,8 @@ export type Database = {
           is_active: boolean | null
           last_used_at: string | null
           name: string
+          rate_limit_remaining: number | null
+          rate_limit_reset_time: string | null
           requests_count: number | null
           updated_at: string | null
           user_id: string
@@ -624,6 +626,8 @@ export type Database = {
           is_active?: boolean | null
           last_used_at?: string | null
           name: string
+          rate_limit_remaining?: number | null
+          rate_limit_reset_time?: string | null
           requests_count?: number | null
           updated_at?: string | null
           user_id: string
@@ -637,6 +641,8 @@ export type Database = {
           is_active?: boolean | null
           last_used_at?: string | null
           name?: string
+          rate_limit_remaining?: number | null
+          rate_limit_reset_time?: string | null
           requests_count?: number | null
           updated_at?: string | null
           user_id?: string
@@ -718,6 +724,7 @@ export type Database = {
           project_id: string
           request_message: string | null
           requested_at: string | null
+          response_message: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           status: string | null
@@ -729,6 +736,7 @@ export type Database = {
           project_id: string
           request_message?: string | null
           requested_at?: string | null
+          response_message?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string | null
@@ -740,6 +748,7 @@ export type Database = {
           project_id?: string
           request_message?: string | null
           requested_at?: string | null
+          response_message?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string | null
