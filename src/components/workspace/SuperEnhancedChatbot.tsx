@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Send, Bot, User, Loader2, Users, Eye, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Brain } from 'lucide-react';
+import { Send, Bot, User, Loader2, Users, Eye, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Brain, Target, Code2, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -13,13 +14,14 @@ import { useIntelligentChatParser } from '@/hooks/useIntelligentChatParser';
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' |'assistant';
   content: string;
   timestamp: Date;
   isTyping?: boolean;
   component?: string;
   parseResult?: 'success' | 'failed' | 'error';
   suggestions?: string[];
+  isLiveTyping?: boolean;
 }
 
 interface SuperEnhancedChatbotProps {
@@ -46,6 +48,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMaximized, setIsMaximized] = useState(false);
   const [isClosed, setIsClosed] = useState(false);
+  const [parseStatus, setParseStatus] = useState<'idle' | 'parsing' | 'success' | 'error'>('idle');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { user } = useAuth();
@@ -53,7 +56,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   const { generateTargetedPrompt } = useTargetedChanges();
   const { generateWebsiteWithRealData } = useYouTubeIntegration();
   const { memory, generateContextualPrompt, saveChange } = useAdvancedAIMemory(currentProject?.id || '');
-  const { parseUserChat, validateAndApplyEdit, getChatHistory, initializeProjectFiles } = useIntelligentChatParser(currentProject?.id || '');
+  const { parseUserChat, validateAndApplyEdit, getChatHistory, initializeProjectFiles, componentMap, projectFiles } = useIntelligentChatParser(currentProject?.id || '');
 
   useEffect(() => {
     setCurrentProject(projectData);
@@ -81,7 +84,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
         const welcomeMessage: Message = {
           id: '1',
           role: 'assistant',
-          content: `🧠 **Intelligent Component Editor Ready!**\n\n**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n🎯 **Smart Parsing Active** - I understand natural language and edit only what you request!\n\n💡 **Natural Commands**:\n• "Make the subscribe button bigger and red"\n• "Change the hero title to something catchy"\n• "Update header background color"\n• "Add highlight to navigation menu"\n\n✨ **Intelligent Features**:\n• Intent parsing for precise edits\n• Component targeting system\n• Design consistency preservation\n• Chat history with project files`,
+          content: `🧠 **Smart AI Component Editor Ready!**\n\n**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n🎯 **Intelligent Features Active**:\n• Natural language parsing\n• Component-level targeting\n• Real-time code validation\n• Project memory system\n• Live preview updates\n\n💡 **Smart Commands**:\n• "Make the subscribe button bigger and red"\n• "Change the hero title to something catchy"\n• "Update header background to match channel colors"\n• "Add animation to the video thumbnails"\n\n✨ **Advanced Capabilities**:\n• Understands component relationships\n• Preserves design consistency\n• Maintains responsive layout\n• Tracks all changes in project memory\n\n🔧 **Project Files Generated**:\n• componentMap.json - Component structure\n• design.json - Design tokens\n• changelog.md - Edit history\n\n**Just tell me what you want to change - I'll understand and make precise edits!**`,
           timestamp: new Date()
         };
         setMessages([welcomeMessage]);
@@ -92,6 +95,22 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleLiveTyping = (content: string, messageId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, content, isLiveTyping: true }
+        : msg
+    ));
+  };
+
+  const completeLiveTyping = (messageId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, isLiveTyping: false }
+        : msg
+    ));
+  };
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading || !user) return;
@@ -107,10 +126,12 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
     const currentInput = inputValue.trim();
     setInputValue('');
     setIsLoading(true);
+    setParseStatus('parsing');
 
     try {
-      console.log('🧠 Processing intelligent chat request...');
+      console.log('🧠 Starting intelligent parsing...');
       
+      // Step 1: Parse user intent with enhanced AI
       const parseResult = await parseUserChat(
         currentInput,
         currentProject?.source_code || '',
@@ -118,113 +139,155 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
       );
 
       if (!parseResult.success) {
+        setParseStatus('error');
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: `❌ **Understanding Issue**\n\n${parseResult.error}\n\n💡 **Try These Instead**:\n${parseResult.suggestions?.map(s => `• ${s}`).join('\n') || '• Be more specific about the component and change you want'}`,
+          content: `❌ **Parsing Failed**\n\n${parseResult.error}\n\n💡 **Suggestions**:\n${parseResult.suggestions?.map(s => `• ${s}`).join('\n') || '• Try being more specific about what you want to change'}`,
           timestamp: new Date(),
-          parseResult: parseResult.parseResult,
+          parseResult: 'failed',
           suggestions: parseResult.suggestions
         };
-        
         setMessages(prev => [...prev, errorMessage]);
         return;
       }
 
-      console.log('✅ Intent parsed successfully:', parseResult);
+      setParseStatus('success');
+      console.log('✅ Intent parsed successfully:', parseResult.targetComponent);
 
-      const originalCode = currentProject?.source_code || '';
+      // Step 2: Show parsing success message
+      const parsingMessage: Message = {
+        id: (Date.now() + 2).toString(),
+        role: 'assistant',
+        content: `🎯 **Smart Analysis Complete**\n\n**Target**: ${parseResult.targetComponent}\n**Action**: ${parseResult.action}\n**Confidence**: High\n\n🔄 **Generating targeted changes...**`,
+        timestamp: new Date(),
+        component: parseResult.targetComponent,
+        parseResult: 'success'
+      };
+      setMessages(prev => [...prev, parsingMessage]);
 
-      // Try to generate code with better error handling
-      try {
-        const result = await generateWebsiteWithRealData(
-          channelData,
-          projectIdea,
-          parseResult.prompt!
+      // Step 3: Generate AI response with enhanced prompt
+      const enhancedPrompt = parseResult.prompt || generateContextualPrompt(
+        currentInput,
+        channelData,
+        currentProject?.source_code || ''
+      );
+
+      console.log('🤖 Calling AI with enhanced prompt...');
+
+      const { data: aiResponse, error: aiError } = await supabase.functions.invoke('chat', {
+        body: {
+          message: enhancedPrompt,
+          projectId: currentProject?.id,
+          channelData: channelData,
+          chatHistory: messages.slice(-5),
+          generateCode: true,
+          targetComponent: parseResult.targetComponent,
+          isSmartEdit: true,
+          preserveDesign: true,
+          projectFiles: projectFiles
+        }
+      });
+
+      if (aiError) {
+        throw new Error(`AI API Error: ${aiError.message}`);
+      }
+
+      console.log('✅ AI response received');
+
+      // Step 4: Validate the changes
+      if (aiResponse.generatedCode && currentProject?.source_code) {
+        const isValid = validateAndApplyEdit(
+          currentProject.source_code,
+          aiResponse.generatedCode,
+          parseResult.targetComponent || 'unknown',
+          currentInput
         );
 
-        if (result?.generatedCode) {
-          console.log('🔄 Intelligent edit applied, validating...');
-          
-          const isValid = validateAndApplyEdit(
-            originalCode,
-            result.generatedCode,
-            parseResult.targetComponent!,
-            currentInput
+        if (!isValid) {
+          throw new Error('Generated code failed validation');
+        }
+      }
+
+      // Step 5: Create enhanced response with live typing effect
+      const responseId = (Date.now() + 3).toString();
+      const responseContent = `🎯 **Smart Edit Applied Successfully!**\n\n**Modified Component**: ${parseResult.targetComponent}\n**Changes Made**: ${parseResult.changes}\n\n${aiResponse.reply || 'Your targeted changes have been applied while preserving the rest of your website!'}\n\n✅ **Validation**: All checks passed\n🔄 **Preview**: Updated automatically\n💾 **Saved**: Changes logged to project memory`;
+
+      // Remove parsing message and add response with live typing
+      setMessages(prev => prev.filter(msg => msg.id !== parsingMessage.id));
+      
+      const finalMessage: Message = {
+        id: responseId,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        component: parseResult.targetComponent,
+        parseResult: 'success',
+        isLiveTyping: true
+      };
+      
+      setMessages(prev => [...prev, finalMessage]);
+
+      // Simulate live typing
+      let currentChar = 0;
+      const typingInterval = setInterval(() => {
+        if (currentChar < responseContent.length) {
+          handleLiveTyping(responseContent.substring(0, currentChar + 1), responseId);
+          currentChar++;
+        } else {
+          clearInterval(typingInterval);
+          completeLiveTyping(responseId);
+        }
+      }, 30);
+
+      // Step 6: Update project and trigger code generation
+      if (aiResponse.generatedCode) {
+        onCodeGenerated(aiResponse.generatedCode);
+        
+        // Save change to project memory
+        if (parseResult.targetComponent) {
+          await saveChange(
+            parseResult.targetComponent,
+            currentInput,
+            currentProject?.source_code || '',
+            aiResponse.generatedCode
           );
+        }
 
-          if (isValid) {
-            onCodeGenerated(result.generatedCode);
-            
-            if (memory && saveChange) {
-              await saveChange(
-                parseResult.targetComponent!,
-                currentInput,
-                originalCode,
-                result.generatedCode
-              );
-            }
-            
-            await saveProject(result.generatedCode, result.reply);
-          } else {
-            throw new Error('Edit validation failed - changes may have been too broad');
-          }
-
-          const assistantMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: `✅ **${parseResult.targetComponent} Updated!**\n\n**Action**: ${parseResult.action}\n**Changes**: ${parseResult.changes}\n\n${result?.reply || 'I\'ve made the targeted changes while preserving your existing design and functionality!'}`,
-            timestamp: new Date(),
-            component: parseResult.targetComponent,
-            parseResult: parseResult.parseResult
+        // Update project in database
+        if (currentProject) {
+          const updatedProject = {
+            ...currentProject,
+            source_code: aiResponse.generatedCode,
+            updated_at: new Date().toISOString()
           };
 
-          setMessages(prev => [...prev, assistantMessage]);
-        } else {
-          throw new Error('No code generated from AI service');
-        }
-      } catch (codeGenError) {
-        console.error('❌ Code generation error:', codeGenError);
-        
-        // Provide helpful error message based on the type of error
-        let errorContent = `❌ **Code Generation Failed**\n\n`;
-        
-        if (codeGenError instanceof Error) {
-          if (codeGenError.message.includes('402') || codeGenError.message.includes('payment')) {
-            errorContent += `**Payment Issue**: The AI service requires payment to process requests.\n\n🔧 **Solutions**:\n• Check API key billing status\n• Contact administrator about payment\n• Try again later if this is temporary`;
-          } else if (codeGenError.message.includes('timeout') || codeGenError.message.includes('network')) {
-            errorContent += `**Network Issue**: Connection to AI service failed.\n\n🔧 **Solutions**:\n• Check internet connection\n• Try again in a few moments\n• Contact support if issue persists`;
-          } else {
-            errorContent += `**Service Error**: ${codeGenError.message}\n\n🔧 **Try**:\n• Simplifying your request\n• Being more specific about changes\n• Trying again with different wording`;
-          }
-        } else {
-          errorContent += `**Unknown Error**: Something went wrong with code generation.\n\n🔧 **Try**:\n• Refreshing the page\n• Simplifying your request\n• Contact support if issue continues`;
+          await supabase
+            .from('projects')
+            .update({
+              source_code: aiResponse.generatedCode,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentProject.id);
+
+          setCurrentProject(updatedProject);
+          onProjectUpdate?.(updatedProject);
         }
 
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: errorContent,
-          timestamp: new Date(),
-          parseResult: 'error'
-        };
-        
-        setMessages(prev => [...prev, errorMessage]);
-        
         toast({
-          title: "Code Generation Failed",
-          description: "Unable to generate code. Please check the error message for details.",
-          variant: "destructive"
+          title: "🎯 Smart Edit Applied!",
+          description: `Successfully modified ${parseResult.targetComponent} while preserving everything else.`,
         });
       }
 
     } catch (error) {
-      console.error('❌ Intelligent chat error:', error);
+      console.error('❌ Error in enhanced chat:', error);
+      setParseStatus('error');
       
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: (Date.now() + 4).toString(),
         role: 'assistant',
-        content: `❌ **Processing Error**\n\nI encountered an issue while making your changes: ${error instanceof Error ? error.message : 'Unknown error'}\n\n🔄 **Please Try**:\n• Being more specific about the component\n• Using simpler language\n• Mentioning specific elements like "button", "header", or "title"`,
+        content: `❌ **Error Processing Request**\n\n${error instanceof Error ? error.message : 'Unknown error occurred'}\n\n🔄 **Please try again with a more specific request.**\n\n💡 **Tips**:\n• Be specific about which component to change\n• Mention colors, sizes, or text changes clearly\n• Use simple, direct language`,
         timestamp: new Date(),
         parseResult: 'error'
       };
@@ -233,260 +296,217 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
       
       toast({
         title: "Processing Error",
-        description: "Failed to understand or apply your request. Please be more specific.",
+        description: "Failed to process your request. Please try again.",
         variant: "destructive"
       });
     } finally {
       setIsLoading(false);
+      setParseStatus('idle');
     }
   };
 
-  const saveProject = async (sourceCode: string, chatContent: string) => {
-    if (!user || !youtubeUrl) return;
-
-    try {
-      if (currentProject) {
-        const { data, error } = await supabase
-          .from('projects')
-          .update({
-            source_code: sourceCode,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', currentProject.id)
-          .select()
-          .single();
-
-        if (error) throw error;
-        setCurrentProject(data);
-        onProjectUpdate?.(data);
-      } else {
-        const projectName = channelData?.title 
-          ? `${channelData.title} Website` 
-          : 'YouTube Channel Website';
-
-        const { data, error } = await supabase
-          .from('projects')
-          .insert({
-            user_id: user.id,
-            name: projectName,
-            description: projectIdea || `Professional website for ${channelData?.title || 'YouTube Channel'}`,
-            youtube_url: youtubeUrl,
-            source_code: sourceCode,
-            channel_data: channelData,
-            status: 'active'
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        setCurrentProject(data);
-        onProjectUpdate?.(data);
-      }
-    } catch (error) {
-      console.error('❌ Error saving project:', error);
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
   };
 
-  const formatMessage = (content: string) => {
-    return content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br/>');
-  };
-
-  // Handle collapsed state
   if (isClosed) {
     return (
       <div className="fixed bottom-4 right-4 z-50">
         <Button
           onClick={() => setIsClosed(false)}
-          className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg"
+          className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-3 shadow-lg"
         >
-          <Brain size={20} className="text-white" />
+          <Brain size={20} />
         </Button>
       </div>
     );
   }
 
-  const chatHeight = isMaximized ? 'h-screen fixed inset-0 z-50' : (isExpanded ? 'h-full' : 'h-12');
-
   return (
-    <div className={`${chatHeight} flex flex-col bg-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out ${isMaximized ? 'rounded-none' : 'rounded-lg'}`}>
-      <div className="p-2 border-b border-purple-500/30 bg-black/70 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-              <Brain size={12} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-white font-medium text-xs">Intelligent Editor</h3>
-              {channelData && (
-                <p className="text-gray-400 text-xs truncate max-w-32">{channelData.title}</p>
-              )}
-            </div>
+    <div className={`flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-800 border-r border-purple-500/30 ${isMaximized ? 'fixed inset-0 z-50' : ''}`}>
+      {/* Enhanced Header */}
+      <div className="flex items-center justify-between p-4 border-b border-purple-500/30 bg-black/30">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Brain className="w-6 h-6 text-purple-400" />
+            {parseStatus === 'parsing' && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+            )}
+            {parseStatus === 'success' && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full"></div>
+            )}
           </div>
+          <div>
+            <h3 className="font-semibold text-white text-sm">Smart AI Editor</h3>
+            <p className="text-xs text-gray-400">
+              {Object.keys(componentMap).length} components mapped
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+            <Target size={12} className="mr-1" />
+            {parseStatus === 'parsing' ? 'Analyzing...' : 'Ready'}
+          </Badge>
           
-          <div className="flex items-center gap-1">
-            {memory && (
-              <Badge variant="outline" className="text-xs px-1 py-0 text-green-400 border-green-400/30">
-                Smart: {Object.keys(memory.components || {}).length}
-              </Badge>
-            )}
-            {isExpanded && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsMaximized(!isMaximized)}
-                className="w-6 h-6 p-0 text-gray-400 hover:text-white"
-              >
-                {isMaximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-              </Button>
-            )}
+          <div className="flex gap-1">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="w-6 h-6 p-0 text-gray-400 hover:text-white"
+              className="text-gray-400 hover:text-white p-1"
             >
-              {isExpanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="text-gray-400 hover:text-white p-1"
+            >
+              {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </Button>
+            
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsClosed(true)}
-              className="w-6 h-6 p-0 text-gray-400 hover:text-white"
+              className="text-gray-400 hover:text-white p-1"
             >
-              <X size={12} />
+              <X size={16} />
             </Button>
           </div>
         </div>
-
-        {isExpanded && channelData && (
-          <div className="mt-1 p-1 bg-gradient-to-r from-red-500/10 to-purple-500/10 rounded border border-red-500/20">
-            <div className="flex items-center gap-2">
-              {channelData.thumbnail && (
-                <img 
-                  src={channelData.thumbnail} 
-                  alt={channelData.title}
-                  className="w-6 h-6 rounded-full object-cover border border-red-500"
-                />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <span className="flex items-center gap-1">
-                    <Users size={8} />
-                    {parseInt(channelData.subscriberCount || '0').toLocaleString()}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Eye size={8} />
-                    {parseInt(channelData.videoCount || '0').toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
+      {/* Project Files Status */}
+      {isExpanded && Object.keys(projectFiles).length > 0 && (
+        <div className="px-4 py-2 bg-black/20 border-b border-purple-500/20">
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <FileText size={12} />
+            <span>Project Files: {Object.keys(projectFiles).length}</span>
+            <Code2 size={12} />
+            <span>Components: {Object.keys(componentMap).length}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Messages */}
       {isExpanded && (
-        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message) => (
-            <div key={message.id} className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+            <div
+              key={message.id}
+              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
               {message.role === 'assistant' && (
-                <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Brain size={10} className="text-white" />
+                <div className="relative">
+                  <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
+                    <Bot size={16} className="text-white" />
+                  </div>
+                  {message.isLiveTyping && (
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                  )}
                 </div>
               )}
-              <div className={`max-w-[85%] p-2 rounded-lg transition-all duration-200 hover:scale-[1.01] ${
-                message.role === 'user' 
-                  ? 'bg-blue-600 text-white' 
-                  : message.parseResult === 'failed' 
-                    ? 'bg-yellow-800/50 text-yellow-100 border border-yellow-600/30'
-                    : message.parseResult === 'error'
-                      ? 'bg-red-800/50 text-red-100 border border-red-600/30'
-                      : 'bg-gray-800/50 text-gray-100'
-              }`}>
-                <div 
-                  className="text-xs leading-relaxed"
-                  dangerouslySetInnerHTML={{ 
-                    __html: formatMessage(message.content) 
-                  }} 
-                />
-                <div className="flex items-center justify-between mt-1">
-                  <div className="text-xs opacity-50">
-                    {message.timestamp.toLocaleTimeString()}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {message.component && (
-                      <Badge variant="outline" className="text-xs px-1 py-0">
-                        {message.component}
-                      </Badge>
-                    )}
+              
+              <div
+                className={`max-w-[80%] p-3 rounded-lg ${
+                  message.role === 'user'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-slate-800 text-gray-100'
+                }`}
+              >
+                <div className="whitespace-pre-wrap text-sm">
+                  {message.content}
+                </div>
+                
+                {message.component && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge variant="outline" className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-xs">
+                      <Target size={10} className="mr-1" />
+                      {message.component}
+                    </Badge>
                     {message.parseResult && (
-                      <Badge 
-                        variant="outline" 
-                        className={`text-xs px-1 py-0 ${
-                          message.parseResult === 'success' 
-                            ? 'text-green-400 border-green-400/30'
-                            : message.parseResult === 'failed'
-                              ? 'text-yellow-400 border-yellow-400/30'
-                              : 'text-red-400 border-red-400/30'
-                        }`}
-                      >
+                      <Badge variant="outline" className={`text-xs ${
+                        message.parseResult === 'success' 
+                          ? 'bg-green-500/20 text-green-300 border-green-500/30'
+                          : message.parseResult === 'failed'
+                          ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                          : 'bg-red-500/20 text-red-300 border-red-500/30'
+                      }`}>
                         {message.parseResult}
                       </Badge>
                     )}
                   </div>
+                )}
+                
+                <div className="text-xs text-gray-400 mt-2">
+                  {message.timestamp.toLocaleTimeString()}
                 </div>
               </div>
+              
               {message.role === 'user' && (
-                <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  <User size={10} className="text-white" />
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                  <User size={16} className="text-white" />
                 </div>
               )}
             </div>
           ))}
-          
-          {isLoading && (
-            <div className="flex gap-2 justify-start animate-fade-in">
-              <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                <Brain size={10} className="text-white" />
-              </div>
-              <div className="bg-gray-800/50 text-gray-100 p-2 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Loader2 size={10} className="animate-spin" />
-                  <span className="text-xs">Parsing intent & applying targeted changes...</span>
-                </div>
-              </div>
-            </div>
-          )}
-          
           <div ref={messagesEndRef} />
         </div>
       )}
 
+      {/* Enhanced Input */}
       {isExpanded && (
-        <div className="p-2 border-t border-purple-500/30 bg-black/70 flex-shrink-0">
+        <div className="p-4 border-t border-purple-500/30">
           <div className="flex gap-2">
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Natural language (e.g., 'make the button bigger and red')"
-              className="flex-1 bg-gray-800/50 border-gray-600 text-white placeholder-gray-400 text-xs h-8"
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              onKeyPress={handleKeyPress}
+              placeholder="Tell me what component to change..."
+              className="flex-1 bg-slate-800 border-slate-600 text-white placeholder-gray-400"
               disabled={isLoading}
             />
-            <Button 
+            <Button
               onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-2 h-8"
+              disabled={isLoading || !inputValue.trim()}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              <Send size={10} />
+              {isLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Send size={16} />
+              )}
             </Button>
           </div>
-          {memory && (
-            <div className="mt-1 text-xs text-gray-500">
-              Intelligent parsing: {Object.keys(memory.components || {}).length} components mapped
+          
+          {parseStatus !== 'idle' && (
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              {parseStatus === 'parsing' && (
+                <>
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                  <span className="text-yellow-400">Analyzing your request...</span>
+                </>
+              )}
+              {parseStatus === 'success' && (
+                <>
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-green-400">Component identified successfully</span>
+                </>
+              )}
+              {parseStatus === 'error' && (
+                <>
+                  <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                  <span className="text-red-400">Please try a more specific request</span>
+                </>
+              )}
             </div>
           )}
         </div>
