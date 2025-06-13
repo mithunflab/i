@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useRef } from 'react';
 import { useFileManager } from './useFileManager';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,7 +65,7 @@ export const useRealTimeCodeGeneration = () => {
         targetedChanges: options.targetedChanges
       };
 
-      // Call enhanced AI generation function
+      // Call enhanced AI generation function - Removed signal option
       const { data: response, error } = await supabase.functions.invoke('generate-professional-website', {
         body: {
           userRequest,
@@ -74,8 +75,7 @@ export const useRealTimeCodeGeneration = () => {
           preserveDesign: options.preserveDesign,
           targetedChanges: options.targetedChanges,
           currentCode: files['index.html'] || ''
-        },
-        signal: abortControllerRef.current.signal
+        }
       });
 
       if (error) throw error;

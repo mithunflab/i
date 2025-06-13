@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -123,7 +122,12 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
 
   const handleSyncToGitHub = async () => {
     if (projectData?.github_url) {
-      await syncProjectFiles(projectData.github_url, files);
+      // Convert ProjectFiles to Record<string, string> for compatibility
+      const filesRecord: Record<string, string> = {};
+      Object.entries(files).forEach(([key, value]) => {
+        filesRecord[key] = value || '';
+      });
+      await syncProjectFiles(projectData.github_url, filesRecord);
     }
   };
 
