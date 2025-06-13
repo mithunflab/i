@@ -286,8 +286,8 @@ const SimpleChatbot: React.FC<SimpleChatbotProps> = ({
                 <span className="text-sm text-gray-400">Analyzing and applying smart changes...</span>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
         
         <div ref={messagesEndRef} />
       </div>
