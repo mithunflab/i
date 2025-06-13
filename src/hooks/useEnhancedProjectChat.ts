@@ -1090,18 +1090,18 @@ class EnhancedAIInterpreter {
   }
 
   detectResponseType(response) {
-    if (response.includes('${"```"}html')) return 'html-update';
-    if (response.includes('${"```"}css')) return 'style-update';
-    if (response.includes('${"```"}js')) return 'script-update';
+    if (response.includes('```html')) return 'html-update';
+    if (response.includes('```css')) return 'style-update';
+    if (response.includes('```js')) return 'script-update';
     return 'text-response';
   }
 
   extractFiles(response) {
     const files = {};
-    const codeBlocks = response.match(/\${"```"}(\\w+)([\\s\\S]*?)\${"```"}/g) || [];
+    const codeBlocks = response.match(/\`\`\`(\\w+)([\\s\\S]*?)\`\`\`/g) || [];
     
     codeBlocks.forEach(block => {
-      const match = block.match(/\${"```"}(\\w+)([\\s\\S]*?)\${"```"}/);
+      const match = block.match(/\`\`\`(\\w+)([\\s\\S]*?)\`\`\`/);
       if (match) {
         const [, language, code] = match;
         files[language] = code.trim();
@@ -1115,15 +1115,15 @@ class EnhancedAIInterpreter {
     return {
       timestamp: new Date().toISOString(),
       length: response.length,
-      hasCode: response.includes('${"```"}'),
+      hasCode: response.includes('\`\`\`'),
       language: this.detectLanguage(response)
     };
   }
 
   detectLanguage(response) {
-    if (response.includes('${"```"}html')) return 'html';
-    if (response.includes('${"```"}css')) return 'css';
-    if (response.includes('${"```"}js')) return 'javascript';
+    if (response.includes('\`\`\`html')) return 'html';
+    if (response.includes('\`\`\`css')) return 'css';
+    if (response.includes('\`\`\`js')) return 'javascript';
     return 'text';
   }
 
