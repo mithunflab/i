@@ -21,6 +21,7 @@ interface ProjectFiles {
   'index.html': string;
   'styles.css': string;
   'scripts.js': string;
+  [key: string]: string; // Allow dynamic file addition
 }
 
 export const useFileManager = () => {
@@ -76,7 +77,7 @@ export const useFileManager = () => {
     }
   }, []);
 
-  const updateFile = useCallback(async (fileName: keyof ProjectFiles, content: string, projectId?: string) => {
+  const updateFile = useCallback(async (fileName: string, content: string, projectId?: string) => {
     setFiles(prev => ({
       ...prev,
       [fileName]: content
