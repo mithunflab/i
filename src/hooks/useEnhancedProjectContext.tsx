@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -163,7 +162,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ projectId, chi
       } else if (data) {
         const messages: ChatMessage[] = data.map(item => ({
           id: item.id,
-          type: item.message_type,
+          type: (item.message_type === 'user' || item.message_type === 'bot') ? item.message_type as 'user' | 'bot' : 'user',
           content: item.content,
           timestamp: new Date(item.created_at)
         }));

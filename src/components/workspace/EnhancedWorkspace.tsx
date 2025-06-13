@@ -16,7 +16,7 @@ import {
   Zap,
   Eye
 } from 'lucide-react';
-import { useEnhancedProjectContext } from '@/hooks/useEnhancedProjectContext';
+import { useProjectContext } from '@/hooks/useEnhancedProjectContext';
 import { useEnhancedProjectChat } from '@/hooks/useEnhancedProjectChat';
 import { useEnhancedRepositoryManager } from '@/hooks/useEnhancedRepositoryManager';
 import SuperEnhancedChatbot from './SuperEnhancedChatbot';
@@ -47,7 +47,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
   const { 
     context, 
     loading: contextLoading 
-  } = useEnhancedProjectContext(projectId, youtubeUrl, channelData);
+  } = useProjectContext(projectId, youtubeUrl, channelData);
 
   const { 
     checkRepositoryStatus, 
@@ -253,22 +253,25 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                 <CardContent className="h-full overflow-auto">
                   {context?.files ? (
                     <div className="space-y-3">
-                      {Object.entries(context.files).map(([filename, content]) => (
-                        <div key={filename} className="p-3 bg-gray-800/50 rounded-lg border border-gray-600">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-mono text-sm text-cyan-400">{filename}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {content.length} chars
-                            </Badge>
+                      {Object.entries(context.files).map(([filename, content]) => {
+                        const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
+                        return (
+                          <div key={filename} className="p-3 bg-gray-800/50 rounded-lg border border-gray-600">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-mono text-sm text-cyan-400">{filename}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {contentStr.length} chars
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-gray-400 max-h-20 overflow-hidden">
+                              {filename.endsWith('.json') ? 
+                                <pre>{contentStr.substring(0, 200)}...</pre> :
+                                contentStr.substring(0, 200) + '...'
+                              }
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-400 max-h-20 overflow-hidden">
-                            {filename.endsWith('.json') ? 
-                              <pre>{content.substring(0, 200)}...</pre> :
-                              content.substring(0, 200) + '...'
-                            }
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-400">
@@ -290,7 +293,7 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                 <CardContent className="h-full">
                   <div className="h-full bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-auto">
                     <pre className="text-green-400">
-                      {context?.files?.['index.html'] || '// No code generated yet\n// Start chatting to generate website code'}
+                      {(context?.files?.['index.html'] as string) || '// No code generated yet\n// Start chatting to generate website code'}
                     </pre>
                   </div>
                 </CardContent>
@@ -319,11 +322,11 @@ const EnhancedWorkspace: React.FC<EnhancedWorkspaceProps> = ({
                         <!DOCTYPE html>
                         <html>
                         <head>
-                          <style>${context.files['styles.css'] || ''}</style>
+                          <style>${(context.files['styles.css'] as string) || ''}</style>
                         </head>
                         <body>
-                          ${context.files['index.html']}
-                          <script>${context.files['scripts.js'] || ''}</script>
+                          ${context.files['index.html'] as string}
+                          <script>${(context.files['scripts.js'] as string) || ''}</script>
                         </body>
                         </html>
                       `}
