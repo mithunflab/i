@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,12 +10,18 @@ interface GitHubRepo {
   clone_url: string;
 }
 
+interface FileChange {
+  path: string;
+  content: string;
+  action: 'create' | 'update' | 'delete';
+}
+
 export const useGitHubIntegration = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const createGitHubRepo = async (projectName: string, description: string, code: string, readme: string) => {
+  const createGitHubRepo = async (projectName: string, description: string, code: string, readme: string): Promise<GitHubRepo> => {
     setLoading(true);
     try {
       console.log('🐙 Creating GitHub repository:', projectName);
@@ -59,10 +66,15 @@ export const useGitHubIntegration = () => {
       const repo: GitHubRepo = await repoResponse.json();
 
       // Upload files
-      await uploadToGitHub(githubToken, username, repo.name, [
+      const filesToUpload = [
         { path: 'index.html', content: code },
-        { path: 'README.md', content: readme }
-      ]);
+        { path: 'README.md', content: readme },
+        { path: 'style.css', content: extractCSSFromHTML(code) },
+        { path: 'script.js', content: extractJSFromHTML(code) },
+        { path: 'package.json', content: generatePackageJson(projectName, description) }
+      ];
+
+      await uploadToGitHub(githubToken, username, repo.name, filesToUpload);
 
       toast({
         title: "GitHub Repository Created",
@@ -83,7 +95,7 @@ export const useGitHubIntegration = () => {
     }
   };
 
-  const updateGitHubRepo = async (repoUrl: string, fileChanges: Array<{path: string, content: string, action: 'create' | 'update' | 'delete'}>) => {
+  const updateGitHubRepo = async (repoUrl: string, fileChanges: FileChange[]) => {
     setLoading(true);
     try {
       console.log('🔄 Updating existing GitHub repository:', repoUrl);
@@ -107,7 +119,7 @@ export const useGitHubIntegration = () => {
 
       const githubToken = githubKeys[0].api_token;
 
-      // Update files - ONLY update existing repository, don't create new one
+      // Update files
       console.log('📝 Updating files in existing repository...');
       for (const change of fileChanges) {
         if (change.action === 'delete') {
@@ -117,11 +129,11 @@ export const useGitHubIntegration = () => {
         }
       }
 
-      console.log('✅ Repository updated successfully - No new repo created');
+      console.log('✅ Repository updated successfully');
       
       toast({
         title: "Repository Updated",
-        description: "Your code changes have been pushed to the existing GitHub repository",
+        description: "Your code changes have been pushed to GitHub",
       });
 
     } catch (error) {
@@ -135,6 +147,36 @@ export const useGitHubIntegration = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper functions
+  const extractCSSFromHTML = (html: string): string => {
+    const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/);
+    return styleMatch ? styleMatch[1].trim() : '/* No CSS found */';
+  };
+
+  const extractJSFromHTML = (html: string): string => {
+    const scriptMatch = html.match(/<script[^>]*>([\s\S]*?)<\/script>/);
+    return scriptMatch && !scriptMatch[0].includes('cdn.') ? scriptMatch[1].trim() : '/* No JavaScript found */';
+  };
+
+  const generatePackageJson = (name: string, description: string): string => {
+    return JSON.stringify({
+      name: name.toLowerCase().replace(/\s+/g, '-'),
+      version: "1.0.0",
+      description: description,
+      main: "index.html",
+      scripts: {
+        start: "python -m http.server 8000",
+        deploy: "gh-pages -d ."
+      },
+      keywords: ["youtube", "website", "ai-generated"],
+      author: "AI Website Builder",
+      license: "MIT",
+      devDependencies: {
+        "gh-pages": "^3.2.3"
+      }
+    }, null, 2);
   };
 
   const updateFileInGitHub = async (token: string, username: string, repoName: string, filePath: string, content: string) => {
@@ -167,7 +209,7 @@ export const useGitHubIntegration = () => {
         'User-Agent': 'AI-Website-Builder'
       },
       body: JSON.stringify({
-        message: `Update ${filePath} - AI Generated`,
+        message: `Update ${filePath} - AI Generated Content`,
         content: btoa(unescape(encodeURIComponent(content))),
         sha: sha
       })

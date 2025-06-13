@@ -1,220 +1,164 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Send, 
-  Bot, 
-  User, 
-  Loader2,
-  Code
-} from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Send, Bot, User, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { OpenRouterService } from '@/utils/openRouterService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  generatedCode?: string;
+  metadata?: any;
 }
 
 interface SimplifiedChatbotProps {
   projectId: string;
   sourceCode?: string;
   channelData?: any;
-  onCodeUpdate?: (newCode: string, targetFile?: string) => void;
+  onCodeUpdate?: (code: string, targetFile?: string) => void;
+  onChatHistoryUpdate?: (history: Message[]) => void;
 }
 
 const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
   projectId,
-  sourceCode = '',
+  sourceCode,
   channelData,
-  onCodeUpdate
+  onCodeUpdate,
+  onChatHistoryUpdate
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const { user } = useAuth();
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
-    const welcomeMessage: Message = {
-      id: 'welcome',
-      role: 'assistant',
-      content: `🤖 **AI Website Builder**\n\n${channelData ? `**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n` : ''}💬 **Tell me what you want to create:**\n• "Create a modern landing page"\n• "Build a YouTube channel website"\n• "Make a professional portfolio"\n• "Add a contact form"\n• "Change the color scheme"\n\n✨ **I'll help you build your website step by step!**`,
-      timestamp: new Date()
-    };
-    setMessages([welcomeMessage]);
-  }, [channelData]);
-
-  const generateMockCode = (userRequest: string, channelData: any) => {
-    const isContactForm = userRequest.toLowerCase().includes('contact');
-    const isColorChange = userRequest.toLowerCase().includes('color');
-    const isLayout = userRequest.toLowerCase().includes('layout') || userRequest.toLowerCase().includes('design');
-
-    if (isContactForm) {
-      return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${channelData?.title || 'My Website'} - Contact</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: 'Poppins', sans-serif; }
-        .red-gradient { background: linear-gradient(135deg, #dc2626, #b91c1c); }
-        .glass-effect { backdrop-filter: blur(20px); background: rgba(255, 255, 255, 0.1); }
-    </style>
-</head>
-<body class="bg-gradient-to-br from-red-950 via-red-900 to-black text-white min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <header class="glass-effect rounded-2xl p-6 mb-8">
-            <h1 class="text-4xl font-bold text-center mb-4">${channelData?.title || 'Contact Us'}</h1>
-        </header>
-        
-        <main class="glass-effect rounded-2xl p-8">
-            <form class="max-w-md mx-auto space-y-6">
-                <div>
-                    <label class="block text-red-200 text-sm font-bold mb-2">Name</label>
-                    <input type="text" class="w-full px-3 py-2 bg-red-950/50 border border-red-500/30 rounded text-white" required>
-                </div>
-                <div>
-                    <label class="block text-red-200 text-sm font-bold mb-2">Email</label>
-                    <input type="email" class="w-full px-3 py-2 bg-red-950/50 border border-red-500/30 rounded text-white" required>
-                </div>
-                <div>
-                    <label class="block text-red-200 text-sm font-bold mb-2">Message</label>
-                    <textarea rows="4" class="w-full px-3 py-2 bg-red-950/50 border border-red-500/30 rounded text-white" required></textarea>
-                </div>
-                <button type="submit" class="w-full red-gradient text-white font-bold py-2 px-4 rounded hover:scale-105 transition-transform">
-                    Send Message
-                </button>
-            </form>
-        </main>
-    </div>
-</body>
-</html>`;
+    // Load chat history from localStorage on component mount
+    const savedHistory = localStorage.getItem(`chat-history-${projectId}`);
+    if (savedHistory) {
+      try {
+        const parsedHistory = JSON.parse(savedHistory);
+        setMessages(parsedHistory.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        })));
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
     }
+  }, [projectId]);
 
-    // Default website generation
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${channelData?.title || 'My Website'}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
-        * { font-family: 'Poppins', sans-serif; }
-        .red-gradient { background: linear-gradient(135deg, #dc2626, #b91c1c, #991b1b); }
-        .glass-effect { backdrop-filter: blur(20px); background: rgba(255, 255, 255, 0.1); }
-        .shine { background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%); }
-    </style>
-</head>
-<body class="bg-gradient-to-br from-red-950 via-red-900 to-black text-white min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <header class="glass-effect rounded-2xl p-6 mb-8 shine">
-            <div class="flex items-center justify-center gap-4">
-                ${channelData?.thumbnail ? `<img src="${channelData.thumbnail}" alt="${channelData.title}" class="w-16 h-16 rounded-full border-4 border-red-500">` : ''}
-                <div class="text-center">
-                    <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-pink-400">
-                        ${channelData?.title || 'Welcome to My Website'}
-                    </h1>
-                    ${channelData?.subscriberCount ? `<p class="text-red-300">${parseInt(channelData.subscriberCount).toLocaleString()} subscribers</p>` : ''}
-                </div>
-            </div>
-        </header>
-        
-        <main class="glass-effect rounded-2xl p-8 shine">
-            <div class="text-center mb-8">
-                <h2 class="text-3xl font-bold mb-4">Your request: "${userRequest}"</h2>
-                <p class="text-xl text-red-300">This website was generated based on your request!</p>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="glass-effect rounded-xl p-6 hover:scale-105 transition-transform">
-                    <h3 class="text-xl font-semibold mb-4 text-red-300">Modern Design</h3>
-                    <p>Beautiful, responsive design with YouTube-inspired red theme</p>
-                </div>
-                <div class="glass-effect rounded-xl p-6 hover:scale-105 transition-transform">
-                    <h3 class="text-xl font-semibold mb-4 text-red-300">AI Powered</h3>
-                    <p>Generated with advanced AI to match your specific requirements</p>
-                </div>
-                <div class="glass-effect rounded-xl p-6 hover:scale-105 transition-transform">
-                    <h3 class="text-xl font-semibold mb-4 text-red-300">Fully Customizable</h3>
-                    <p>Ask me to modify anything and I'll update the code instantly</p>
-                </div>
-            </div>
-        </main>
-    </div>
-</body>
-</html>`;
+  useEffect(() => {
+    // Update parent component with chat history
+    if (onChatHistoryUpdate) {
+      onChatHistoryUpdate(messages);
+    }
+    
+    // Save to localStorage
+    if (messages.length > 0) {
+      localStorage.setItem(`chat-history-${projectId}`, JSON.stringify(messages));
+    }
+  }, [messages, projectId, onChatHistoryUpdate]);
+
+  const addMessage = (role: 'user' | 'assistant', content: string, metadata?: any) => {
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      role,
+      content,
+      timestamp: new Date(),
+      metadata
+    };
+    
+    setMessages(prev => [...prev, newMessage]);
+    return newMessage;
   };
 
-  const handleSendMessage = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    const currentInput = input.trim();
+    const userMessage = input.trim();
     setInput('');
+    
+    // Add user message
+    addMessage('user', userMessage);
     setIsLoading(true);
 
     try {
-      // Generate code based on user request
-      const mockCode = generateMockCode(currentInput, channelData);
+      // Prepare context for the AI
+      const systemPrompt = `You are an expert web developer specializing in YouTube channel websites. 
+You can generate, modify, and improve HTML, CSS, and JavaScript code.
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `✅ **Website Updated!**\n\nI've created/updated your website based on: "${currentInput}"\n\n**Changes made:**\n• Generated responsive HTML structure\n• Applied YouTube-inspired red theme\n• Added glass morphism effects\n• Integrated your ${channelData ? 'channel data' : 'custom content'}\n\n🎨 **You can see the live preview on the right!**\n\nWant me to modify anything? Just ask!`,
-        timestamp: new Date(),
-        generatedCode: mockCode
-      };
+Current project context:
+${channelData ? `- Channel: ${channelData.title} (${channelData.subscriberCount} subscribers)` : ''}
+${channelData ? `- Description: ${channelData.description?.substring(0, 200)}...` : ''}
+${sourceCode ? `- Current code length: ${sourceCode.length} characters` : ''}
 
-      setMessages(prev => [...prev, assistantMessage]);
+When the user asks for changes:
+1. Generate complete, working HTML code with embedded CSS and JavaScript
+2. Make the website responsive and modern
+3. Include the YouTube channel data appropriately
+4. Follow modern web development best practices
+5. Always provide complete code that can be directly used
 
-      if (onCodeUpdate) {
-        onCodeUpdate(mockCode, 'index.html');
+Respond with complete HTML code when making changes, or provide helpful guidance when asked questions.`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ];
+
+      // Call OpenRouter API
+      const response = await OpenRouterService.makeRequest(
+        '', // Use default free model
+        messages,
+        user?.id || 'anonymous',
+        'chat'
+      );
+
+      const aiResponse = response.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+      
+      // Add AI response
+      const aiMessage = addMessage('assistant', aiResponse, {
+        model: response.selectedModel,
+        timestamp: new Date()
+      });
+
+      // Check if the response contains HTML code
+      const htmlMatch = aiResponse.match(/```html\n([\s\S]*?)\n```/) || 
+                       aiResponse.match(/<!DOCTYPE html[\s\S]*<\/html>/);
+      
+      if (htmlMatch) {
+        const code = htmlMatch[1] || htmlMatch[0];
+        if (onCodeUpdate) {
+          onCodeUpdate(code, 'index.html');
+        }
+        
         toast({
-          title: "🎨 Website Generated!",
-          description: "Check the preview and code files!",
+          title: "Code Updated",
+          description: "Your website has been updated with the new code",
         });
       }
 
     } catch (error) {
-      console.error('Error:', error);
-      
-      const errorMessage: Message = {
-        id: (Date.now() + 2).toString(),
-        role: 'assistant',
-        content: `❌ **Error Occurred**\n\nSorry, I couldn't process your request right now. Please try again.\n\n💡 **Try simpler requests like:**\n• "Make it blue"\n• "Add a contact form"\n• "Change the layout"`,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      console.error('Chat error:', error);
+      addMessage('assistant', 'Sorry, I encountered an error. Please try again.', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       
       toast({
         title: "Error",
-        description: "Failed to generate website. Please try again.",
+        description: "Failed to get AI response. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -222,80 +166,63 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
   return (
-    <Card className="h-full flex flex-col bg-red-950/30 border-red-500/30 backdrop-blur-md">
-      <CardHeader className="pb-3 border-b border-red-500/20">
-        <CardTitle className="flex items-center justify-between text-white">
-          <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-red-400" />
-            AI Assistant
-          </div>
-          <Badge variant="default" className="text-xs bg-red-600/30 text-red-300 border-red-500/30">
-            Active
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-
-      <CardContent className="flex-1 flex flex-col p-0">
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-96">
+    <div className="h-full flex flex-col bg-red-950/20 backdrop-blur-sm">
+      {/* Messages Area */}
+      <ScrollArea className="flex-1 p-3">
+        <div className="space-y-3">
+          {messages.length === 0 && (
+            <div className="text-center text-red-300/70 py-8">
+              <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">Ask me to modify your YouTube website!</p>
+              <p className="text-xs mt-1">Examples: "Make the header bigger", "Add animation", "Change colors"</p>
+            </div>
+          )}
+          
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {message.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-red-600/30 flex items-center justify-center flex-shrink-0 border border-red-500/30">
-                  <Bot className="w-4 h-4 text-red-300" />
+              <div className={`flex gap-2 max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  message.role === 'user' 
+                    ? 'bg-red-600' 
+                    : 'bg-red-800'
+                }`}>
+                  {message.role === 'user' ? (
+                    <User className="w-3 h-3 text-white" />
+                  ) : (
+                    <Bot className="w-3 h-3 text-white" />
+                  )}
                 </div>
-              )}
-              
-              <div
-                className={`max-w-[80%] p-3 rounded-lg whitespace-pre-wrap ${
+                <div className={`rounded-lg p-2 text-sm ${
                   message.role === 'user'
-                    ? 'bg-red-600/50 text-white border border-red-500/30'
-                    : 'bg-red-950/50 text-red-100 border border-red-500/30'
-                }`}
-              >
-                {message.content}
-                
-                {message.generatedCode && (
-                  <div className="mt-2">
-                    <Badge variant="outline" className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">
-                      <Code className="w-3 h-3 mr-1" />
-                      Code Generated
-                    </Badge>
-                  </div>
-                )}
-              </div>
-
-              {message.role === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-red-700/30 flex items-center justify-center flex-shrink-0 border border-red-500/30">
-                  <User className="w-4 h-4 text-red-300" />
+                    ? 'bg-red-600/80 text-white'
+                    : 'bg-red-900/60 text-red-100 border border-red-500/30'
+                }`}>
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                  {message.metadata?.model && (
+                    <div className="text-xs opacity-70 mt-1">
+                      via {message.metadata.model}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           ))}
           
           {isLoading && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-red-600/30 flex items-center justify-center border border-red-500/30">
-                <Loader2 className="w-4 h-4 text-red-300 animate-spin" />
-              </div>
-              <div className="bg-red-950/50 text-red-100 border border-red-500/30 p-3 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-red-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-red-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-red-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            <div className="flex gap-2 justify-start">
+              <div className="flex gap-2 max-w-[85%]">
+                <div className="w-6 h-6 rounded-full bg-red-800 flex items-center justify-center flex-shrink-0">
+                  <Bot className="w-3 h-3 text-white" />
+                </div>
+                <div className="bg-red-900/60 text-red-100 border border-red-500/30 rounded-lg p-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Generating response...</span>
                   </div>
-                  <span className="text-sm text-red-300">Generating your website...</span>
                 </div>
               </div>
             </div>
@@ -303,32 +230,29 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
           
           <div ref={messagesEndRef} />
         </div>
+      </ScrollArea>
 
-        <div className="border-t border-red-500/20 p-4 bg-red-950/20">
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Tell me what to build or modify..."
-              className="flex-1 bg-red-950/50 border-red-500/30 text-white placeholder-red-300/60"
-              disabled={isLoading}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={!input.trim() || isLoading}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Input Area */}
+      <div className="p-3 border-t border-red-500/30 bg-red-950/30 backdrop-blur-sm">
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask AI to modify your website..."
+            disabled={isLoading}
+            className="flex-1 bg-red-950/60 border-red-500/40 text-white placeholder-red-300/70 text-sm h-8"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isLoading || !input.trim()}
+            className="bg-red-600 hover:bg-red-700 px-3 h-8"
+          >
+            <Send className="w-3 h-3" />
+          </Button>
+        </form>
+      </div>
+    </div>
   );
 };
 

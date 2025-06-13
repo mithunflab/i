@@ -14,12 +14,16 @@ import {
   Smartphone,
   Tablet,
   Send,
-  CheckCircle
+  CheckCircle,
+  Github,
+  GitBranch,
+  Upload
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SimplifiedChatbot from './SimplifiedChatbot';
 import CodePreview from './CodePreview';
 import { useProjectFileManager } from '@/hooks/useProjectFileManager';
+import { useGitHubIntegration } from '@/hooks/useGitHubIntegration';
 
 const YouTubeWorkspace: React.FC = () => {
   const location = useLocation();
@@ -29,6 +33,7 @@ const YouTubeWorkspace: React.FC = () => {
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [ytUrl, setYtUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(!channelData);
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
   const { toast } = useToast();
   
   const {
@@ -38,6 +43,8 @@ const YouTubeWorkspace: React.FC = () => {
     fetchYouTubeData,
     generateWebsiteCode
   } = useProjectFileManager();
+
+  const { createGitHubRepo, updateGitHubRepo, loading: githubLoading } = useGitHubIntegration();
 
   useEffect(() => {
     if (channelData) {
@@ -87,6 +94,46 @@ const YouTubeWorkspace: React.FC = () => {
     });
   };
 
+  const handleGitHubUpload = async () => {
+    try {
+      const projectName = channelData?.title || 'YouTube Website';
+      const description = `AI-generated website for ${channelData?.title || 'YouTube channel'}`;
+      
+      // Prepare all files for upload
+      const allFiles = projectFiles.map(file => ({
+        path: file.name,
+        content: file.content || '',
+        action: 'create' as const
+      }));
+
+      // Add chat history file
+      allFiles.push({
+        path: 'chat-history.json',
+        content: JSON.stringify(chatHistory, null, 2),
+        action: 'create' as const
+      });
+
+      const repo = await createGitHubRepo(
+        projectName,
+        description,
+        generatedCode,
+        `# ${projectName}\n\nAI-generated website with full project files and chat history.`
+      );
+
+      toast({
+        title: "GitHub Repository Created",
+        description: `Project uploaded to ${repo.html_url}`,
+      });
+    } catch (error) {
+      console.error('GitHub upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload project to GitHub",
+        variant: "destructive"
+      });
+    }
+  };
+
   const getPreviewDimensions = () => {
     switch (previewMode) {
       case 'mobile':
@@ -100,56 +147,74 @@ const YouTubeWorkspace: React.FC = () => {
 
   return (
     <div className="h-screen bg-gradient-to-br from-red-950 via-red-900 to-black flex overflow-hidden relative">
-      {/* Premium Red Shiny Texture Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 via-red-800/20 to-black/40"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(220,38,38,0.3),transparent_50%)]"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(239,68,68,0.3),transparent_50%)]"></div>
-      <div className="absolute inset-0 bg-noise opacity-10"></div>
+      {/* Premium YouTube-style Background */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-red-900/40 via-red-800/30 to-black/60"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(220,38,38,0.4),transparent_70%)]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(239,68,68,0.3),transparent_60%)]"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.02)_26%,rgba(255,255,255,0.02)_27%,transparent_28%)] bg-[length:20px_20px]"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-black/10"></div>
+      </div>
       
-      {/* Left Panel - Chat (2/6 ratio) */}
-      <div className="w-1/3 relative overflow-hidden border-r border-red-500/20 backdrop-blur-sm">
+      {/* Left Panel - Chat (1/3 ratio) */}
+      <div className="w-1/3 relative overflow-hidden border-r border-red-500/30 backdrop-blur-sm">
         <div className="relative z-10 h-full flex flex-col">
-          {/* Header */}
-          <div className="p-4 border-b border-red-500/20 bg-red-950/30 backdrop-blur-md">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
-                  <div className="absolute top-0 left-0 w-3 h-3 bg-red-400 rounded-full animate-ping opacity-75"></div>
+          {/* Chat Header with Status Indicators */}
+          <div className="p-3 border-b border-red-500/30 bg-red-950/40 backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse delay-100"></div>
+                  <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse delay-200"></div>
+                  <div className="w-2 h-2 bg-red-700 rounded-full animate-pulse delay-300"></div>
                 </div>
-                <h2 className="font-semibold text-white">AI Workspace</h2>
-                <Badge variant="secondary" className="bg-red-600/20 text-red-300 border-red-500/30">
-                  Active
+                <h2 className="font-semibold text-white text-sm">AI Workspace</h2>
+                <Badge variant="secondary" className="bg-red-600/30 text-red-200 border-red-500/40 text-xs">
+                  Live
                 </Badge>
               </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-1.5">
               <Button
                 onClick={handleVerificationRequest}
                 size="sm"
-                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white"
+                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white text-xs px-2 py-1 h-7"
               >
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Send for Verification
+                <CheckCircle className="w-3 h-3 mr-1" />
+                Verify
+              </Button>
+              <Button
+                onClick={handleGitHubUpload}
+                disabled={githubLoading}
+                size="sm"
+                className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white text-xs px-2 py-1 h-7"
+              >
+                <Github className="w-3 h-3 mr-1" />
+                {githubLoading ? 'Uploading...' : 'GitHub'}
               </Button>
             </div>
           </div>
 
           {/* YouTube URL Input */}
           {showUrlInput && (
-            <div className="p-4 bg-red-900/20 border-b border-red-500/20 backdrop-blur-sm">
+            <div className="p-3 bg-red-900/30 border-b border-red-500/30 backdrop-blur-sm">
               <div className="flex gap-2">
                 <Input
                   value={ytUrl}
                   onChange={(e) => setYtUrl(e.target.value)}
                   placeholder="Enter YouTube channel URL..."
-                  className="flex-1 bg-red-950/50 border-red-500/30 text-white placeholder-red-300/60"
+                  className="flex-1 bg-red-950/60 border-red-500/40 text-white placeholder-red-300/70 text-sm h-8"
                 />
                 <Button
                   onClick={handleYouTubeUrlSubmit}
                   size="sm"
                   disabled={!ytUrl.trim()}
-                  className="bg-red-600 hover:bg-red-700"
+                  className="bg-red-600 hover:bg-red-700 text-xs px-2 h-8"
                 >
-                  <Youtube className="w-4 h-4 mr-1" />
+                  <Youtube className="w-3 h-3 mr-1" />
                   Fetch
                 </Button>
               </div>
@@ -163,63 +228,65 @@ const YouTubeWorkspace: React.FC = () => {
               sourceCode={generatedCode}
               channelData={channelData || youtubeData}
               onCodeUpdate={handleCodeUpdate}
+              onChatHistoryUpdate={setChatHistory}
             />
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Preview/Code (4/6 ratio) */}
+      {/* Right Panel - Preview/Code (2/3 ratio) */}
       <div className="w-2/3 flex flex-col bg-red-950/20 backdrop-blur-sm relative">
         {/* Header */}
-        <div className="h-14 border-b border-red-500/20 flex items-center justify-between px-4 bg-red-950/30 backdrop-blur-md">
-          <div className="flex items-center gap-4">
+        <div className="h-12 border-b border-red-500/30 flex items-center justify-between px-4 bg-red-950/40 backdrop-blur-md">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="text-sm font-medium text-white">
                 {channelData?.title || youtubeData?.title || 'Workspace'}
               </div>
-              <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+              <div className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse"></div>
             </div>
             
             {/* Preview Mode Toggle */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <Button
                 variant={previewMode === 'desktop' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('desktop')}
-                className={previewMode === 'desktop' ? "bg-red-600/50 text-white" : "text-red-300 hover:text-white hover:bg-red-600/30"}
+                className={`h-7 px-2 ${previewMode === 'desktop' ? "bg-red-600/60 text-white" : "text-red-300 hover:text-white hover:bg-red-600/40"}`}
               >
-                <Monitor className="h-4 w-4" />
+                <Monitor className="h-3 w-3" />
               </Button>
               <Button
                 variant={previewMode === 'tablet' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('tablet')}
-                className={previewMode === 'tablet' ? "bg-red-600/50 text-white" : "text-red-300 hover:text-white hover:bg-red-600/30"}
+                className={`h-7 px-2 ${previewMode === 'tablet' ? "bg-red-600/60 text-white" : "text-red-300 hover:text-white hover:bg-red-600/40"}`}
               >
-                <Tablet className="h-4 w-4" />
+                <Tablet className="h-3 w-3" />
               </Button>
               <Button
                 variant={previewMode === 'mobile' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setPreviewMode('mobile')}
-                className={previewMode === 'mobile' ? "bg-red-600/50 text-white" : "text-red-300 hover:text-white hover:bg-red-600/30"}
+                className={`h-7 px-2 ${previewMode === 'mobile' ? "bg-red-600/60 text-white" : "text-red-300 hover:text-white hover:bg-red-600/40"}`}
               >
-                <Smartphone className="h-4 w-4" />
+                <Smartphone className="h-3 w-3" />
               </Button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <Switch
                 id="view-mode"
                 checked={isCodeView}
                 onCheckedChange={setIsCodeView}
+                className="scale-75"
               />
-              <label htmlFor="view-mode" className="text-sm text-red-200 cursor-pointer">
+              <label htmlFor="view-mode" className="text-xs text-red-200 cursor-pointer">
                 {isCodeView ? 'Code' : 'Preview'}
               </label>
-              {isCodeView ? <Code className="h-4 w-4 text-red-300" /> : <Eye className="h-4 w-4 text-red-300" />}
+              {isCodeView ? <Code className="h-3 w-3 text-red-300" /> : <Eye className="h-3 w-3 text-red-300" />}
             </div>
           </div>
         </div>
@@ -236,7 +303,7 @@ const YouTubeWorkspace: React.FC = () => {
             <div className="h-full flex items-center justify-center p-4">
               {generatedCode ? (
                 <div 
-                  className="bg-white rounded-lg shadow-2xl overflow-hidden border-4 border-red-500/30"
+                  className="bg-white rounded-lg shadow-2xl overflow-hidden border-4 border-red-500/40"
                   style={getPreviewDimensions()}
                 >
                   <iframe
@@ -249,8 +316,8 @@ const YouTubeWorkspace: React.FC = () => {
               ) : (
                 <div className="text-center text-red-200">
                   <Eye className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <p>No content to preview</p>
-                  <p className="text-sm">Generate code using the AI chat or enter a YouTube URL</p>
+                  <p className="text-lg">No content to preview</p>
+                  <p className="text-sm opacity-70">Generate code using the AI chat or enter a YouTube URL</p>
                 </div>
               )}
             </div>
@@ -258,12 +325,13 @@ const YouTubeWorkspace: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="h-8 border-t border-red-500/20 bg-red-950/30 backdrop-blur-md flex items-center justify-between px-4 text-xs text-red-200">
+        <div className="h-6 border-t border-red-500/30 bg-red-950/40 backdrop-blur-md flex items-center justify-between px-4 text-xs text-red-200">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse"></div>
+            <div className="w-1 h-1 bg-red-400 rounded-full animate-pulse"></div>
             Live Preview Active
           </div>
-          <div>
+          <div className="flex items-center gap-2">
+            <GitBranch className="w-3 h-3" />
             Ready to build
           </div>
         </div>

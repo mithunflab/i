@@ -42,14 +42,14 @@ export const useProjectFileManager = () => {
         { name: 'index.html', type: 'file', extension: 'html', content: '' },
         { name: 'style.css', type: 'file', extension: 'css', content: '' },
         { name: 'script.js', type: 'file', extension: 'js', content: '' },
-        { name: 'interpreter.js', type: 'file', extension: 'js', content: '' },
-        { name: 'aieditor.js', type: 'file', extension: 'js', content: '' },
-        { name: 'componentmap.js', type: 'file', extension: 'js', content: '' },
-        { name: 'design.json', type: 'file', extension: 'json', content: '' },
-        { name: 'changelog.md', type: 'file', extension: 'md', content: '' },
-        { name: 'readme.md', type: 'file', extension: 'md', content: '' },
-        { name: 'projectchat', type: 'file', content: '' },
-        { name: 'yticon', type: 'file', content: '' }
+        { name: 'interpreter.js', type: 'file', extension: 'js', content: '// AI interpretation logic\nconsole.log("AI interpreter ready");' },
+        { name: 'aieditor.js', type: 'file', extension: 'js', content: '// AI editor functionality\nconsole.log("AI editor initialized");' },
+        { name: 'componentmap.js', type: 'file', extension: 'js', content: '// Component mapping\nconst componentMap = {};' },
+        { name: 'design.json', type: 'file', extension: 'json', content: '{\n  "theme": "youtube-red",\n  "primary": "#ff0000",\n  "secondary": "#cc0000"\n}' },
+        { name: 'changelog.md', type: 'file', extension: 'md', content: '# Changelog\n\n## v1.0.0\n- Initial release\n- AI-powered website generation\n' },
+        { name: 'readme.md', type: 'file', extension: 'md', content: '# AI-Generated YouTube Website\n\nThis website was created using AI technology.\n\n## Features\n- Responsive design\n- YouTube integration\n- Real-time editing\n' },
+        { name: 'projectchat.json', type: 'file', extension: 'json', content: '[]' },
+        { name: 'yticon.json', type: 'file', extension: 'json', content: '{}' }
       ]
     }
   ]);
@@ -72,6 +72,11 @@ export const useProjectFileManager = () => {
       };
       return updateFile(prev);
     });
+
+    // Update chat history file if it's a chat update
+    if (fileName === 'projectchat.json') {
+      localStorage.setItem('project-chat-history', content);
+    }
   }, []);
 
   const getFileByName = useCallback((fileName: string): FileNode | null => {
@@ -195,12 +200,20 @@ export const useProjectFileManager = () => {
         const channelData = data.channel;
         setYoutubeData(channelData);
         
-        // Store YouTube data in yticon file
-        updateFileContent('yticon', JSON.stringify({
-          channelData,
+        // Store YouTube data in yticon file with enhanced data
+        const enhancedData = {
+          ...channelData,
           fetchedAt: new Date().toISOString(),
-          sourceUrl: youtubeUrl
-        }, null, 2));
+          sourceUrl: youtubeUrl,
+          apiUsed: apiKey.name,
+          metadata: {
+            totalVideos: channelData.videos?.length || 0,
+            averageViews: channelData.videos?.reduce((sum: number, video: any) => sum + parseInt(video.viewCount || '0'), 0) / (channelData.videos?.length || 1),
+            latestVideoDate: channelData.videos?.[0]?.publishedAt || null
+          }
+        };
+        
+        updateFileContent('yticon.json', JSON.stringify(enhancedData, null, 2));
 
         return channelData;
 
@@ -225,72 +238,192 @@ export const useProjectFileManager = () => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${channelData.title} - Official Website</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
-      * { font-family: 'Poppins', sans-serif; }
-      .youtube-gradient { background: linear-gradient(135deg, #ff0000, #cc0000, #990000); }
-      .glass-card { backdrop-filter: blur(20px); background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); }
-      .shine { background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.3) 50%, transparent 70%); }
+      * { 
+        font-family: 'Poppins', sans-serif; 
+        scroll-behavior: smooth;
+      }
+      .youtube-gradient { 
+        background: linear-gradient(135deg, #ff0000, #cc0000, #990000, #660000); 
+      }
+      .glass-card { 
+        backdrop-filter: blur(20px); 
+        background: rgba(255, 255, 255, 0.08); 
+        border: 1px solid rgba(255, 255, 255, 0.15); 
+      }
+      .shine { 
+        background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%); 
+        animation: shine 3s infinite;
+      }
+      @keyframes shine {
+        0% { background-position: -200% center; }
+        100% { background-position: 200% center; }
+      }
+      .pulse-glow {
+        animation: pulse-glow 2s infinite;
+      }
+      @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 20px rgba(255, 0, 0, 0.3); }
+        50% { box-shadow: 0 0 30px rgba(255, 0, 0, 0.6); }
+      }
+      .hover-lift {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+      }
+      .hover-lift:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      }
     </style>
 </head>
 <body class="bg-gradient-to-br from-red-950 via-red-900 to-black text-white min-h-screen">
-    <header class="glass-card rounded-2xl m-4 p-6 shine">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <img src="${channelData.thumbnail}" alt="${channelData.title}" class="w-16 h-16 rounded-full border-4 border-red-500 shadow-xl">
+    <!-- Hero Header -->
+    <header class="glass-card rounded-2xl m-4 p-8 shine relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-r from-red-600/20 to-transparent"></div>
+        <div class="relative z-10 flex items-center justify-between flex-wrap gap-4">
+            <div class="flex items-center gap-6">
+                <img src="${channelData.thumbnail}" alt="${channelData.title}" 
+                     class="w-20 h-20 rounded-full border-4 border-red-500 shadow-2xl pulse-glow">
                 <div>
-                    <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-pink-400">${channelData.title}</h1>
-                    <p class="text-red-300">${parseInt(channelData.subscriberCount || '0').toLocaleString()} subscribers</p>
+                    <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-red-300 to-pink-400">
+                        ${channelData.title}
+                    </h1>
+                    <p class="text-red-300 text-lg font-medium">
+                        ${parseInt(channelData.subscriberCount || '0').toLocaleString()} subscribers
+                    </p>
+                    <p class="text-red-400 text-sm opacity-80 mt-1">
+                        ${parseInt(channelData.videoCount || '0').toLocaleString()} videos • 
+                        ${parseInt(channelData.viewCount || '0').toLocaleString()} total views
+                    </p>
                 </div>
             </div>
-            <a href="${channelData.customUrl || '#'}" target="_blank" class="youtube-gradient px-6 py-3 rounded-full font-semibold hover:scale-105 transition-transform shadow-lg">
-                Subscribe Now
+            <a href="${channelData.customUrl || '#'}" target="_blank" 
+               class="youtube-gradient px-8 py-4 rounded-full font-bold text-lg hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl pulse-glow">
+                🔔 Subscribe Now
             </a>
         </div>
     </header>
 
-    <main class="m-4">
-        <section class="glass-card rounded-2xl p-8 mb-8 text-center shine">
-            <h2 class="text-4xl font-bold mb-4">Welcome to ${channelData.title}</h2>
-            <p class="text-xl text-red-300 mb-8">Join our amazing community of ${parseInt(channelData.subscriberCount || '0').toLocaleString()} subscribers!</p>
+    <!-- Main Content -->
+    <main class="m-4 space-y-8">
+        <!-- Welcome Section -->
+        <section class="glass-card rounded-2xl p-10 text-center shine hover-lift">
+            <h2 class="text-5xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white to-red-300">
+                Welcome to ${channelData.title}
+            </h2>
+            <p class="text-xl text-red-300 mb-8 max-w-3xl mx-auto leading-relaxed">
+                ${channelData.description?.substring(0, 200) || 'Join our amazing community and explore fascinating content!'}...
+            </p>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                <div class="glass-card rounded-xl p-6">
-                    <div class="text-3xl font-bold text-red-400">${parseInt(channelData.subscriberCount || '0').toLocaleString()}</div>
-                    <div class="text-red-300">Subscribers</div>
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+                <div class="glass-card rounded-xl p-6 hover-lift">
+                    <div class="text-4xl font-bold text-red-400 mb-2">
+                        ${parseInt(channelData.subscriberCount || '0').toLocaleString()}
+                    </div>
+                    <div class="text-red-300 font-medium">Subscribers</div>
+                    <div class="text-red-500 text-sm opacity-75">Growing Community</div>
                 </div>
-                <div class="glass-card rounded-xl p-6">
-                    <div class="text-3xl font-bold text-green-400">${parseInt(channelData.videoCount || '100').toLocaleString()}</div>
-                    <div class="text-red-300">Videos</div>
+                <div class="glass-card rounded-xl p-6 hover-lift">
+                    <div class="text-4xl font-bold text-green-400 mb-2">
+                        ${parseInt(channelData.videoCount || '100').toLocaleString()}
+                    </div>
+                    <div class="text-red-300 font-medium">Videos</div>
+                    <div class="text-red-500 text-sm opacity-75">Quality Content</div>
                 </div>
-                <div class="glass-card rounded-xl p-6">
-                    <div class="text-3xl font-bold text-blue-400">${parseInt(channelData.viewCount || '1000000').toLocaleString()}</div>
-                    <div class="text-red-300">Total Views</div>
+                <div class="glass-card rounded-xl p-6 hover-lift">
+                    <div class="text-4xl font-bold text-blue-400 mb-2">
+                        ${parseInt(channelData.viewCount || '1000000').toLocaleString()}
+                    </div>
+                    <div class="text-red-300 font-medium">Total Views</div>
+                    <div class="text-red-500 text-sm opacity-75">Global Reach</div>
                 </div>
             </div>
         </section>
 
+        <!-- Latest Videos -->
         <section class="glass-card rounded-2xl p-8 shine">
-            <h3 class="text-2xl font-bold mb-6 text-center">Latest Videos</h3>
+            <h3 class="text-3xl font-bold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-white to-red-300">
+                🎬 Latest Videos
+            </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 ${channelData.videos?.slice(0, 6).map((video, index) => `
-                <div class="glass-card rounded-xl p-4 hover:scale-105 transition-transform">
-                    <img src="${video.thumbnail}" alt="${video.title}" class="w-full h-40 object-cover rounded-lg mb-4">
-                    <h4 class="font-semibold text-white truncate">${video.title}</h4>
-                    <p class="text-red-400 text-sm">${parseInt(video.viewCount || '0').toLocaleString()} views</p>
+                <div class="glass-card rounded-xl p-5 hover-lift group cursor-pointer" onclick="window.open('${video.embedUrl}', '_blank')">
+                    <div class="relative overflow-hidden rounded-lg mb-4">
+                        <img src="${video.thumbnail}" alt="${video.title}" 
+                             class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div class="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
+                            ${video.duration.replace('PT', '').replace('M', ':').replace('S', '')}
+                        </div>
+                    </div>
+                    <h4 class="font-bold text-white text-lg leading-tight mb-3 line-clamp-2 group-hover:text-red-300 transition-colors">
+                        ${video.title}
+                    </h4>
+                    <div class="flex justify-between items-center text-sm">
+                        <p class="text-red-400 font-medium">
+                            👁️ ${parseInt(video.viewCount || '0').toLocaleString()} views
+                        </p>
+                        <p class="text-red-500 opacity-75">
+                            ${new Date(video.publishedAt).toLocaleDateString()}
+                        </p>
+                    </div>
                 </div>
                 `).join('') || `
-                <div class="glass-card rounded-xl p-4 hover:scale-105 transition-transform">
+                <div class="glass-card rounded-xl p-6 hover-lift col-span-full text-center">
                     <div class="w-full h-40 bg-gradient-to-r from-red-500 to-pink-500 rounded-lg mb-4 flex items-center justify-center">
-                        <span class="text-white font-bold">Latest Video</span>
+                        <span class="text-white font-bold text-2xl">🎥 Amazing Content Coming Soon!</span>
                     </div>
-                    <h4 class="font-semibold text-white">Amazing Content</h4>
-                    <p class="text-red-400 text-sm">Coming Soon</p>
+                    <h4 class="font-bold text-white text-xl">Stay Tuned</h4>
+                    <p class="text-red-400">New videos are on the way!</p>
                 </div>
                 `}
             </div>
         </section>
+
+        <!-- Call to Action -->
+        <section class="glass-card rounded-2xl p-10 text-center shine">
+            <h3 class="text-3xl font-bold mb-4 text-white">Join Our Community!</h3>
+            <p class="text-red-300 mb-8 text-lg">Don't miss out on amazing content. Subscribe now and hit the bell icon!</p>
+            <div class="flex justify-center gap-4 flex-wrap">
+                <a href="${channelData.customUrl || '#'}" target="_blank" 
+                   class="youtube-gradient px-8 py-3 rounded-full font-bold hover:scale-105 transition-all duration-300 shadow-lg">
+                    🔔 Subscribe
+                </a>
+                <a href="${channelData.customUrl || '#'}" target="_blank" 
+                   class="glass-card px-8 py-3 rounded-full font-bold hover:scale-105 transition-all duration-300 border-2 border-red-500">
+                    📺 Watch Now
+                </a>
+            </div>
+        </section>
     </main>
+
+    <!-- Footer -->
+    <footer class="glass-card rounded-2xl m-4 p-6 text-center shine">
+        <p class="text-red-300 text-sm">
+            © 2024 ${channelData.title}. Website generated with AI technology.
+        </p>
+    </footer>
+
+    <script>
+        // Add smooth scrolling and interactive effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add parallax effect to background
+            window.addEventListener('scroll', function() {
+                const scrolled = window.pageYOffset;
+                const parallax = document.querySelector('body');
+                const speed = scrolled * 0.5;
+                parallax.style.backgroundPosition = 'center ' + speed + 'px';
+            });
+
+            // Add click analytics
+            document.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', function() {
+                    console.log('Link clicked:', this.href);
+                });
+            });
+        });
+    </script>
 </body>
 </html>`;
 
@@ -303,8 +436,19 @@ export const useProjectFileManager = () => {
       updateFileContent('style.css', cssMatch[1].trim());
     }
 
+    // Extract and update JavaScript
+    const jsMatch = websiteCode.match(/<script[^>]*>([\s\S]*?)<\/script>/);
+    if (jsMatch && !jsMatch[0].includes('cdn.tailwindcss.com')) {
+      updateFileContent('script.js', jsMatch[1].trim());
+    }
+
+    // Update changelog
+    const changelogEntry = `\n## ${new Date().toLocaleDateString()} - Website Generated\n- Generated website for ${channelData.title}\n- Added ${channelData.videos?.length || 0} video previews\n- Implemented responsive design\n- Added YouTube integration\n`;
+    const currentChangelog = getFileByName('changelog.md')?.content || '';
+    updateFileContent('changelog.md', currentChangelog + changelogEntry);
+
     return websiteCode;
-  }, [updateFileContent]);
+  }, [updateFileContent, getFileByName]);
 
   return {
     projectFiles,
