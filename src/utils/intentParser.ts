@@ -22,6 +22,26 @@ interface ParseResult {
   suggestions?: string[];
 }
 
+interface ComponentMapEntry {
+  file: string;
+  id?: string;
+  class?: string;
+  type: string;
+}
+
+interface ComponentMap {
+  [key: string]: ComponentMapEntry;
+}
+
+interface DesignTokens {
+  primaryColor?: string;
+  secondaryColor?: string;
+  fontFamily?: string;
+  fontSizeBase?: string;
+  spacing?: string;
+  borderRadius?: string;
+}
+
 export class IntentParser {
   private componentKeywords = {
     header: ['header', 'top', 'navigation', 'navbar', 'menu', 'logo'],
@@ -41,7 +61,7 @@ export class IntentParser {
     remove_component: ['remove', 'delete', 'hide', 'eliminate']
   };
 
-  parseUserRequest(userChat: string, componentMap: any, designTokens: any): ParseResult {
+  parseUserRequest(userChat: string, componentMap: ComponentMap, designTokens: DesignTokens): ParseResult {
     const chat = userChat.toLowerCase().trim();
     
     if (!chat) {
@@ -101,14 +121,18 @@ export class IntentParser {
     };
   }
 
-  private identifyTargetComponent(chat: string, componentMap: any) {
+  private identifyTargetComponent(chat: string, componentMap: ComponentMap) {
     let bestMatch = null;
     let bestScore = 0;
 
     // Check for explicit component IDs or classes
     for (const [key, component] of Object.entries(componentMap)) {
       if (chat.includes(key.toLowerCase()) || chat.includes(component.id?.toLowerCase() || '')) {
-        return { ...component, id: component.id || key, type: component.type || 'content' };
+        return { 
+          id: component.id || key, 
+          type: component.type as ComponentIntent['targetComponentType'], 
+          file: component.file 
+        };
       }
     }
 
@@ -121,7 +145,7 @@ export class IntentParser {
         bestScore = score;
         bestMatch = {
           id: this.findComponentByType(componentType, componentMap),
-          type: componentType as any,
+          type: componentType as ComponentIntent['targetComponentType'],
           file: 'index.html'
         };
       }
@@ -130,7 +154,7 @@ export class IntentParser {
     return bestMatch;
   }
 
-  private findComponentByType(type: string, componentMap: any): string {
+  private findComponentByType(type: string, componentMap: ComponentMap): string {
     // Look for components of this type in the map
     for (const [key, component] of Object.entries(componentMap)) {
       if (component.type === type || key.includes(type)) {
@@ -139,7 +163,7 @@ export class IntentParser {
     }
     
     // Fallback to common IDs
-    const fallbacks = {
+    const fallbacks: Record<string, string> = {
       header: 'main-header',
       hero: 'hero-section',
       button: 'cta-btn',
@@ -163,7 +187,7 @@ export class IntentParser {
     return 'style_update';
   }
 
-  private extractUpdates(chat: string, action: ComponentIntent['action'], designTokens: any) {
+  private extractUpdates(chat: string, action: ComponentIntent['action'], designTokens: DesignTokens) {
     const updates: ComponentIntent['updates'] = {};
 
     // Color updates
@@ -199,9 +223,9 @@ export class IntentParser {
     return updates;
   }
 
-  private parseColor(colorStr: string, designTokens: any): string {
+  private parseColor(colorStr: string, designTokens: DesignTokens): string {
     // Use design tokens if available
-    const colorMap = {
+    const colorMap: Record<string, string> = {
       red: designTokens?.primaryColor || '#ff0000',
       blue: '#0066cc',
       green: '#00cc66',
@@ -222,7 +246,7 @@ export class IntentParser {
     }
 
     // Boost for clear action words
-    const actionWords = this.actionKeywords[action] || [];
+    const actionWords = this.actionKeywords[action as keyof typeof this.actionKeywords] || [];
     if (actionWords.some(word => chat.includes(word))) {
       confidence += 0.2;
     }
