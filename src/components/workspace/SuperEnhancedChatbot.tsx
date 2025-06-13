@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,7 +49,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   const { toast } = useToast();
   const { generateTargetedPrompt } = useTargetedChanges();
   const { generateWebsiteWithRealData } = useYouTubeIntegration();
-  const { memory, generateContextualPrompt, saveChange } = useAdvancedProjectMemory(currentProject?.id || '');
+  const { memory, generateContextualPrompt, saveChange } = useAdvancedAIMemory(currentProject?.id || '');
 
   useEffect(() => {
     setCurrentProject(projectData);
