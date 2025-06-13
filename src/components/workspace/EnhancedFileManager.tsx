@@ -15,15 +15,6 @@ interface EnhancedFileManagerProps {
   onCodeUpdate: (code: string) => void;
 }
 
-// Define ProjectFiles type to match useFileManager
-type ProjectFiles = {
-  'index.html': string;
-  'style.css': string;
-  'script.js': string;
-  'README.md': string;
-  [key: string]: string;
-};
-
 const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   projectData,
   onFileChange,
@@ -38,20 +29,6 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   const { files, updateFile } = useFileManager();
   const { syncStatus, syncToGit } = useRealTimeGitSync(projectData?.id);
   const { toast } = useToast();
-
-  // Create file function (local implementation)
-  const createFile = async (fileName: string, content: string = '') => {
-    try {
-      await updateFile(fileName, content);
-      toast({
-        title: "File Created",
-        description: `${fileName} has been created successfully.`,
-      });
-    } catch (error) {
-      console.error('Error creating file:', error);
-      throw error;
-    }
-  };
 
   // Load file content when selected file changes
   useEffect(() => {
@@ -91,7 +68,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
 
       toast({
         title: "File Saved",
-        description: `${selectedFile} has been saved successfully.`,
+        description: `${selectedFile} has been saved and auto-synced.`,
       });
     } catch (error) {
       console.error('Error saving file:', error);
@@ -108,11 +85,16 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
 
     try {
       const fileName = newFileName.trim();
-      await createFile(fileName, '');
+      await updateFile(fileName, '');
       setSelectedFile(fileName);
       setFileContent('');
       setNewFileName('');
       setIsCreatingFile(false);
+      
+      toast({
+        title: "File Created",
+        description: `${fileName} has been created successfully.`,
+      });
     } catch (error) {
       console.error('Error creating file:', error);
       toast({
@@ -139,8 +121,8 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
       
       await syncToGit(filesToSync, 'Sync all project files');
       toast({
-        title: "Sync Complete",
-        description: "All files have been synced to GitHub successfully.",
+        title: "Auto-Sync Complete",
+        description: "All files have been automatically synced to GitHub.",
       });
     } catch (error) {
       console.error('Error syncing files:', error);
@@ -201,7 +183,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
                 className="text-xs h-7 flex items-center gap-1"
               >
                 {getSyncStatusIcon()}
-                Sync Git
+                Auto-Sync
               </Button>
             )}
           </div>
@@ -212,10 +194,10 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
           <div className="flex items-center gap-2 text-xs text-gray-400">
             {getSyncStatusIcon()}
             <span>
-              {syncStatus.syncStatus === 'syncing' ? `Syncing ${syncStatus.filesSynced} files...` :
+              {syncStatus.syncStatus === 'syncing' ? `Auto-syncing ${syncStatus.filesSynced} files...` :
                syncStatus.syncStatus === 'success' ? `Last sync: ${syncStatus.lastSyncAt?.toLocaleTimeString() || 'Just now'}` :
                syncStatus.syncStatus === 'error' ? `Error: ${syncStatus.errorMessage}` :
-               'Ready to sync'}
+               'Auto-sync ready'}
             </span>
           </div>
         )}
@@ -298,7 +280,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
                   className="text-xs h-7 flex items-center gap-1"
                 >
                   <Save size={12} />
-                  Save
+                  Save & Sync
                 </Button>
               </div>
 

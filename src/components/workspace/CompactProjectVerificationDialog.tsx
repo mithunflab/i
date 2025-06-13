@@ -1,84 +1,45 @@
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Shield, CheckCircle, Clock, XCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle, Clock, X, AlertCircle, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface CompactProjectVerificationDialogProps {
-  projectId: string;
-  projectName: string;
   projectData: any;
-  isVerified?: boolean;
+  onProjectUpdate?: (project: any) => void;
 }
 
-interface VerificationData {
-  status: 'none' | 'pending' | 'approved' | 'rejected';
-  response_message?: string;
-}
-
-const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialogProps> = ({ 
-  projectId,
-  projectName,
+const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialogProps> = ({
   projectData,
-  isVerified = false
+  onProjectUpdate
 }) => {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
-  const [formData, setFormData] = useState({
-    contactEmail: '',
-    websiteDescription: '',
-    additionalInfo: ''
-  });
-  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string>('unverified');
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Check existing verification status
   useEffect(() => {
-    if (user && projectId) {
+    if (projectData?.verified) {
+      setVerificationStatus('verified');
+    } else {
       checkVerificationStatus();
-      
-      // Set up real-time subscription
-      const channel = supabase
-        .channel('verification-status')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'project_verification_requests',
-            filter: `project_id=eq.${projectId}`
-          },
-          (payload) => {
-            console.log('Verification status changed:', payload);
-            if (payload.new && typeof payload.new === 'object') {
-              const newData = payload.new as VerificationData;
-              setVerificationStatus(newData.status);
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
-  }, [user, projectId]);
+  }, [projectData]);
 
   const checkVerificationStatus = async () => {
+    if (!user || !projectData?.id) return;
+
     try {
       const { data, error } = await supabase
         .from('project_verification_requests')
         .select('status')
-        .eq('project_id', projectId)
-        .eq('user_id', user?.id)
+        .eq('project_id', projectData.id)
+        .eq('user_id', user.id)
+        .order('requested_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (error && error.code !== 'PGRST116') {
@@ -86,199 +47,109 @@ const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialo
         return;
       }
 
-      const verificationData = data as VerificationData | null;
-      setVerificationStatus(verificationData?.status || 'none');
+      setVerificationStatus(data?.status || 'unverified');
     } catch (error) {
       console.error('Error in checkVerificationStatus:', error);
     }
   };
 
-  const handleSubmit = async () => {
-    if (!user || !formData.contactEmail.trim() || !formData.websiteDescription.trim()) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoading(true);
+  const handleSubmitVerification = async () => {
+    if (!user || !projectData?.id) return;
+    
+    setIsSubmitting(true);
     try {
-      const requestData = {
-        project_id: projectId,
-        user_id: user.id,
-        project_name: projectName,
-        project_url: projectData?.netlify_url || projectData?.github_url || '',
-        contact_email: formData.contactEmail.trim(),
-        website_description: formData.websiteDescription.trim(),
-        additional_info: formData.additionalInfo.trim(),
-        project_data: projectData,
-        status: 'pending',
-        verification_type: 'youtube_website'
-      };
-
       const { error } = await supabase
         .from('project_verification_requests')
-        .upsert(requestData, {
-          onConflict: 'project_id,user_id',
-          ignoreDuplicates: false
+        .insert({
+          user_id: user.id,
+          project_id: projectData.id,
+          status: 'pending',
+          request_message: `Verification request for project: ${projectData.name}`
         });
 
-      if (error) {
-        console.error('Error submitting verification request:', error);
-        toast({
-          title: "Error",
-          description: "Failed to submit verification request. Please try again.",
-          variant: "destructive"
-        });
-        return;
-      }
+      if (error) throw error;
 
+      setVerificationStatus('pending');
       toast({
         title: "Verification Requested",
-        description: "Your project has been submitted for verification review.",
+        description: "Your project has been submitted for verification.",
       });
-
-      setOpen(false);
-      setVerificationStatus('pending');
     } catch (error) {
-      console.error('Error in handleSubmit:', error);
+      console.error('Error submitting verification:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: "Failed to submit verification request. Please try again.",
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const getButtonContent = () => {
-    if (isVerified) {
-      return (
-        <>
-          <CheckCircle className="w-3 h-3 text-green-500" />
-          <span className="text-green-500 text-xs">Verified</span>
-        </>
-      );
-    }
-
+  const getStatusIcon = () => {
     switch (verificationStatus) {
+      case 'verified':
+        return <CheckCircle size={12} className="text-green-400" />;
       case 'pending':
-        return (
-          <>
-            <Clock className="w-3 h-3 text-yellow-500" />
-            <span className="text-yellow-500 text-xs">Pending</span>
-          </>
-        );
-      case 'approved':
-        return (
-          <>
-            <CheckCircle className="w-3 h-3 text-green-500" />
-            <span className="text-green-500 text-xs">Approved</span>
-          </>
-        );
+        return <Clock size={12} className="text-yellow-400" />;
       case 'rejected':
-        return (
-          <>
-            <XCircle className="w-3 h-3 text-red-500" />
-            <span className="text-red-500 text-xs">Rejected</span>
-          </>
-        );
+        return <X size={12} className="text-red-400" />;
       default:
-        return (
-          <>
-            <Shield className="w-3 h-3" />
-            <span className="text-xs">Verify</span>
-          </>
-        );
+        return <AlertCircle size={12} className="text-gray-400" />;
     }
   };
 
-  const isDisabled = isVerified || verificationStatus === 'pending' || verificationStatus === 'approved';
+  const getStatusText = () => {
+    switch (verificationStatus) {
+      case 'verified':
+        return 'Verified';
+      case 'pending':
+        return 'Pending';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Verify';
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (verificationStatus) {
+      case 'verified':
+        return 'bg-green-500/20 border-green-500 text-green-400';
+      case 'pending':
+        return 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
+      case 'rejected':
+        return 'bg-red-500/20 border-red-500 text-red-400';
+      default:
+        return 'bg-gray-500/20 border-gray-500 text-gray-400';
+    }
+  };
+
+  if (verificationStatus === 'verified') {
+    return (
+      <Badge className={`text-xs ${getStatusColor()}`}>
+        <div className="flex items-center gap-1">
+          {getStatusIcon()}
+          <Shield size={10} />
+          <span>Verified</span>
+        </div>
+      </Badge>
+    );
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="flex items-center gap-1 h-7 px-2 text-xs min-w-[70px]"
-          disabled={isDisabled}
-        >
-          {getButtonContent()}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-green-500" />
-            Request Project Verification
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label className="text-sm font-medium">Project: {projectName}</Label>
-          </div>
-          
-          <div>
-            <Label htmlFor="email" className="text-sm font-medium">
-              Contact Email *
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="your@email.com"
-              value={formData.contactEmail}
-              onChange={(e) => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))}
-              className="mt-1"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="description" className="text-sm font-medium">
-              Website Description *
-            </Label>
-            <Textarea
-              id="description"
-              placeholder="Describe your website's purpose and features"
-              value={formData.websiteDescription}
-              onChange={(e) => setFormData(prev => ({ ...prev, websiteDescription: e.target.value }))}
-              className="mt-1"
-              rows={3}
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor="additional" className="text-sm font-medium">
-              Additional Information
-            </Label>
-            <Textarea
-              id="additional"
-              placeholder="Why should this project be verified? (quality, originality, usefulness, etc.)"
-              value={formData.additionalInfo}
-              onChange={(e) => setFormData(prev => ({ ...prev, additionalInfo: e.target.value }))}
-              className="mt-1"
-              rows={2}
-            />
-          </div>
-          
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)} className="text-xs h-8">
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSubmit} 
-              disabled={loading || !formData.contactEmail.trim() || !formData.websiteDescription.trim()}
-              className="bg-green-600 hover:bg-green-700 text-xs h-8"
-            >
-              {loading ? 'Submitting...' : 'Submit Request'}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleSubmitVerification}
+      disabled={isSubmitting || verificationStatus === 'pending'}
+      className={`text-xs h-7 ${getStatusColor()}`}
+    >
+      <div className="flex items-center gap-1">
+        {getStatusIcon()}
+        <span>{isSubmitting ? 'Submitting...' : getStatusText()}</span>
+      </div>
+    </Button>
   );
 };
 
