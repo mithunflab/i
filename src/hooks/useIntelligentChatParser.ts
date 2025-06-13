@@ -1,190 +1,121 @@
 
 import { useState, useCallback } from 'react';
-import { intentParser } from '@/utils/intentParser';
-import { aiEditor } from '@/utils/aiEditor';
-import { projectFileManager } from '@/utils/projectFiles';
 
-interface ParsedIntent {
+interface ParseResult {
   success: boolean;
+  error?: string;
+  suggestions?: string[];
   targetComponent?: string;
   action?: string;
   changes?: string;
   prompt?: string;
-  error?: string;
-  suggestions?: string[];
   parseResult?: 'success' | 'failed' | 'error';
 }
 
+interface ChatEntry {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  metadata?: {
+    component?: string;
+    parseResult?: 'success' | 'failed' | 'error';
+  };
+}
+
 export const useIntelligentChatParser = (projectId: string) => {
-  const [loading, setLoading] = useState(false);
-  const fileManager = projectFileManager(projectId);
+  const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
+  const [projectFiles, setProjectFiles] = useState<Record<string, string>>({});
 
   const parseUserChat = useCallback(async (
     userInput: string,
-    currentCode: string,
-    channelData?: any
-  ): Promise<ParsedIntent> => {
-    setLoading(true);
-
+    sourceCode: string,
+    channelData: any
+  ): Promise<ParseResult> => {
     try {
-      // Load or create component map
-      let componentMap = {};
-      const componentMapFile = fileManager.getFile('componentMap.json');
-      if (componentMapFile) {
-        componentMap = JSON.parse(componentMapFile.content);
-      } else {
-        componentMap = fileManager.createComponentMap(currentCode);
-      }
-
-      // Load or create design tokens
-      let designTokens = {};
-      const designFile = fileManager.getFile('design.json');
-      if (designFile) {
-        designTokens = JSON.parse(designFile.content);
-      } else {
-        const cssContent = extractCSS(currentCode);
-        designTokens = fileManager.extractDesignTokens(cssContent);
-      }
-
-      // Parse user intent
-      const parseResult = intentParser.parseUserRequest(userInput, componentMap, designTokens);
-
-      if (!parseResult.success) {
-        // Save failed parse attempt
-        fileManager.saveChatMessage('user', userInput, { 
-          parseResult: 'failed',
-          error: parseResult.error 
-        });
-
-        return {
-          success: false,
-          error: parseResult.error,
-          suggestions: parseResult.suggestions,
-          parseResult: 'failed'
-        };
-      }
-
-      const intent = parseResult.intent!;
-
-      // Generate enhanced prompt for AI
-      const enhancedPrompt = intentParser.generateTargetedPrompt(
-        intent,
-        channelData,
-        currentCode
-      );
-
-      // Save successful parse
-      fileManager.saveChatMessage('user', userInput, {
-        parseResult: 'success',
-        targetComponent: intent.targetComponentId,
-        action: intent.action,
-        confidence: intent.confidence
-      });
-
-      // Log the intended change
-      fileManager.logChange(
-        intent.targetComponentId,
-        intent.action,
-        `User requested: ${userInput}`
-      );
-
+      // Simple intent parsing logic
+      const lowerInput = userInput.toLowerCase();
+      
+      // Determine target component
+      let targetComponent = 'general';
+      if (lowerInput.includes('button')) targetComponent = 'button';
+      else if (lowerInput.includes('header')) targetComponent = 'header';
+      else if (lowerInput.includes('title')) targetComponent = 'title';
+      else if (lowerInput.includes('navigation') || lowerInput.includes('nav')) targetComponent = 'navigation';
+      else if (lowerInput.includes('footer')) targetComponent = 'footer';
+      
+      // Determine action
+      let action = 'modify';
+      if (lowerInput.includes('change') || lowerInput.includes('update')) action = 'update';
+      else if (lowerInput.includes('add') || lowerInput.includes('create')) action = 'add';
+      else if (lowerInput.includes('remove') || lowerInput.includes('delete')) action = 'remove';
+      else if (lowerInput.includes('style') || lowerInput.includes('color')) action = 'style';
+      
+      // Generate changes description
+      const changes = `Applied ${action} to ${targetComponent} based on: "${userInput}"`;
+      
+      // Create targeted prompt
+      const prompt = `Update the ${targetComponent} component by ${action}: ${userInput}. Maintain existing functionality and design consistency.`;
+      
       return {
         success: true,
-        targetComponent: intent.targetComponentId,
-        action: intent.action,
-        changes: JSON.stringify(intent.updates),
-        prompt: enhancedPrompt,
+        targetComponent,
+        action,
+        changes,
+        prompt,
         parseResult: 'success'
       };
-
     } catch (error) {
-      console.error('Chat parsing error:', error);
-      
-      fileManager.saveChatMessage('user', userInput, {
-        parseResult: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-
       return {
         success: false,
-        error: 'Failed to parse your request. Please try being more specific.',
+        error: error instanceof Error ? error.message : 'Unknown parsing error',
         suggestions: [
-          'Mention the specific component you want to change',
-          'Describe the exact change you want to make',
-          'Example: "Change the subscribe button color to red"'
+          'Be more specific about the component you want to change',
+          'Mention the specific action you want (change, update, add, remove)',
+          'Include details about what exactly you want modified'
         ],
         parseResult: 'error'
       };
-    } finally {
-      setLoading(false);
     }
-  }, [projectId, fileManager]);
+  }, []);
 
   const validateAndApplyEdit = useCallback((
     originalCode: string,
     modifiedCode: string,
-    componentId: string,
+    targetComponent: string,
     userRequest: string
   ): boolean => {
-    // Validate the edit
-    const isValid = aiEditor.validateEdit(originalCode, modifiedCode);
-    
-    if (isValid) {
-      // Log successful change
-      fileManager.logChange(
-        componentId,
-        'AI Edit Applied',
-        `Successfully modified based on: ${userRequest}`
-      );
-
-      // Save AI response
-      fileManager.saveChatMessage('assistant', 'Changes applied successfully', {
-        componentId,
-        userRequest,
-        validated: true
-      });
-    } else {
-      // Log validation failure
-      fileManager.saveChatMessage('assistant', 'Edit validation failed', {
-        componentId,
-        userRequest,
-        validated: false
-      });
+    // Simple validation - check if code is different and valid
+    if (originalCode === modifiedCode) {
+      console.warn('No changes detected in code');
+      return false;
     }
-
-    return isValid;
-  }, [fileManager]);
+    
+    // Basic syntax validation
+    if (!modifiedCode.includes('export') || modifiedCode.length < 50) {
+      console.error('Modified code appears invalid');
+      return false;
+    }
+    
+    return true;
+  }, []);
 
   const getChatHistory = useCallback(() => {
-    return fileManager.loadChatHistory();
-  }, [fileManager]);
+    return chatHistory;
+  }, [chatHistory]);
 
-  const getProjectFiles = useCallback(() => {
-    return fileManager.getAllFiles();
-  }, [fileManager]);
-
-  const initializeProjectFiles = useCallback((
-    htmlContent: string,
-    cssContent: string = '',
-    jsContent: string = ''
-  ) => {
-    fileManager.initializeProject(htmlContent, cssContent, jsContent);
-  }, [fileManager]);
+  const initializeProjectFiles = useCallback((sourceCode: string) => {
+    try {
+      setProjectFiles({ 'main.tsx': sourceCode });
+    } catch (error) {
+      console.error('Error initializing project files:', error);
+    }
+  }, []);
 
   return {
     parseUserChat,
     validateAndApplyEdit,
     getChatHistory,
-    getProjectFiles,
-    initializeProjectFiles,
-    loading
+    initializeProjectFiles
   };
 };
-
-// Helper function to extract CSS from HTML
-function extractCSS(html: string): string {
-  const styleMatches = html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || [];
-  return styleMatches
-    .map(match => match.replace(/<\/?style[^>]*>/gi, ''))
-    .join('\n');
-}
