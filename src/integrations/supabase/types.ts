@@ -487,6 +487,45 @@ export type Database = {
         }
         Relationships: []
       }
+      git_sync_status: {
+        Row: {
+          commit_hash: string | null
+          created_at: string | null
+          error_message: string | null
+          files_synced: number | null
+          id: string
+          last_sync_at: string | null
+          project_id: string
+          sync_status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          commit_hash?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          files_synced?: number | null
+          id?: string
+          last_sync_at?: string | null
+          project_id: string
+          sync_status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          commit_hash?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          files_synced?: number | null
+          id?: string
+          last_sync_at?: string | null
+          project_id?: string
+          sync_status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       github_api_keys: {
         Row: {
           api_token: string
