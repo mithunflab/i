@@ -36,131 +36,84 @@ export const useRealTimeAIGeneration = () => {
     try {
       console.log('🤖 Starting real-time AI generation...');
       
-      // Fetch active OpenRouter API key directly from database
-      const { data: openrouterKeys, error: keyError } = await supabase
-        .from('openrouter_api_keys')
-        .select('api_key, name')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (keyError || !openrouterKeys || openrouterKeys.length === 0) {
-        throw new Error('No active OpenRouter API keys found. Please configure API keys.');
-      }
-
-      const apiKey = openrouterKeys[0].api_key;
-      console.log('✅ Using OpenRouter API key:', openrouterKeys[0].name);
-
-      // Generate enhanced prompt for website creation
-      const enhancedPrompt = `You are an expert web developer creating stunning, modern websites.
-
-USER REQUEST: ${message}
-
-${channelData ? `
-YOUTUBE CHANNEL DATA:
-- Channel: ${channelData.title}
-- Subscribers: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}
-- Description: ${channelData.description}
-- Latest Videos: ${channelData.videos?.slice(0, 3).map((v: any) => v.snippet?.title || v.title).join(', ') || 'None'}
-` : ''}
-
-Generate a complete, modern HTML website with:
-1. Responsive design using Tailwind CSS
-2. Professional styling with gradients and animations
-3. Real YouTube channel integration if data provided
-4. Interactive elements and hover effects
-5. Mobile-optimized layout
-6. SEO-friendly structure
-
-Return ONLY the complete HTML code, no explanations. Make it visually stunning and professional.`;
-
-      // Free models for random selection
-      const freeModels = [
-        'nousresearch/hermes-3-llama-3.1-405b:free',
-        'meta-llama/llama-3.1-8b-instruct:free',
-        'microsoft/phi-3-mini-128k-instruct:free',
-        'google/gemma-2-9b-it:free'
-      ];
-      
-      const selectedModel = freeModels[Math.floor(Math.random() * freeModels.length)];
-      console.log('🎲 Selected AI model:', selectedModel);
-
-      // Call OpenRouter API directly
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://lovable.ai',
-          'X-Title': 'AI Website Builder'
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert web developer creating professional, modern websites with real-time data integration.'
-            },
-            {
-              role: 'user',
-              content: enhancedPrompt
-            }
-          ],
-          temperature: 0.8,
-          max_tokens: 4000
-        })
+      // Call the chat edge function with proper error handling
+      const { data: aiResponse, error } = await supabase.functions.invoke('chat', {
+        body: {
+          message,
+          projectId,
+          channelData,
+          generateCode: true
+        }
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenRouter API Error: ${response.status} ${errorText}`);
+      if (error) {
+        console.error('❌ Edge Function Error:', error);
+        throw new Error(`Edge Function Error: ${error.message}`);
       }
 
-      const data = await response.json();
-      const generatedCode = data.choices[0]?.message?.content;
-
-      if (!generatedCode) {
-        throw new Error('No code generated from AI');
+      if (!aiResponse) {
+        throw new Error('No response received from AI service');
       }
 
-      console.log('✅ Real-time AI generation completed using:', selectedModel);
+      // Check if the response contains an error
+      if (aiResponse.error) {
+        console.error('❌ AI API Error:', aiResponse.error);
+        throw new Error(aiResponse.error);
+      }
 
-      // Log API usage
-      await supabase.from('api_usage_logs').insert({
-        user_id: user.id,
-        provider: 'openrouter',
-        model: selectedModel,
-        tokens_used: data.usage?.total_tokens || 0,
-        status: 'success',
-        request_data: { message, projectId }
-      });
+      console.log('✅ Real-time AI generation completed');
+
+      // Log successful API usage
+      try {
+        await supabase.from('api_usage_logs').insert({
+          user_id: user.id,
+          provider: 'openrouter',
+          model: aiResponse.model || 'unknown',
+          tokens_used: 0, // Will be updated by edge function if available
+          status: 'success',
+          request_data: { message, projectId }
+        });
+      } catch (logError) {
+        console.warn('Failed to log API usage:', logError);
+      }
 
       return {
-        reply: `🎨 **Professional Website Generated!**\n\n✨ **AI Model**: ${selectedModel}\n\n🎯 **Features Created**:\n• Modern responsive design\n• Real-time YouTube integration\n• Professional animations\n• Mobile-optimized layout\n• SEO-friendly structure\n\n🚀 **Your stunning website is ready for deployment!**`,
-        feature: 'professional-website',
-        generatedCode: generatedCode.replace(/```html|```/g, '').trim(),
-        codeDescription: `Professional website generated using ${selectedModel} with real-time features`
+        reply: aiResponse.reply || 'Website generated successfully!',
+        feature: aiResponse.feature || 'website-generation',
+        generatedCode: aiResponse.generatedCode,
+        codeDescription: aiResponse.codeDescription || 'Professional website generated with AI'
       };
 
     } catch (error) {
       console.error('❌ Real-time AI generation error:', error);
       
-      // Log error
-      await supabase.from('api_usage_logs').insert({
-        user_id: user.id,
-        provider: 'openrouter',
-        model: 'unknown',
-        status: 'error',
-        error_message: error instanceof Error ? error.message : 'Unknown error'
-      });
+      // Log error for debugging
+      try {
+        await supabase.from('api_usage_logs').insert({
+          user_id: user.id,
+          provider: 'openrouter',
+          model: 'unknown',
+          status: 'error',
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } catch (logError) {
+        console.warn('Failed to log error:', logError);
+      }
 
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
       toast({
         title: "AI Generation Error",
-        description: error instanceof Error ? error.message : "Failed to generate content",
+        description: errorMessage,
         variant: "destructive"
       });
       
-      return null;
+      // Return a fallback response instead of null
+      return {
+        reply: `❌ **AI Generation Failed**\n\n${errorMessage}\n\n🔄 **Please try again with:**\n• A more specific request\n• Simpler language\n• Clear website goals\n\n💡 **Example**: "Create a modern portfolio website"`,
+        feature: 'error-handling'
+      };
     } finally {
       setLoading(false);
     }

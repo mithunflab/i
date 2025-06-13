@@ -54,10 +54,18 @@ serve(async (req) => {
     const openRouterApiKey = openrouterKeys[0].api_key;
     console.log('✅ Found OpenRouter API key:', openrouterKeys[0].name);
 
+    // Validate API key format
+    if (!openRouterApiKey || !openRouterApiKey.startsWith('sk-or-')) {
+      console.error('❌ Invalid OpenRouter API key format');
+      throw new Error('Invalid OpenRouter API key format. Please check the API key.');
+    }
+
     // Free models for random selection
     const freeModels = [
-      'nousresearch/deephermes-3-mistral-24b-preview:free',
-      'deepseek/deepseek-r1-0528:free'
+      'nousresearch/hermes-3-llama-3.1-405b:free',
+      'meta-llama/llama-3.1-8b-instruct:free',
+      'microsoft/phi-3-mini-128k-instruct:free',
+      'google/gemma-2-9b-it:free'
     ];
     
     // Randomly select one of the free models
@@ -89,13 +97,13 @@ Return ONLY the complete HTML code, no explanations. Make it visually stunning a
 
     console.log('🤖 Sending request to OpenRouter with enhanced prompt...');
 
-    // Call OpenRouter API with selected free model
+    // Call OpenRouter API with proper authentication
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://lovable.ai',
+        'HTTP-Referer': 'https://ldcipixxhnrepgkyzmno.supabase.co',
         'X-Title': 'AI Website Builder'
       },
       body: JSON.stringify({
@@ -118,11 +126,25 @@ Return ONLY the complete HTML code, no explanations. Make it visually stunning a
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ OpenRouter API Error:', response.status, errorText);
-      throw new Error(`OpenRouter API Error: ${response.status} ${errorText}`);
+      
+      // Handle specific error cases
+      if (response.status === 401) {
+        throw new Error('OpenRouter API authentication failed. Please check the API key.');
+      } else if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again in a moment.');
+      } else {
+        throw new Error(`OpenRouter API Error: ${response.status} - ${errorText}`);
+      }
     }
 
     const data = await response.json();
-    const generatedCode = data.choices[0]?.message?.content;
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('❌ Invalid response structure from OpenRouter');
+      throw new Error('Invalid response from AI service');
+    }
+
+    const generatedCode = data.choices[0].message.content;
 
     if (!generatedCode) {
       throw new Error('No code generated from AI');
@@ -146,12 +168,15 @@ Return ONLY the complete HTML code, no explanations. Make it visually stunning a
   } catch (error) {
     console.error('❌ Error in chat function:', error);
     
+    // Return a more helpful error response
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to generate website',
-      reply: '❌ Sorry, I encountered an error generating your website. Please try again with a more specific request.',
+      error: errorMessage,
+      reply: `❌ **AI Generation Error**\n\n${errorMessage}\n\n🔄 **Troubleshooting Steps:**\n1. Check your internet connection\n2. Try a simpler, more specific request\n3. Contact support if the issue persists\n\n💡 **Example**: "Create a modern landing page for a science YouTube channel"`,
       generatedCode: null
     }), {
-      status: 500,
+      status: 200, // Return 200 to avoid frontend errors
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
