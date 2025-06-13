@@ -1,9 +1,9 @@
 
 import React from 'react';
-import ModernWorkspace from './ModernWorkspace';
+import EnhancedWorkspace from './EnhancedWorkspace';
 
-const Workspace = () => {
-  return <ModernWorkspace />;
+const Workspace: React.FC = () => {
+  return <EnhancedWorkspace />;
 };
 
 export default Workspace;
