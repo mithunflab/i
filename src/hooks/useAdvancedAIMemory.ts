@@ -41,6 +41,11 @@ interface ChangeEntry {
   userRequest: string;
 }
 
+interface ChannelData {
+  components?: Record<string, ComponentInfo>;
+  design_tokens?: DesignTokens;
+}
+
 export const useAdvancedAIMemory = (projectId: string) => {
   const [memory, setMemory] = useState<ProjectMemory | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,7 +55,6 @@ export const useAdvancedAIMemory = (projectId: string) => {
     
     setLoading(true);
     try {
-      // Load from project_chat_history and projects tables instead of non-existent project_memory
       const { data: project, error: projectError } = await supabase
         .from('projects')
         .select('*')
@@ -73,22 +77,28 @@ export const useAdvancedAIMemory = (projectId: string) => {
       }
 
       if (project) {
+        // Type assertion with safe fallbacks
+        const channelData = project.channel_data as ChannelData | null;
+        
         setMemory({
           id: project.id,
-          components: project.channel_data?.components || {},
-          designTokens: project.channel_data?.design_tokens || {
+          components: channelData?.components || {},
+          designTokens: channelData?.design_tokens || {
             primaryColor: '#000000',
             secondaryColor: '#666666',
             fontFamily: 'Arial, sans-serif',
             spacing: '16px'
           },
-          chatHistory: (chatHistory || []).map(chat => ({
-            id: chat.id,
-            role: chat.message_type as 'user' | 'assistant',
-            content: chat.content,
-            timestamp: new Date(chat.created_at),
-            componentTarget: chat.metadata?.component
-          })),
+          chatHistory: (chatHistory || []).map(chat => {
+            const metadata = chat.metadata as any;
+            return {
+              id: chat.id,
+              role: chat.message_type as 'user' | 'assistant',
+              content: chat.content,
+              timestamp: new Date(chat.created_at),
+              componentTarget: metadata?.component
+            };
+          }),
           lastUpdated: new Date(project.updated_at)
         });
       }
@@ -106,14 +116,16 @@ export const useAdvancedAIMemory = (projectId: string) => {
     setMemory(updatedMemory);
 
     try {
-      // Store in projects table channel_data field
+      // Prepare channel_data with proper typing
+      const channelDataUpdate = {
+        components: updatedMemory.components,
+        design_tokens: updatedMemory.designTokens
+      };
+
       await supabase
         .from('projects')
         .update({
-          channel_data: {
-            components: updatedMemory.components,
-            design_tokens: updatedMemory.designTokens
-          },
+          channel_data: channelDataUpdate as any,
           updated_at: new Date().toISOString()
         })
         .eq('id', projectId);
@@ -194,7 +206,6 @@ Please make targeted changes to the specified component while preserving the exi
       }
     });
 
-    // Also save to chat history
     try {
       await supabase
         .from('project_chat_history')

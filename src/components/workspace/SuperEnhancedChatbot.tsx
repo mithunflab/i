@@ -58,7 +58,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
   useEffect(() => {
     setCurrentProject(projectData);
     
-    // Initialize project files when project is loaded
     if (projectData?.source_code) {
       initializeProjectFiles(projectData.source_code);
     }
@@ -66,11 +65,9 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
 
   useEffect(() => {
     if (channelData && messages.length === 0) {
-      // Load chat history first
       const chatHistory = getChatHistory();
       
       if (chatHistory.length > 0) {
-        // Convert chat history to messages
         const historicalMessages: Message[] = chatHistory.map(entry => ({
           id: entry.id,
           role: entry.role,
@@ -81,7 +78,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
         }));
         setMessages(historicalMessages);
       } else {
-        // Show welcome message for new projects
         const welcomeMessage: Message = {
           id: '1',
           role: 'assistant',
@@ -115,7 +111,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
     try {
       console.log('🧠 Processing intelligent chat request...');
       
-      // Parse user intent using intelligent chat parser
       const parseResult = await parseUserChat(
         currentInput,
         currentProject?.source_code || '',
@@ -123,7 +118,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
       );
 
       if (!parseResult.success) {
-        // Show parsing error with suggestions
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -139,20 +133,17 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
 
       console.log('✅ Intent parsed successfully:', parseResult);
 
-      // Store original code for validation
       const originalCode = currentProject?.source_code || '';
 
-      // Generate website with intelligent prompt
       const result = await generateWebsiteWithRealData(
         channelData,
         projectIdea,
-        parseResult.prompt! // Use the intelligent prompt
+        parseResult.prompt!
       );
 
       if (result?.generatedCode) {
         console.log('🔄 Intelligent edit applied, validating...');
         
-        // Validate the edit
         const isValid = validateAndApplyEdit(
           originalCode,
           result.generatedCode,
@@ -163,7 +154,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
         if (isValid) {
           onCodeGenerated(result.generatedCode);
           
-          // Save the change to project memory
           if (memory && saveChange) {
             await saveChange(
               parseResult.targetComponent!,
@@ -284,7 +274,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
 
   return (
     <div className={`${chatHeight} flex flex-col bg-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out ${isMaximized ? 'rounded-none' : 'rounded-lg'}`}>
-      {/* Enhanced Header */}
       <div className="p-2 border-b border-purple-500/30 bg-black/70 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -334,7 +323,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
           </div>
         </div>
 
-        {/* Compact Channel Info */}
         {isExpanded && channelData && (
           <div className="mt-1 p-1 bg-gradient-to-r from-red-500/10 to-purple-500/10 rounded border border-red-500/20">
             <div className="flex items-center gap-2">
@@ -362,7 +350,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
         )}
       </div>
 
-      {/* Messages */}
       {isExpanded && (
         <div className="flex-1 overflow-y-auto p-2 space-y-2">
           {messages.map((message) => (
@@ -440,7 +427,6 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
         </div>
       )}
 
-      {/* Enhanced Input */}
       {isExpanded && (
         <div className="p-2 border-t border-purple-500/30 bg-black/70 flex-shrink-0">
           <div className="flex gap-2">
