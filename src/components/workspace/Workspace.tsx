@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,8 @@ import ProjectVerificationDialog from './ProjectVerificationDialog';
 import EnhancedChatInterface from './EnhancedChatInterface';
 import EnhancedFileManager from './EnhancedFileManager';
 import RealTimeCodePreview from './RealTimeCodePreview';
+import ChannelInfo from './ChannelInfo';
+import ApiStatusIndicators from './ApiStatusIndicators';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useFileManager } from '@/hooks/useFileManager';
@@ -242,44 +243,17 @@ const Workspace = () => {
             Dashboard
           </Button>
           
-          <div className="flex items-center gap-3">
-            {(channelData?.thumbnail || projectData?.channel_data?.thumbnail) && (
-              <img 
-                src={channelData?.thumbnail || projectData?.channel_data?.thumbnail} 
-                alt={channelData?.title || projectData?.channel_data?.title || 'Channel'}
-                className="w-8 h-8 rounded-full object-cover border border-cyan-400"
-              />
-            )}
-            <div>
-              <h1 className="text-lg font-semibold text-white">
-                {projectData?.name || channelData?.title || 'Enhanced AI Workspace'}
-              </h1>
-              <p className="text-xs text-gray-400">
-                {(channelData || projectData?.channel_data) ? 
-                  `${parseInt((channelData?.subscriberCount || projectData?.channel_data?.subscriberCount) || '0').toLocaleString()} subscribers` : 
-                  'Two-stage AI workflow active'
-                }
-              </p>
-            </div>
-          </div>
+          {/* Channel Info Display */}
+          <ChannelInfo channelData={channelData || projectData?.channel_data} />
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* File System Status */}
-          <div className="flex items-center gap-2 mr-4">
-            <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30">
-              <FileText size={10} className="mr-1" />
-              {Object.keys(files).length} Files
-            </Badge>
-            <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
-              <Settings size={10} className="mr-1" />
-              AI Workflow
-            </Badge>
-          </div>
+        <div className="flex items-center gap-4">
+          {/* API Status Indicators */}
+          <ApiStatusIndicators />
 
           {/* Project Status */}
           {projectData && (
-            <div className="flex items-center gap-2 mr-4">
+            <div className="flex items-center gap-2">
               <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
                 {projectData.status || 'Active'}
               </Badge>
