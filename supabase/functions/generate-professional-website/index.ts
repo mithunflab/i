@@ -14,16 +14,16 @@ serve(async (req) => {
 
   try {
     const { 
-      channelData, 
-      projectIdea, 
       userRequest,
-      includeRealVideos = true,
-      generateMultipleFiles = true,
-      preserveDesign = false,
+      channelData, 
+      projectContext,
+      streamingEnabled = false,
+      preserveDesign = true,
+      targetedChanges = true,
       currentCode = ''
     } = await req.json();
 
-    console.log('🏗️ Generating professional website with real data...');
+    console.log('🤖 Enhanced AI processing with two-stage workflow...');
 
     // Get OpenRouter API key
     const supabase = createClient(
@@ -43,199 +43,177 @@ serve(async (req) => {
       throw new Error('OpenRouter API key not found');
     }
 
-    // Determine if this is a targeted modification or new generation
-    const isTargetedModification = preserveDesign && currentCode && userRequest;
+    // Stage 1: Intent Parsing
+    console.log('🎯 Stage 1: Parsing user intent...');
+    const intentPrompt = `
+# Stage 1: Intent Parser Analysis
 
-    let prompt;
-    
-    if (isTargetedModification) {
-      // Enhanced targeted modification prompt
-      prompt = `
-# 🎯 CRITICAL: TARGETED WEBSITE MODIFICATION WITH REAL DATA
+## User Request Analysis
+**Request**: "${userRequest}"
 
-## PRESERVATION MANDATE
-**ONLY MODIFY THE SPECIFIC ELEMENT REQUESTED. PRESERVE EVERYTHING ELSE EXACTLY.**
+## Current Project Context
+- HTML: ${currentCode.substring(0, 500)}...
+- Channel: ${channelData?.title || 'Unknown'}
+- Preserve Design: ${preserveDesign}
+- Targeted Changes: ${targetedChanges}
 
-### Current Website Code (PRESERVE 95%)
-\`\`\`html
-${currentCode.substring(0, 2000)}...
-\`\`\`
+## Intent Parsing Instructions
+Parse the user request and return ONLY a JSON object with this exact structure:
+{
+  "action": "change|add|remove|style",
+  "target": {
+    "component": "hero|navigation|video-gallery|stats|footer|button|text",
+    "selectors": ["css-selector1", "css-selector2"],
+    "specific": "specific-element-type"
+  },
+  "content": "new-content-if-any",
+  "scope": "minimal|component|section",
+  "preserveDesign": true
+}
 
-### User's Specific Request
-"${userRequest}"
-
-### Real YouTube Channel Data (USE EXACTLY)
-- Channel: ${channelData.title}
-- Subscribers: ${parseInt(channelData.subscriberCount).toLocaleString()}
-- Videos: ${parseInt(channelData.videoCount).toLocaleString()}
-- Channel Thumbnail: ${channelData.thumbnail}
-
-### STRICT MODIFICATION RULES
-1. 🚫 **NEVER** rewrite the entire website
-2. 🚫 **NEVER** change existing colors, fonts, or layout
-3. 🚫 **NEVER** remove YouTube branding or channel data
-4. 🚫 **NEVER** modify components not mentioned in the request
-5. ✅ **ONLY** change the specific element mentioned in the user request
-
-### Real Video Data Integration
-${channelData.videos?.slice(0, 6).map((video: any, index: number) => `
-Video ${index + 1}:
-- Title: ${video.title}
-- Thumbnail: ${video.thumbnail}
-- Views: ${parseInt(video.viewCount).toLocaleString()}
-- Embed URL: ${video.embedUrl}
-`).join('')}
-
-## CRITICAL OUTPUT REQUIREMENTS
-1. **Minimal Change**: Modify ONLY what the user specifically requested
-2. **Preserve Design**: Keep ALL existing styling, colors, and layout
-3. **Real Data**: Use actual YouTube channel and video information
-4. **Professional Quality**: Maintain clean, production-ready code
-5. **Working Links**: All YouTube embeds and links must work
-
-Generate the complete HTML with the targeted modification applied while preserving everything else exactly as it was.
+Return ONLY the JSON object, no other text.
 `;
-    } else {
-      // New professional website generation
-      prompt = `
-# 🏗️ GENERATE PROFESSIONAL YOUTUBE CHANNEL WEBSITE
 
-## Project Requirements
-Create a complete, professional website for YouTube channel: **${channelData.title}**
-
-### Real Channel Data (MUST USE)
-- Channel Name: ${channelData.title}
-- Subscribers: ${parseInt(channelData.subscriberCount).toLocaleString()}
-- Total Videos: ${parseInt(channelData.videoCount).toLocaleString()}
-- Total Views: ${parseInt(channelData.viewCount).toLocaleString()}
-- Channel Thumbnail: ${channelData.thumbnail}
-- Description: ${channelData.description?.substring(0, 200)}...
-
-### Real Video Gallery (MUST INCLUDE)
-${channelData.videos?.slice(0, 8).map((video: any, index: number) => `
-Video ${index + 1}:
-- Title: ${video.title}
-- Thumbnail: ${video.thumbnail}
-- Views: ${parseInt(video.viewCount).toLocaleString()}
-- Published: ${new Date(video.publishedAt).toLocaleDateString()}
-- Embed URL: ${video.embedUrl}
-`).join('')}
-
-## Website Structure Required
-1. **Header Section**
-   - Channel logo (${channelData.thumbnail}) in top-left
-   - Professional navigation: Home | About | Videos | Contact
-   - Subscribe button linking to YouTube
-
-2. **Hero Section**
-   - Channel name: ${channelData.title}
-   - Subscriber count: ${parseInt(channelData.subscriberCount).toLocaleString()} subscribers
-   - Professional call-to-action
-   - Channel description preview
-
-3. **Video Gallery Section**
-   - Real video thumbnails with hover effects
-   - Video titles, view counts, and publish dates
-   - Click to open YouTube player/embed
-   - "Load More Videos" functionality
-
-4. **About Section**
-   - Channel statistics (subscribers, videos, views)
-   - Channel description
-   - Social media links
-
-5. **Contact Section**
-   - Contact form
-   - Social media integration
-   - Channel information
-
-## Design Requirements
-- **Professional & Modern**: Clean, YouTube-inspired design
-- **Mobile Responsive**: Perfect on all devices
-- **Real Data Integration**: All numbers and content must be real
-- **Working Functionality**: All links and embeds must work
-- **SEO Optimized**: Proper meta tags and structure
-- **Performance**: Fast loading with optimized images
-
-## Technical Requirements
-- **Single HTML File**: Complete website in one file
-- **Embedded CSS**: Professional styling with CSS Grid/Flexbox
-- **Embedded JavaScript**: Interactive functionality
-- **YouTube Integration**: Working video embeds and subscribe links
-- **Real API Data**: Use all provided channel and video data
-
-## Color Scheme
-- Primary: YouTube Red (#FF0000) for CTAs
-- Secondary: Dark theme with white text
-- Accent: Channel branding colors
-- Background: Professional gradients
-
-Generate a complete, professional HTML website that showcases ${channelData.title} with all real data integrated perfectly.
-`;
-    }
-
-    // Call OpenRouter API
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const intentResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKeyData.api_key}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://lovable.dev',
-        'X-Title': 'YouTube Website Builder'
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-sonnet',
+        model: 'gpt-4.1-2025-04-14',
         messages: [
-          {
-            role: 'system',
-            content: 'You are an expert web developer specializing in creating professional YouTube channel websites with real data integration. You generate clean, modern, responsive HTML/CSS/JS code that works perfectly with real YouTube data.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
+          { role: 'system', content: 'You are an intent parsing AI. Return only valid JSON.' },
+          { role: 'user', content: intentPrompt }
         ],
-        temperature: 0.3,
-        max_tokens: 8000
-      })
+        max_tokens: 300,
+        temperature: 0.1
+      }),
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`);
+    const intentData = await intentResponse.json();
+    let parsedIntent;
+    
+    try {
+      parsedIntent = JSON.parse(intentData.choices[0].message.content);
+      console.log('✅ Intent parsed:', parsedIntent);
+    } catch (e) {
+      console.log('❌ Intent parsing failed, using fallback');
+      parsedIntent = {
+        action: 'change',
+        target: { component: 'general', selectors: ['body'], specific: null },
+        content: userRequest,
+        scope: 'component',
+        preserveDesign: true
+      };
     }
 
-    const aiData = await response.json();
-    const generatedCode = aiData.choices[0]?.message?.content;
+    // Stage 2: Targeted Code Generation
+    console.log('🔧 Stage 2: Applying targeted changes...');
+    const codePrompt = `
+# Stage 2: Targeted Code Editor
 
-    if (!generatedCode) {
-      throw new Error('No code generated by AI');
-    }
+## CRITICAL PRESERVATION RULES
+- ONLY modify the specific element requested: ${parsedIntent.target.component}
+- PRESERVE ALL other HTML, CSS, and JavaScript exactly as is
+- DO NOT rewrite the entire website
+- MAINTAIN existing styling, colors, fonts, and layout
+- USE real YouTube channel data exactly as provided
 
-    console.log('✅ Professional website generated successfully');
+## Parsed Intent
+${JSON.stringify(parsedIntent, null, 2)}
 
-    return new Response(
-      JSON.stringify({
-        generatedCode,
-        reply: isTargetedModification 
-          ? `✅ I've made the targeted changes you requested while preserving your existing design and all YouTube integration. The modification maintains your professional website structure and only updates the specific element you mentioned.`
-          : `🎉 I've created a professional website for ${channelData.title} featuring real subscriber count (${parseInt(channelData.subscriberCount).toLocaleString()}), actual video gallery with ${channelData.videos?.length || 0} latest videos, and complete YouTube integration. The website includes working video embeds, channel statistics, and professional navigation.`,
-        feature: isTargetedModification ? 'targeted-modification' : 'professional-website-generation'
+## Current Website Code (PRESERVE 95%)
+\`\`\`html
+${currentCode}
+\`\`\`
+
+## Real YouTube Channel Data (USE EXACTLY)
+- Channel: ${channelData?.title}
+- Subscribers: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
+- Videos: ${parseInt(channelData?.videoCount || '0').toLocaleString()}
+- Thumbnail: ${channelData?.thumbnail}
+
+## Target Selectors to Modify
+${parsedIntent.target.selectors.join(', ')}
+
+## TARGETED MODIFICATION INSTRUCTIONS
+1. **Action**: ${parsedIntent.action}
+2. **Target**: ${parsedIntent.target.component}
+3. **Scope**: ${parsedIntent.scope}
+4. **Content**: ${parsedIntent.content || 'No specific content'}
+
+## OUTPUT REQUIREMENTS
+- Apply ONLY the requested ${parsedIntent.action} to ${parsedIntent.target.component}
+- Keep ALL other sections unchanged
+- Use real channel data where relevant
+- Maintain responsive design
+- Preserve existing animations and interactions
+
+Generate the complete HTML with ONLY the targeted modification applied.
+`;
+
+    const codeResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKeyData.api_key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1-2025-04-14',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are a targeted code editor AI. Apply only the specific changes requested while preserving everything else exactly.' 
+          },
+          { role: 'user', content: codePrompt }
+        ],
+        max_tokens: 4000,
+        temperature: 0.2
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    });
+
+    const codeData = await codeResponse.json();
+    const generatedCode = codeData.choices[0].message.content;
+
+    // Clean up the generated code
+    const cleanCode = generatedCode
+      .replace(/```html\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+
+    // Generate response
+    const reply = `🎯 **Targeted Modification Applied!**\n\n` +
+      `**Intent**: ${parsedIntent.action} ${parsedIntent.target.component}\n` +
+      `**Scope**: ${parsedIntent.scope} changes\n` +
+      `**Preserved**: All existing design and functionality\n\n` +
+      `✅ **Changes Applied**:\n` +
+      `• Modified only the ${parsedIntent.target.component} element\n` +
+      `• Used real channel data: ${channelData?.title}\n` +
+      `• Maintained responsive design\n` +
+      `• Preserved existing styling\n\n` +
+      `🚀 **Your website has been updated with precision targeting!**`;
+
+    console.log('✅ Two-stage AI workflow completed successfully');
+
+    return new Response(JSON.stringify({ 
+      generatedCode: cleanCode,
+      reply,
+      parsedIntent,
+      codeDescription: `Applied ${parsedIntent.action} to ${parsedIntent.target.component}`,
+      feature: 'targeted-modification'
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
-    console.error('❌ Website generation error:', error);
-    
-    return new Response(
-      JSON.stringify({
-        error: error.message || 'Website generation failed',
-        details: error instanceof Error ? error.stack : 'Unknown error'
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    console.error('❌ Enhanced AI workflow error:', error);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      reply: 'Sorry, I encountered an error processing your request. Please try again with a more specific request.'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });
