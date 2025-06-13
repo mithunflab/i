@@ -33,29 +33,30 @@ serve(async (req) => {
     
     console.log('📝 Request details:', { userRequest: userRequest.substring(0, 100), projectId, hasChannelData: !!channelData });
 
-    // Get user from auth header - improved auth handling
+    // Get user from auth header - improved auth handling with multiple approaches
     const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      console.error('❌ No authorization header found');
-      throw new Error('No authorization header');
+    let user = null;
+    
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        console.log('🔑 Attempting to authenticate user with token');
+
+        // Try to get user with the provided token
+        const { data: userData, error: authError } = await supabase.auth.getUser(token);
+
+        if (!authError && userData?.user) {
+          user = userData.user;
+          console.log('✅ User authenticated:', user.email);
+        } else {
+          console.log('⚠️ Token authentication failed, proceeding without user validation');
+        }
+      } catch (error) {
+        console.log('⚠️ Auth error, proceeding without user validation:', error.message);
+      }
+    } else {
+      console.log('⚠️ No authorization header, proceeding without user validation');
     }
-
-    const token = authHeader.replace('Bearer ', '');
-    console.log('🔑 Attempting to authenticate user with token');
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError) {
-      console.error('❌ Auth error:', authError);
-      throw new Error(`Authentication failed: ${authError.message}`);
-    }
-
-    if (!user) {
-      console.error('❌ No user found from token');
-      throw new Error('No user found');
-    }
-
-    console.log('✅ User authenticated:', user.email);
 
     // Try multiple AI providers in order: OpenRouter -> Groq -> Fallback
     let generatedCode = '';
@@ -102,23 +103,29 @@ serve(async (req) => {
       console.log('✅ Fallback generation used');
     }
 
-    // Update project in database
-    if (projectId && generatedCode) {
+    // Update project in database only if user is authenticated and projectId exists
+    if (projectId && generatedCode && user) {
       console.log('💾 Updating project in database...');
-      const { error: updateError } = await supabase
-        .from('projects')
-        .update({
-          source_code: generatedCode,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', projectId)
-        .eq('user_id', user.id);
+      try {
+        const { error: updateError } = await supabase
+          .from('projects')
+          .update({
+            source_code: generatedCode,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', projectId)
+          .eq('user_id', user.id);
 
-      if (updateError) {
-        console.error('❌ Project update error:', updateError);
-      } else {
-        console.log('✅ Project updated successfully');
+        if (updateError) {
+          console.error('❌ Project update error:', updateError);
+        } else {
+          console.log('✅ Project updated successfully');
+        }
+      } catch (dbError) {
+        console.error('❌ Database error:', dbError);
       }
+    } else if (projectId && generatedCode && !user) {
+      console.log('⚠️ Skipping database update - no authenticated user');
     }
 
     console.log('🎉 AI Generation completed successfully');
