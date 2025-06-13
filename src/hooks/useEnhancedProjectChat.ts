@@ -1019,7 +1019,7 @@ ${JSON.stringify(channelData, null, 2)}
   };
 
   const generateComponentMap = (html: string) => {
-    // ... keep existing code (component analysis logic)
+    // Component analysis logic
     return JSON.stringify({
       generated: new Date().toISOString(),
       totalComponents: 8,
@@ -1033,7 +1033,7 @@ ${JSON.stringify(channelData, null, 2)}
   };
 
   const generateDesignSystem = (css: string, channelData: any) => {
-    // ... keep existing code (design system analysis)
+    // Design system analysis
     return JSON.stringify({
       generated: new Date().toISOString(),
       theme: 'dark',
@@ -1092,18 +1092,18 @@ class EnhancedAIInterpreter {
   }
 
   detectResponseType(response) {
-    if (response.includes('```html')) return 'html-update';
-    if (response.includes('```css')) return 'style-update';
-    if (response.includes('```js')) return 'script-update';
+    if (response.includes('\`\`\`html')) return 'html-update';
+    if (response.includes('\`\`\`css')) return 'style-update';
+    if (response.includes('\`\`\`js')) return 'script-update';
     return 'text-response';
   }
 
   extractFiles(response) {
     const files = {};
-    const codeBlocks = response.match(/\`\`\`(\w+)([\s\S]*?)\`\`\`/g) || [];
+    const codeBlocks = response.match(/\\\`\\\`\\\`(\\w+)([\\s\\S]*?)\\\`\\\`\\\`/g) || [];
     
     codeBlocks.forEach(block => {
-      const match = block.match(/\`\`\`(\w+)([\s\S]*?)\`\`\`/);
+      const match = block.match(/\\\`\\\`\\\`(\\w+)([\\s\\S]*?)\\\`\\\`\\\`/);
       if (match) {
         const [, language, code] = match;
         files[language] = code.trim();
@@ -1123,9 +1123,9 @@ class EnhancedAIInterpreter {
   }
 
   detectLanguage(response) {
-    if (response.includes('```html')) return 'html';
-    if (response.includes('```css')) return 'css';
-    if (response.includes('```js')) return 'javascript';
+    if (response.includes('\`\`\`html')) return 'html';
+    if (response.includes('\`\`\`css')) return 'css';
+    if (response.includes('\`\`\`js')) return 'javascript';
     return 'text';
   }
 
@@ -1183,8 +1183,7 @@ class EnhancedAIEditor {
     if (!document.querySelector('#ai-editor-styles')) {
       const styles = document.createElement('style');
       styles.id = 'ai-editor-styles';
-      styles.textContent = \`
-        .ai-editable {
+      styles.textContent = \`.ai-editable {
           position: relative;
           cursor: pointer;
         }
@@ -1206,8 +1205,7 @@ class EnhancedAIEditor {
           z-index: 10000;
           font-family: monospace;
           font-size: 12px;
-        }
-      \`;
+        }\`;
       document.head.appendChild(styles);
     }
   }
@@ -1254,11 +1252,9 @@ class EnhancedAIEditor {
     if (!document.querySelector('.ai-editor-toolbar')) {
       const toolbar = document.createElement('div');
       toolbar.className = 'ai-editor-toolbar';
-      toolbar.innerHTML = \`
-        <div>🤖 AI Editor Active</div>
+      toolbar.innerHTML = \`<div>🤖 AI Editor Active</div>
         <div>Ctrl+E: Toggle | Ctrl+S: Save</div>
-        <div>Click elements to edit</div>
-      \`;
+        <div>Click elements to edit</div>\`;
       document.body.appendChild(toolbar);
     }
   }
@@ -1391,6 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sendMessage,
     projectId,
     currentProject,
-    deploymentStatus
+    deploymentStatus,
+    syncProgress
   };
 };
