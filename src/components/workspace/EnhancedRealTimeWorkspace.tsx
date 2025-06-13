@@ -122,7 +122,7 @@ const EnhancedRealTimeWorkspace: React.FC<EnhancedRealTimeWorkspaceProps> = ({
           
           <div className="flex-1">
             <OptimizedCodePreview 
-              sourceCode={sourceCode}
+              generatedCode={sourceCode}
             />
           </div>
         </div>
