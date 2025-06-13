@@ -65,7 +65,9 @@ const RealTimeApiStatusIndicators = () => {
 
       {/* Error Indicator */}
       {apiStatuses.some(api => !api.status) && (
-        <AlertCircle size={12} className="text-yellow-400" title="Some APIs are offline" />
+        <div title="Some APIs are offline">
+          <AlertCircle size={12} className="text-yellow-400" />
+        </div>
       )}
     </div>
   );

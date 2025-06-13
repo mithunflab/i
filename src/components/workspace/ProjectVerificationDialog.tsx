@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -15,6 +14,11 @@ interface ProjectVerificationDialogProps {
   projectName: string;
   projectData: any;
   isVerified?: boolean;
+}
+
+interface VerificationData {
+  status: 'none' | 'pending' | 'approved' | 'rejected';
+  response_message?: string;
 }
 
 const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({ 
@@ -53,20 +57,21 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
           },
           (payload) => {
             console.log('Verification status changed:', payload);
-            if (payload.new) {
-              setVerificationStatus(payload.new.status);
+            if (payload.new && typeof payload.new === 'object') {
+              const newData = payload.new as VerificationData;
+              setVerificationStatus(newData.status);
               
               // Show notification for status changes
               if (payload.eventType === 'UPDATE') {
-                if (payload.new.status === 'approved') {
+                if (newData.status === 'approved') {
                   toast({
                     title: "Verification Approved! 🎉",
                     description: "Your project has been verified successfully.",
                   });
-                } else if (payload.new.status === 'rejected') {
+                } else if (newData.status === 'rejected') {
                   toast({
                     title: "Verification Rejected",
-                    description: payload.new.response_message || "Your project verification was rejected.",
+                    description: newData.response_message || "Your project verification was rejected.",
                     variant: "destructive"
                   });
                 }
@@ -96,7 +101,8 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
         return;
       }
 
-      setVerificationStatus(data?.status || 'none');
+      const verificationData = data as VerificationData | null;
+      setVerificationStatus(verificationData?.status || 'none');
     } catch (error) {
       console.error('Error in checkVerificationStatus:', error);
     }

@@ -17,6 +17,11 @@ interface CompactProjectVerificationDialogProps {
   isVerified?: boolean;
 }
 
+interface VerificationData {
+  status: 'none' | 'pending' | 'approved' | 'rejected';
+  response_message?: string;
+}
+
 const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialogProps> = ({ 
   projectId,
   projectName,
@@ -53,8 +58,9 @@ const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialo
           },
           (payload) => {
             console.log('Verification status changed:', payload);
-            if (payload.new) {
-              setVerificationStatus(payload.new.status);
+            if (payload.new && typeof payload.new === 'object') {
+              const newData = payload.new as VerificationData;
+              setVerificationStatus(newData.status);
             }
           }
         )
@@ -80,7 +86,8 @@ const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialo
         return;
       }
 
-      setVerificationStatus(data?.status || 'none');
+      const verificationData = data as VerificationData | null;
+      setVerificationStatus(verificationData?.status || 'none');
     } catch (error) {
       console.error('Error in checkVerificationStatus:', error);
     }
@@ -152,7 +159,7 @@ const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialo
       return (
         <>
           <CheckCircle className="w-3 h-3 text-green-500" />
-          <span className="text-green-500">Verified</span>
+          <span className="text-green-500 text-xs">Verified</span>
         </>
       );
     }
@@ -162,28 +169,28 @@ const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialo
         return (
           <>
             <Clock className="w-3 h-3 text-yellow-500" />
-            <span className="text-yellow-500">Pending</span>
+            <span className="text-yellow-500 text-xs">Pending</span>
           </>
         );
       case 'approved':
         return (
           <>
             <CheckCircle className="w-3 h-3 text-green-500" />
-            <span className="text-green-500">Approved</span>
+            <span className="text-green-500 text-xs">Approved</span>
           </>
         );
       case 'rejected':
         return (
           <>
             <XCircle className="w-3 h-3 text-red-500" />
-            <span className="text-red-500">Rejected</span>
+            <span className="text-red-500 text-xs">Rejected</span>
           </>
         );
       default:
         return (
           <>
             <Shield className="w-3 h-3" />
-            <span>Verify</span>
+            <span className="text-xs">Verify</span>
           </>
         );
     }
@@ -197,7 +204,7 @@ const CompactProjectVerificationDialog: React.FC<CompactProjectVerificationDialo
         <Button 
           variant="outline" 
           size="sm" 
-          className="flex items-center gap-1 h-8 px-2 text-xs"
+          className="flex items-center gap-1 h-7 px-2 text-xs min-w-[70px]"
           disabled={isDisabled}
         >
           {getButtonContent()}

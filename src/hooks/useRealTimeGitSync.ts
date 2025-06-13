@@ -13,6 +13,16 @@ interface GitSyncStatus {
   commitHash?: string;
 }
 
+interface GitSyncPayload {
+  id: string;
+  project_id: string;
+  sync_status: string;
+  last_sync_at?: string;
+  error_message?: string;
+  files_synced: number;
+  commit_hash?: string;
+}
+
 export const useRealTimeGitSync = (projectId?: string) => {
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus>({
     projectId: projectId || '',
@@ -54,7 +64,7 @@ export const useRealTimeGitSync = (projectId?: string) => {
       setSyncStatus({
         id: data.id,
         projectId: data.project_id,
-        syncStatus: data.sync_status,
+        syncStatus: data.sync_status as GitSyncStatus['syncStatus'],
         lastSyncAt: data.last_sync_at ? new Date(data.last_sync_at) : undefined,
         errorMessage: data.error_message,
         filesSynced: data.files_synced,
@@ -133,15 +143,16 @@ export const useRealTimeGitSync = (projectId?: string) => {
           },
           (payload) => {
             console.log('Git sync status changed:', payload);
-            if (payload.new) {
+            if (payload.new && typeof payload.new === 'object') {
+              const newData = payload.new as GitSyncPayload;
               setSyncStatus({
-                id: payload.new.id,
-                projectId: payload.new.project_id,
-                syncStatus: payload.new.sync_status,
-                lastSyncAt: payload.new.last_sync_at ? new Date(payload.new.last_sync_at) : undefined,
-                errorMessage: payload.new.error_message,
-                filesSynced: payload.new.files_synced,
-                commitHash: payload.new.commit_hash
+                id: newData.id,
+                projectId: newData.project_id,
+                syncStatus: newData.sync_status as GitSyncStatus['syncStatus'],
+                lastSyncAt: newData.last_sync_at ? new Date(newData.last_sync_at) : undefined,
+                errorMessage: newData.error_message,
+                filesSynced: newData.files_synced,
+                commitHash: newData.commit_hash
               });
             }
           }

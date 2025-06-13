@@ -15,6 +15,15 @@ interface EnhancedFileManagerProps {
   onCodeUpdate: (code: string) => void;
 }
 
+// Define ProjectFiles type to match useFileManager
+type ProjectFiles = {
+  'index.html': string;
+  'style.css': string;
+  'script.js': string;
+  'README.md': string;
+  [key: string]: string;
+};
+
 const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   projectData,
   onFileChange,
@@ -26,20 +35,34 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   const [isCreatingFile, setIsCreatingFile] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
   
-  const { files, updateFile, createFile, deleteFile } = useFileManager();
+  const { files, updateFile } = useFileManager();
   const { syncStatus, syncToGit } = useRealTimeGitSync(projectData?.id);
   const { toast } = useToast();
 
+  // Create file function (local implementation)
+  const createFile = async (fileName: string, content: string = '') => {
+    try {
+      await updateFile(fileName as keyof ProjectFiles, content);
+      toast({
+        title: "File Created",
+        description: `${fileName} has been created successfully.`,
+      });
+    } catch (error) {
+      console.error('Error creating file:', error);
+      throw error;
+    }
+  };
+
   // Load file content when selected file changes
   useEffect(() => {
-    if (selectedFile && files[selectedFile]) {
-      setFileContent(files[selectedFile]);
+    if (selectedFile && files[selectedFile as keyof ProjectFiles]) {
+      setFileContent(files[selectedFile as keyof ProjectFiles]);
     }
   }, [selectedFile, files]);
 
   // Auto-save functionality
   useEffect(() => {
-    if (autoSave && selectedFile && fileContent !== files[selectedFile]) {
+    if (autoSave && selectedFile && fileContent !== files[selectedFile as keyof ProjectFiles]) {
       const timeoutId = setTimeout(() => {
         handleSaveFile();
       }, 2000); // Auto-save after 2 seconds of inactivity
@@ -52,7 +75,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     if (!selectedFile || !fileContent) return;
 
     try {
-      await updateFile(selectedFile, fileContent);
+      await updateFile(selectedFile as keyof ProjectFiles, fileContent);
       onFileChange(selectedFile, fileContent);
       
       // Update main preview if it's the index.html
@@ -62,7 +85,8 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
 
       // Auto-sync to GitHub if connected
       if (projectData?.github_url) {
-        await syncToGit({ [selectedFile]: fileContent }, `Update ${selectedFile}`);
+        const filesToSync: Record<string, string> = { [selectedFile]: fileContent };
+        await syncToGit(filesToSync, `Update ${selectedFile}`);
       }
 
       toast({
@@ -89,11 +113,6 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
       setFileContent('');
       setNewFileName('');
       setIsCreatingFile(false);
-      
-      toast({
-        title: "File Created",
-        description: `${fileName} has been created successfully.`,
-      });
     } catch (error) {
       console.error('Error creating file:', error);
       toast({
@@ -115,7 +134,13 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     }
 
     try {
-      await syncToGit(files, 'Sync all project files');
+      // Convert ProjectFiles to Record<string, string>
+      const filesToSync: Record<string, string> = {};
+      Object.keys(files).forEach(key => {
+        filesToSync[key] = files[key as keyof ProjectFiles];
+      });
+      
+      await syncToGit(filesToSync, 'Sync all project files');
       toast({
         title: "Sync Complete",
         description: "All files have been synced to GitHub successfully.",
@@ -244,7 +269,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
                 >
                   <span className="text-sm">{getFileIcon(fileName)}</span>
                   <span className="text-white text-xs flex-1 truncate">{fileName}</span>
-                  {fileContent !== files[fileName] && selectedFile === fileName && (
+                  {fileContent !== files[fileName as keyof ProjectFiles] && selectedFile === fileName && (
                     <div className="w-2 h-2 bg-yellow-400 rounded-full" title="Unsaved changes" />
                   )}
                 </div>
@@ -262,7 +287,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-sm">{getFileIcon(selectedFile)}</span>
                   <span className="text-white text-sm">{selectedFile}</span>
-                  {fileContent !== files[selectedFile] && (
+                  {fileContent !== files[selectedFile as keyof ProjectFiles] && (
                     <Badge variant="outline" className="text-xs">
                       Modified
                     </Badge>
@@ -272,7 +297,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
                   variant="outline"
                   size="sm"
                   onClick={handleSaveFile}
-                  disabled={fileContent === files[selectedFile]}
+                  disabled={fileContent === files[selectedFile as keyof ProjectFiles]}
                   className="text-xs h-7 flex items-center gap-1"
                 >
                   <Save size={12} />
