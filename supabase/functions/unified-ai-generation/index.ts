@@ -33,18 +33,26 @@ serve(async (req) => {
     
     console.log('📝 Request details:', { userRequest: userRequest.substring(0, 100), projectId, hasChannelData: !!channelData });
 
-    // Get user from auth header
+    // Get user from auth header - improved auth handling
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
+      console.error('❌ No authorization header found');
       throw new Error('No authorization header');
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    const token = authHeader.replace('Bearer ', '');
+    console.log('🔑 Attempting to authenticate user with token');
 
-    if (authError || !user) {
-      throw new Error('Authentication failed');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError) {
+      console.error('❌ Auth error:', authError);
+      throw new Error(`Authentication failed: ${authError.message}`);
+    }
+
+    if (!user) {
+      console.error('❌ No user found from token');
+      throw new Error('No user found');
     }
 
     console.log('✅ User authenticated:', user.email);
@@ -56,6 +64,7 @@ serve(async (req) => {
 
     // 1. Try OpenRouter first
     try {
+      console.log('🤖 Trying OpenRouter...');
       const openRouterResult = await tryOpenRouter(userRequest, channelData, currentCode, preserveDesign);
       if (openRouterResult) {
         generatedCode = openRouterResult.code;
@@ -70,6 +79,7 @@ serve(async (req) => {
     // 2. Try Groq if OpenRouter failed
     if (!generatedCode) {
       try {
+        console.log('🤖 Trying Groq...');
         const groqResult = await tryGroq(userRequest, channelData, currentCode, preserveDesign);
         if (groqResult) {
           generatedCode = groqResult.code;
@@ -84,6 +94,7 @@ serve(async (req) => {
 
     // 3. Fallback generation if both failed
     if (!generatedCode) {
+      console.log('🤖 Using fallback generation...');
       const fallbackResult = generateFallbackCode(userRequest, channelData, currentCode);
       generatedCode = fallbackResult.code;
       aiResponse = fallbackResult.response;
@@ -93,6 +104,7 @@ serve(async (req) => {
 
     // Update project in database
     if (projectId && generatedCode) {
+      console.log('💾 Updating project in database...');
       const { error: updateError } = await supabase
         .from('projects')
         .update({
@@ -108,6 +120,8 @@ serve(async (req) => {
         console.log('✅ Project updated successfully');
       }
     }
+
+    console.log('🎉 AI Generation completed successfully');
 
     return new Response(JSON.stringify({
       success: true,
