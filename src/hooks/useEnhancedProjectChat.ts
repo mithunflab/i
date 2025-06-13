@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -286,7 +285,7 @@ export const useEnhancedProjectChat = (youtubeUrl: string, projectIdea: string, 
             await updateRepository(repoInfo.githubUrl, filesToUpdate);
             botMessage.githubUrl = repoInfo.githubUrl;
 
-            // Deploy to Netlify (updates existing site or creates new one)
+            // Deploy to Netlify with correct parameters
             const netlifyUrl = await deployToNetlify(
               currentProject?.id || projectId,
               projectName,
