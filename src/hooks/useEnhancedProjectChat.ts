@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -490,15 +489,15 @@ Generate a comprehensive response that addresses the user's needs while maintain
             <div class="container">
                 <h2>Latest Videos</h2>
                 <div class="video-grid">
-                    ${channelData?.videos?.slice(0, 6).map((video: any) => `
-                        <div class="video-card">
+                    ${channelData?.videos?.slice(0, 6).map((video: any) => 
+                        `<div class="video-card">
                             <img src="${video.snippet?.thumbnails?.high?.url || ''}" alt="${video.snippet?.title || 'Video'}" class="video-thumbnail">
                             <div class="video-info">
                                 <h3 class="video-title">${video.snippet?.title || 'Video Title'}</h3>
                                 <p class="video-date">${new Date(video.snippet?.publishedAt).toLocaleDateString()}</p>
                             </div>
-                        </div>
-                    `).join('') || '<p>No videos available</p>'}
+                        </div>`
+                    ).join('') || '<p>No videos available</p>'}
                 </div>
             </div>
         </section>
@@ -802,7 +801,7 @@ class EnhancedYouTubeDataManager {
   }
 
   trackEvent(eventName, data) {
-    console.log(\`📊 Analytics Event: \${eventName}\`, data);
+    console.log('📊 Analytics Event: ' + eventName, data);
     
     // In a real implementation, this would send data to analytics service
     if (window.gtag) {
