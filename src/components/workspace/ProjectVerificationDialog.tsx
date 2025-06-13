@@ -2,12 +2,13 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Shield } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { CheckCircle, Shield, Send, AlertCircle, Star, Award } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface ProjectVerificationDialogProps {
@@ -15,87 +16,93 @@ interface ProjectVerificationDialogProps {
   projectName: string;
   projectData: any;
   isVerified?: boolean;
-  verificationStatus?: string;
 }
 
 const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
   projectId,
   projectName,
   projectData,
-  isVerified,
-  verificationStatus
+  isVerified = false
 }) => {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [submittedRequest, setSubmittedRequest] = useState(false);
+  const [formData, setFormData] = useState({
+    contactEmail: '',
+    websiteDescription: '',
+    channelVerification: '',
+    additionalInfo: '',
+    agreeToTerms: false
+  });
   
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || loading || !message.trim()) return;
+  const handleSubmitVerification = async () => {
+    if (!user || !projectId) return;
 
-    setLoading(true);
     try {
-      console.log('📋 Submitting verification request...');
+      setLoading(true);
+      console.log('📋 Submitting verification request for project:', projectId);
 
-      // Check if request already exists
-      const { data: existingRequest, error: checkError } = await supabase
-        .from('project_verification_requests')
-        .select('id, status')
-        .eq('project_id', projectId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('❌ Error checking existing request:', checkError);
-        throw new Error('Failed to check existing verification requests');
-      }
-
-      if (existingRequest) {
+      // Validate form
+      if (!formData.contactEmail || !formData.websiteDescription) {
         toast({
-          title: "Already Requested",
-          description: `You've already submitted a verification request for this project. Status: ${existingRequest.status}`,
+          title: "Incomplete Form",
+          description: "Please fill in all required fields",
           variant: "destructive"
         });
         return;
       }
 
-      // Create new verification request with correct schema
-      const verificationData = {
-        project_id: projectId,
-        user_id: user.id,
-        request_message: message.trim(),
-        status: 'pending'
-      };
-
-      console.log('💾 Inserting verification request:', verificationData);
-
-      const { error: insertError } = await supabase
+      // Submit verification request
+      const { data, error } = await supabase
         .from('project_verification_requests')
-        .insert(verificationData);
+        .insert({
+          project_id: projectId,
+          user_id: user.id,
+          contact_email: formData.contactEmail,
+          website_description: formData.websiteDescription,
+          channel_verification: formData.channelVerification,
+          additional_info: formData.additionalInfo,
+          project_data: projectData,
+          status: 'pending',
+          verification_type: 'youtube_website'
+        })
+        .select()
+        .single();
 
-      if (insertError) {
-        console.error('❌ Verification request error:', insertError);
-        throw new Error(insertError.message || 'Failed to submit verification request');
+      if (error) {
+        throw error;
       }
 
-      console.log('✅ Verification request submitted successfully');
+      console.log('✅ Verification request submitted successfully:', data.id);
+      
+      setSubmittedRequest(true);
       
       toast({
-        title: "🎉 Verification Requested!",
-        description: "Your project has been submitted for developer review.",
+        title: "Verification Submitted! 🎉",
+        description: "Your project has been sent for developer review. You'll be notified once approved.",
       });
 
-      setOpen(false);
-      setMessage('');
+      // Reset form after short delay
+      setTimeout(() => {
+        setIsOpen(false);
+        setSubmittedRequest(false);
+        setFormData({
+          contactEmail: '',
+          websiteDescription: '',
+          channelVerification: '',
+          additionalInfo: '',
+          agreeToTerms: false
+        });
+      }, 3000);
 
     } catch (error) {
       console.error('❌ Error submitting verification:', error);
       toast({
         title: "Submission Failed",
-        description: error instanceof Error ? error.message : "Unable to submit verification request. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to submit verification request",
         variant: "destructive"
       });
     } finally {
@@ -103,91 +110,189 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
     }
   };
 
-  // Show verified badge if actually verified AND approved
-  if (isVerified && verificationStatus === 'approved') {
+  if (isVerified) {
     return (
-      <Button variant="outline" size="sm" className="bg-green-500/20 text-green-400 border-green-500/30 text-xs h-7" disabled>
-        <Shield size={10} className="mr-1" />
-        Verified
+      <Button variant="outline" className="flex items-center gap-2 bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20">
+        <CheckCircle size={16} />
+        <span>Verified</span>
       </Button>
     );
   }
 
-  // Show pending status
-  if (verificationStatus === 'pending') {
-    return (
-      <Button variant="outline" size="sm" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs h-7" disabled>
-        <Shield size={10} className="mr-1" />
-        Pending Review
-      </Button>
-    );
-  }
-
-  // Show rejected status
-  if (verificationStatus === 'rejected') {
-    return (
-      <Button variant="outline" size="sm" className="bg-red-500/20 text-red-400 border-red-500/30 text-xs h-7" disabled>
-        <Shield size={10} className="mr-1" />
-        Rejected
-      </Button>
-    );
-  }
-
-  // Show verification request button for non-verified projects
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 text-xs h-7"
-        >
-          <Shield size={10} className="mr-1" />
-          Get Verified
+        <Button variant="outline" className="flex items-center gap-2 bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20">
+          <Shield size={16} />
+          <span>Get Verified</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md bg-gray-900 border-gray-700">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 border-purple-500/30">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white text-sm">
-            <Shield className="w-4 h-4 text-blue-400" />
-            Request Project Verification
+          <DialogTitle className="flex items-center gap-2 text-2xl text-white">
+            <Award className="text-yellow-400" size={24} />
+            Project Verification Request
           </DialogTitle>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <Label className="text-xs font-medium text-gray-300">Project: {projectName}</Label>
-            <p className="text-xs text-gray-500 mt-1">{projectData?.description || 'No description available'}</p>
+
+        {submittedRequest ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle size={32} className="text-green-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-white mb-2">Request Submitted!</h3>
+            <p className="text-gray-400 mb-4">
+              Your verification request has been sent to our developer team for review.
+            </p>
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+              <p className="text-sm text-blue-300">
+                ⏱️ <strong>Review Time:</strong> 24-48 hours<br/>
+                📧 <strong>Notification:</strong> You'll receive an email update<br/>
+                ✨ <strong>Verification Badge:</strong> Will appear near your YouTube channel logo once approved
+              </p>
+            </div>
           </div>
-          
-          <div>
-            <Label htmlFor="message" className="text-xs font-medium text-gray-300">
-              Why should this project be verified?
-            </Label>
-            <Textarea
-              id="message"
-              placeholder="Explain why your project deserves verification (quality, originality, usefulness, etc.)"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="mt-1 bg-gray-800 border-gray-600 text-white text-xs"
-              rows={4}
-              required
-            />
+        ) : (
+          <div className="space-y-6">
+            {/* Verification Benefits */}
+            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4">
+              <h4 className="font-semibold text-white mb-2 flex items-center gap-2">
+                <Star className="text-yellow-400" size={16} />
+                Verification Benefits
+              </h4>
+              <ul className="text-sm text-gray-300 space-y-1">
+                <li>✅ Verified badge near your YouTube channel logo</li>
+                <li>✅ Enhanced credibility and trust</li>
+                <li>✅ Priority support and features</li>
+                <li>✅ Professional status recognition</li>
+              </ul>
+            </div>
+
+            {/* Project Information */}
+            <div className="bg-black/30 rounded-lg p-4">
+              <h4 className="font-semibold text-white mb-2">Project Details</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <Label className="text-gray-400">Project Name</Label>
+                  <p className="text-white">{projectName}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-400">Channel</Label>
+                  <p className="text-white">{projectData?.channel_data?.title || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-400">Subscribers</Label>
+                  <p className="text-white">
+                    {projectData?.channel_data?.subscriberCount 
+                      ? parseInt(projectData.channel_data.subscriberCount).toLocaleString()
+                      : 'N/A'
+                    }
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-gray-400">Status</Label>
+                  <Badge variant="outline" className="text-green-400 border-green-500/30">
+                    {projectData?.status || 'Active'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Verification Form */}
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="contactEmail" className="text-white mb-2 block">
+                  Contact Email <span className="text-red-400">*</span>
+                </Label>
+                <Input
+                  id="contactEmail"
+                  type="email"
+                  placeholder="your.email@example.com"
+                  value={formData.contactEmail}
+                  onChange={(e) => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))}
+                  className="bg-black/50 border-purple-500/30 text-white"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="websiteDescription" className="text-white mb-2 block">
+                  Website Description <span className="text-red-400">*</span>
+                </Label>
+                <Textarea
+                  id="websiteDescription"
+                  placeholder="Describe your website's purpose, target audience, and key features..."
+                  value={formData.websiteDescription}
+                  onChange={(e) => setFormData(prev => ({ ...prev, websiteDescription: e.target.value }))}
+                  className="bg-black/50 border-purple-500/30 text-white min-h-[100px]"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="channelVerification" className="text-white mb-2 block">
+                  YouTube Channel Verification
+                </Label>
+                <Input
+                  id="channelVerification"
+                  placeholder="Provide your YouTube channel verification details (if verified)"
+                  value={formData.channelVerification}
+                  onChange={(e) => setFormData(prev => ({ ...prev, channelVerification: e.target.value }))}
+                  className="bg-black/50 border-purple-500/30 text-white"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="additionalInfo" className="text-white mb-2 block">
+                  Additional Information
+                </Label>
+                <Textarea
+                  id="additionalInfo"
+                  placeholder="Any additional information that supports your verification request..."
+                  value={formData.additionalInfo}
+                  onChange={(e) => setFormData(prev => ({ ...prev, additionalInfo: e.target.value }))}
+                  className="bg-black/50 border-purple-500/30 text-white"
+                />
+              </div>
+            </div>
+
+            {/* Requirements Checklist */}
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+              <h4 className="font-semibold text-yellow-400 mb-2 flex items-center gap-2">
+                <AlertCircle size={16} />
+                Verification Requirements
+              </h4>
+              <ul className="text-sm text-gray-300 space-y-1">
+                <li>• Professional website design and content</li>
+                <li>• Active YouTube channel with real content</li>
+                <li>• Accurate channel information and data</li>
+                <li>• Responsive design and mobile compatibility</li>
+                <li>• No inappropriate or misleading content</li>
+              </ul>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={handleSubmitVerification}
+                disabled={loading || !formData.contactEmail || !formData.websiteDescription}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <Send size={16} className="mr-2" />
+                )}
+                Submit for Verification
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsOpen(false)}
+                className="border-gray-600 text-gray-400 hover:bg-gray-700"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
-          
-          <div className="flex justify-end gap-2 pt-3">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="text-gray-300 text-xs h-8">
-              Cancel
-            </Button>
-            <Button 
-              type="submit"
-              disabled={loading || !message.trim()}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
-            >
-              {loading ? 'Submitting...' : 'Submit Request'}
-            </Button>
-          </div>
-        </form>
+        )}
       </DialogContent>
     </Dialog>
   );

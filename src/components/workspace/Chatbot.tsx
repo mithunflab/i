@@ -117,7 +117,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
                   {deploymentStatus.status === 'deploying' && (
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
                   )}
-                  {deploymentStatus.status === 'deployed' && (
+                  {deploymentStatus.status === 'success' && (
                     <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                   )}
                   {deploymentStatus.status === 'failed' && (
@@ -125,7 +125,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ youtubeUrl, projectIdea, channelData 
                   )}
                   <span className="text-xs text-blue-300">{deploymentStatus.message}</span>
                 </div>
-                {deploymentStatus.status === 'deploying' && deploymentStatus.progress && (
+                {deploymentStatus.status === 'deploying' && (
                   <div className="w-full bg-gray-700 rounded-full h-1 mt-2">
                     <div 
                       className="bg-blue-400 h-1 rounded-full transition-all duration-300" 

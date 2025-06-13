@@ -1,3 +1,4 @@
+
 import React, { Suspense, useMemo } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -74,15 +75,16 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Routes>
-        {/* Main home page */}
-        <Route path="/" element={<Home />} />
-        
-        {/* Other public routes */}
+        {/* Public routes */}
+        <Route path="/home" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/features" element={<Features />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/login" element={<LoginForm />} />
+        
+        {/* Root route - handles authentication logic */}
+        <Route path="/" element={<Index />} />
         
         {/* Protected routes */}
         <Route 

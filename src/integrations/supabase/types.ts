@@ -718,7 +718,6 @@ export type Database = {
           project_id: string
           request_message: string | null
           requested_at: string | null
-          response_message: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           status: string | null
@@ -730,7 +729,6 @@ export type Database = {
           project_id: string
           request_message?: string | null
           requested_at?: string | null
-          response_message?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string | null
@@ -742,7 +740,6 @@ export type Database = {
           project_id?: string
           request_message?: string | null
           requested_at?: string | null
-          response_message?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string | null
@@ -771,7 +768,6 @@ export type Database = {
           status: string | null
           updated_at: string | null
           user_id: string
-          verified: boolean | null
           youtube_url: string | null
         }
         Insert: {
@@ -786,7 +782,6 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           user_id: string
-          verified?: boolean | null
           youtube_url?: string | null
         }
         Update: {
@@ -801,7 +796,6 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           user_id?: string
-          verified?: boolean | null
           youtube_url?: string | null
         }
         Relationships: []

@@ -1,12 +1,11 @@
 
 import { useCallback } from 'react';
-import { ComponentMapper } from '../utils/componentMapper';
+import { useComprehensiveFileReader } from './useComprehensiveFileReader';
 
 interface TargetedChangeRequest {
   userRequest: string;
   projectId: string;
   channelData?: any;
-  currentCode: string;
 }
 
 interface TargetedChangeResponse {
@@ -14,184 +13,209 @@ interface TargetedChangeResponse {
   preservationRules: string[];
   targetComponent: string;
   changeScope: 'minimal' | 'component' | 'section';
-  componentMap: any;
 }
 
 export const useEnhancedTargetedChanges = () => {
+  const { readProjectFiles } = useComprehensiveFileReader();
 
   const generateEnhancedPrompt = useCallback(async ({
     userRequest,
     projectId,
-    channelData,
-    currentCode
+    channelData
   }: TargetedChangeRequest): Promise<TargetedChangeResponse> => {
     
-    console.log('🎯 Generating enhanced component-level prompt...');
+    console.log('🎯 Generating enhanced targeted prompt...');
     
-    // Initialize component mapper
-    const mapper = new ComponentMapper({
-      colors: { primary: '#ff0000', secondary: '#666666', background: '#ffffff', text: '#333333', accent: '#0066cc' },
-      typography: { fontFamily: 'Arial, sans-serif', headingFont: 'Arial, sans-serif', fontSize: { small: '14px', medium: '16px', large: '20px', xlarge: '28px' } },
-      spacing: { small: '8px', medium: '16px', large: '24px', xlarge: '48px' },
-      breakpoints: { mobile: '768px', tablet: '1024px', desktop: '1200px' }
-    });
-
-    // Parse current code structure
-    const componentMap = mapper.parseHTMLStructure(currentCode);
-    const targetComponent = mapper.identifyTargetComponent(userRequest);
-    const changeScope = determineChangeScope(userRequest);
+    // Read all project files and context
+    const projectStructure = await readProjectFiles(projectId);
     
-    if (!targetComponent) {
-      throw new Error(`Unable to identify target component from request: "${userRequest}"`);
+    if (!projectStructure) {
+      throw new Error('Unable to read project structure');
     }
 
-    // Get preservation rules
-    const preservationRules = mapper.getPreservationRules(targetComponent);
+    // Analyze user request to identify target
+    const targetComponent = identifyTargetComponent(userRequest);
+    const changeScope = determineChangeScope(userRequest);
     
-    // Extract current CSS and design tokens
-    const cssMatch = currentCode.match(/<style[^>]*>([\s\S]*?)<\/style>/);
-    const currentCSS = cssMatch ? cssMatch[1] : '';
-    const designTokens = mapper.extractDesignTokens(currentCSS);
+    // Extract current component structure
+    const currentHTML = projectStructure.files.find(f => f.path === 'index.html')?.content || '';
+    const currentCSS = projectStructure.files.find(f => f.path === 'styles.css')?.content || '';
+    const readmeContent = projectStructure.readmeContent || '';
+    
+    // Create preservation rules
+    const preservationRules = generatePreservationRules(
+      currentHTML,
+      targetComponent,
+      projectStructure.components
+    );
 
     // Generate enhanced prompt
     const prompt = `
-# 🎯 ADVANCED COMPONENT-LEVEL WEBSITE EDITING
+# 🎯 CRITICAL: TARGETED MODIFICATION ONLY
 
-## CRITICAL: PRECISION TARGETING SYSTEM
-**This is a component-level edit. Modify ONLY the specific component requested.**
+## MANDATORY PRESERVATION RULES
+${preservationRules.map(rule => `- ${rule}`).join('\n')}
 
 ## USER REQUEST ANALYSIS
 - **Request**: "${userRequest}"
 - **Target Component**: ${targetComponent}
 - **Change Scope**: ${changeScope}
-- **Component Type**: ${componentMap[targetComponent]?.type || 'unknown'}
-- **Component Selector**: ${componentMap[targetComponent]?.selector || 'unknown'}
-
-## COMPONENT MAPPING
-\`\`\`json
-${JSON.stringify(componentMap, null, 2)}
-\`\`\`
-
-## DESIGN TOKENS (MUST PRESERVE)
-\`\`\`json
-${JSON.stringify(designTokens, null, 2)}
-\`\`\`
-
-## PRESERVATION RULES
-${preservationRules.map(rule => `${rule}`).join('\n')}
+- **Preserve**: ALL other components, styling, and functionality
 
 ## CURRENT PROJECT CONTEXT
-- **Project ID**: ${projectId}
-- **Channel**: ${channelData?.title || 'Content Creator'}
-- **Subscribers**: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
-- **Videos**: ${parseInt(channelData?.videoCount || '0').toLocaleString()}
-- **Channel Thumbnail**: ${channelData?.thumbnail}
+### Project Structure
+- Components: ${projectStructure.components.join(', ')}
+- Layout: ${projectStructure.layout}
+- Total Files: ${projectStructure.files.length}
 
-## CURRENT CODE STRUCTURE
+### Current HTML Structure (MUST PRESERVE 95%)
 \`\`\`html
-${currentCode.substring(0, 2000)}${currentCode.length > 2000 ? '...' : ''}
+${currentHTML.substring(0, 1000)}${currentHTML.length > 1000 ? '...' : ''}
 \`\`\`
 
-## COMPONENT-SPECIFIC INSTRUCTIONS
-
-### Target Component Details
-- **Component**: ${targetComponent}
-- **File**: ${componentMap[targetComponent]?.file || 'index.html'}
-- **Selector**: ${componentMap[targetComponent]?.selector || 'unknown'}
-- **Current Code**:
-\`\`\`html
-${extractComponentCode(currentCode, componentMap[targetComponent])}
+### Current Styles (MUST PRESERVE)
+\`\`\`css
+${currentCSS.substring(0, 500)}${currentCSS.length > 500 ? '...' : ''}
 \`\`\`
 
-### Modification Requirements
-1. **SCOPE**: Modify ONLY the ${targetComponent} component
-2. **PRESERVATION**: Keep ALL other components exactly as they are
-3. **DESIGN**: Use existing design tokens and CSS classes
-4. **STRUCTURE**: Maintain DOM structure and relationships
-5. **FUNCTIONALITY**: Preserve all JavaScript and interactions
-6. **DATA**: Use real YouTube channel data
+### README Context
+${readmeContent.substring(0, 300)}${readmeContent.length > 300 ? '...' : ''}
 
-### File Structure Output
-Generate clean, organized code with:
-- **HTML**: Semantic structure with proper component organization
-- **CSS**: Embedded styles in <style> tags using design tokens
-- **JavaScript**: Embedded scripts in <script> tags for interactions
-- **SEO**: Proper meta tags and accessibility
-- **Responsive**: Mobile-first responsive design
+### Chat History Context
+Recent changes: ${projectStructure.chatHistory.slice(-3).map(msg => msg.content?.substring(0, 100)).join(' | ')}
 
-## REAL DATA INTEGRATION
-- **Channel Name**: ${channelData?.title}
-- **Subscriber Count**: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
-- **Video Count**: ${parseInt(channelData?.videoCount || '0').toLocaleString()}
-- **Channel Thumbnail**: ${channelData?.thumbnail}
-- **Videos**: Use real video thumbnails and data
+## CHANNEL DATA (USE REAL VALUES)
+${channelData ? `
+- Title: ${channelData.title}
+- Subscribers: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}
+- Videos: ${parseInt(channelData.videoCount || '0').toLocaleString()}
+- Thumbnail: ${channelData.thumbnail}
+- Custom URL: ${channelData.customUrl || ''}
+` : 'No channel data available'}
 
-## CRITICAL OUTPUT REQUIREMENTS
-1. **Targeted Modification**: Change ONLY the ${targetComponent}
-2. **Code Preservation**: Keep all other HTML/CSS/JS identical
-3. **Design Consistency**: Maintain existing visual design
-4. **Professional Quality**: Clean, production-ready code
-5. **Real Data**: Use actual YouTube channel information
-6. **Component Integrity**: Preserve component relationships
+## STRICT MODIFICATION INSTRUCTIONS
+
+### ✅ ONLY CHANGE:
+- The specific ${targetComponent} element requested
+- Exact content/styling mentioned in user request
+- Keep ALL YouTube branding and data integration
+
+### ❌ NEVER CHANGE:
+- Any other HTML sections not mentioned
+- Overall page layout and structure
+- Color schemes (unless specifically requested)
+- Font families and typography
+- Navigation functionality
+- Footer content (unless specifically requested)
+- Video gallery structure (unless specifically requested)
+- All other components and styling
+
+### 🎨 DESIGN CONSISTENCY RULES
+- Maintain existing color palette: ${projectStructure.styles.slice(0, 5).join(', ')}
+- Preserve responsive design breakpoints
+- Keep existing animation and hover effects
+- Maintain YouTube brand colors (#FF0000 for buttons)
+- Use consistent spacing and typography
+
+### 📊 REAL DATA INTEGRATION
+- Use actual subscriber count: ${parseInt(channelData?.subscriberCount || '0').toLocaleString()}
+- Display real channel name: ${channelData?.title || 'Channel Name'}
+- Include real thumbnail: ${channelData?.thumbnail || ''}
+- Show actual video count: ${parseInt(channelData?.videoCount || '0').toLocaleString()}
+
+## OUTPUT REQUIREMENTS
+1. **Minimal Change Principle**: Change ONLY what user requested
+2. **Preserve Context**: Keep all existing functionality
+3. **Real Data**: Use actual YouTube channel data
+4. **Code Quality**: Maintain clean, readable HTML/CSS
+5. **Responsive**: Ensure mobile compatibility
 
 ## VALIDATION CHECKLIST
-- [ ] Only the ${targetComponent} was modified
-- [ ] All other components remain unchanged
-- [ ] Design tokens and color scheme preserved
-- [ ] Real YouTube data integrated correctly
-- [ ] Responsive design maintained
-- [ ] No functionality broken
-- [ ] Code is clean and organized
+- [ ] Only modified the requested ${targetComponent}
+- [ ] Preserved all other HTML sections
+- [ ] Maintained existing styling and colors
+- [ ] Used real YouTube channel data
+- [ ] Kept responsive design intact
+- [ ] No functionality was broken
 
-**FINAL INSTRUCTION**: Make the SMALLEST possible change to satisfy the user request while preserving the entire website structure and all other components exactly as they were.
+**CRITICAL**: Make the SMALLEST possible change that satisfies the user request while preserving EVERYTHING else.
 `;
 
-    console.log('✅ Enhanced component-level prompt generated for:', targetComponent);
+    console.log('✅ Enhanced targeted prompt generated:', {
+      targetComponent,
+      changeScope,
+      preservationRulesCount: preservationRules.length
+    });
 
     return {
       prompt,
       preservationRules,
       targetComponent,
-      changeScope,
-      componentMap
+      changeScope
     };
-  }, []);
+  }, [readProjectFiles]);
 
   return {
     generateEnhancedPrompt
   };
 };
 
-// Helper functions
+const identifyTargetComponent = (userRequest: string): string => {
+  const request = userRequest.toLowerCase();
+  
+  const componentMap = {
+    'hero': ['hero', 'title', 'heading', 'main title', 'top section'],
+    'navigation': ['nav', 'menu', 'navigation', 'navbar'],
+    'video-gallery': ['video', 'gallery', 'content', 'videos'],
+    'stats-section': ['stats', 'statistics', 'numbers', 'count', 'subscriber'],
+    'footer': ['footer', 'bottom', 'contact info'],
+    'call-to-action': ['button', 'cta', 'subscribe', 'action'],
+    'styling': ['color', 'background', 'style', 'theme']
+  };
+
+  for (const [component, keywords] of Object.entries(componentMap)) {
+    if (keywords.some(keyword => request.includes(keyword))) {
+      return component;
+    }
+  }
+
+  return 'general-content';
+};
+
 const determineChangeScope = (userRequest: string): 'minimal' | 'component' | 'section' => {
   const request = userRequest.toLowerCase();
   
-  if (request.includes('text') || request.includes('word') || request.includes('title') || request.includes('color')) {
+  if (request.includes('text') || request.includes('word') || request.includes('title')) {
     return 'minimal';
   }
   
-  if (request.includes('section') || request.includes('layout') || request.includes('entire')) {
+  if (request.includes('section') || request.includes('layout') || request.includes('design')) {
     return 'section';
   }
   
   return 'component';
 };
 
-const extractComponentCode = (html: string, component: any): string => {
-  if (!component?.selector) return 'Component not found';
-  
-  const selector = component.selector;
-  let regex: RegExp;
-  
-  if (selector.startsWith('#')) {
-    regex = new RegExp(`<[^>]*id\\s*=\\s*["']${selector.slice(1)}["'][^>]*>[\\s\\S]*?</[^>]*>`, 'i');
-  } else if (selector.startsWith('.')) {
-    const className = selector.slice(1);
-    regex = new RegExp(`<[^>]*class\\s*=\\s*["'][^"']*${className}[^"']*["'][^>]*>[\\s\\S]*?</[^>]*>`, 'i');
-  } else {
-    regex = new RegExp(`<${selector}[^>]*>[\\s\\S]*?</${selector}>`, 'i');
-  }
-  
-  const match = html.match(regex);
-  return match ? match[0] : 'Component not found in current code';
+const generatePreservationRules = (
+  currentHTML: string,
+  targetComponent: string,
+  components: string[]
+): string[] => {
+  const rules = [
+    '🚫 DO NOT modify any HTML outside the requested component',
+    '🚫 DO NOT change the overall page layout or structure',
+    '🚫 DO NOT alter existing color schemes unless specifically requested',
+    '🚫 DO NOT modify navigation functionality',
+    '🚫 DO NOT change YouTube branding or data integration',
+    '🚫 DO NOT alter responsive design breakpoints'
+  ];
+
+  // Add component-specific preservation rules
+  components.forEach(component => {
+    if (component !== targetComponent) {
+      rules.push(`🚫 DO NOT modify the ${component} component`);
+    }
+  });
+
+  return rules;
 };

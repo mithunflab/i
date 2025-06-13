@@ -1,179 +1,88 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Send, 
-  Bot, 
-  User, 
-  AlertCircle, 
-  CheckCircle, 
-  Loader2,
-  Zap,
-  Brain,
-  Code
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Send, Bot, User, Youtube, Users, Play, Eye, Lightbulb, Code, FileText, Github, Globe, ChevronDown, ChevronUp, Sparkles, Zap } from 'lucide-react';
+import { useEnhancedProjectChat } from '@/hooks/useEnhancedProjectChat';
 
-interface Message {
+interface ChannelData {
   id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  status?: 'sending' | 'sent' | 'error';
-  generatedCode?: string;
-  model?: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  subscriberCount: string;
+  videoCount: string;
+  viewCount: string;
+  customUrl?: string;
+  videos: any[];
 }
 
 interface EnhancedChatbotProps {
-  projectId: string;
-  sourceCode?: string;
-  channelData?: any;
-  onCodeUpdate?: (newCode: string) => void;
+  youtubeUrl: string;
+  projectIdea: string;
+  channelData?: ChannelData | null;
+  onCodeGenerated?: (code: string) => void;
 }
 
-const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
-  projectId,
-  sourceCode = '',
-  channelData,
-  onCodeUpdate
+const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({ 
+  youtubeUrl, 
+  projectIdea, 
+  channelData, 
+  onCodeGenerated 
 }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isConnected, setIsConnected] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    // Add welcome message with real AI capabilities
-    const welcomeMessage: Message = {
-      id: 'welcome',
-      role: 'assistant',
-      content: `🤖 **Real AI Website Builder Ready!**\n\n${channelData ? `**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n` : ''}🧠 **Real AI Features Active:**\n• OpenRouter AI models (Claude, GPT-4, Gemini)\n• Real-time code generation\n• Professional website creation\n• YouTube data integration\n• Responsive design optimization\n\n💬 **Tell me what you want to create:**\n• "Create a modern landing page"\n• "Build a YouTube channel website"\n• "Make a professional portfolio"\n• "Design an e-commerce site"\n\n✨ **I'll generate real code using advanced AI models!**`,
-      timestamp: new Date()
-    };
-    setMessages([welcomeMessage]);
-  }, [channelData]);
+  const [inputValue, setInputValue] = useState('');
+  const [showQuickIdeas, setShowQuickIdeas] = useState(false);
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
+  const [currentFiles, setCurrentFiles] = useState<string[]>([]);
+  const { messages, loading, sendMessage, projectId, currentProject, isProcessing } = useEnhancedProjectChat(youtubeUrl, projectIdea, channelData);
 
   const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!inputValue.trim() || loading) return;
+    
+    const messageContent = inputValue;
+    setInputValue('');
+    
+    // Check if user is reporting preview issues and respond appropriately
+    const lowerInput = messageContent.toLowerCase();
+    if (lowerInput.includes('unable to load') || 
+        lowerInput.includes('can\'t see preview') || 
+        lowerInput.includes('preview not working') || 
+        lowerInput.includes('not loading') ||
+        lowerInput.includes('preview loading') ||
+        lowerInput.includes('preview issue')) {
+      
+      // Don't send to backend, handle locally with helpful response
+      const previewHelpMessage = {
+        id: Date.now().toString(),
+        type: 'bot' as const,
+        content: `I understand you're having trouble with the preview! Let me help you troubleshoot:
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date(),
-      status: 'sent'
-    };
+🔍 **Quick Fixes:**
+• Try refreshing the page (Ctrl+F5 or Cmd+Shift+R)
+• Switch between mobile/desktop preview modes
+• Check if your browser is blocking scripts
+• Make sure JavaScript is enabled
 
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
+🎯 **Alternative Actions:**
+• Tell me specific changes you want (e.g., "change the hero title")
+• I can regenerate the code with better compatibility
+• Try clicking the "Edit" button to select elements directly
 
-    try {
-      console.log('🚀 Sending real AI request...');
+💡 **Common Issues:**
+• Large websites may take longer to load
+• Complex YouTube integrations need time to process
+• Some browsers cache old versions
 
-      // Call the real chat edge function
-      const { data: aiResponse, error } = await supabase.functions.invoke('chat', {
-        body: {
-          message: userMessage.content,
-          projectId: projectId,
-          channelData: channelData,
-          generateCode: true
-        }
-      });
-
-      if (error) {
-        console.error('❌ AI API Error:', error);
-        throw new Error(`AI API Error: ${error.message}`);
-      }
-
-      console.log('✅ Real AI response received:', aiResponse);
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: aiResponse.reply || 'Website generated successfully!',
+Would you like me to regenerate the website with optimized loading, or do you want to make specific changes instead?`,
         timestamp: new Date(),
-        generatedCode: aiResponse.generatedCode,
-        model: aiResponse.model
+        feature: 'preview-help'
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
-
-      // Apply generated code if available
-      if (aiResponse.generatedCode && onCodeUpdate) {
-        console.log('🎨 Applying generated code to preview...');
-        onCodeUpdate(aiResponse.generatedCode);
-        
-        toast({
-          title: "🎉 Website Generated!",
-          description: `Created with ${aiResponse.model || 'AI'} - Check the preview!`,
-        });
-      }
-
-      // Save to chat history
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase
-            .from('project_chat_history')
-            .insert([
-              {
-                project_id: projectId,
-                user_id: user.id,
-                message_type: 'user',
-                content: userMessage.content
-              },
-              {
-                project_id: projectId,
-                user_id: user.id,
-                message_type: 'assistant',
-                content: assistantMessage.content,
-                metadata: { 
-                  generatedCode: aiResponse.generatedCode,
-                  model: aiResponse.model 
-                }
-              }
-            ]);
-        }
-      } catch (error) {
-        console.error('❌ Error saving chat history:', error);
-      }
-
-    } catch (error) {
-      console.error('❌ Error processing message:', error);
-      
-      const errorMessage: Message = {
-        id: (Date.now() + 2).toString(),
-        role: 'assistant',
-        content: `❌ **AI Error Occurred**\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\n🔄 **Please try again with:**\n• More specific requests\n• Simpler language\n• Clear website goals\n\n💡 **Example**: "Create a modern portfolio website with dark theme"`,
-        timestamp: new Date(),
-        status: 'error'
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
-      
-      toast({
-        title: "AI Error",
-        description: "Failed to generate website. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+      // Add message directly to UI without backend call
+      return;
     }
+    
+    await sendMessage(messageContent);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -183,131 +92,345 @@ const EnhancedChatbot: React.FC<EnhancedChatbotProps> = ({
     }
   };
 
-  return (
-    <Card className="h-full flex flex-col bg-gray-900/50 border-gray-700">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center justify-between text-white">
-          <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-purple-400" />
-            Real AI Assistant
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={isConnected ? "default" : "destructive"} className="text-xs">
-              {isConnected ? (
-                <>
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                  AI Ready
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-3 h-3 mr-1" />
-                  Offline
-                </>
-              )}
-            </Badge>
-            {channelData && (
-              <Badge variant="outline" className="text-xs text-green-400 border-green-500/30">
-                <Zap className="w-3 h-3 mr-1" />
-                YouTube Data
-              </Badge>
-            )}
-          </div>
-        </CardTitle>
-      </CardHeader>
+  const quickIdeas = [
+    { label: 'Change hero section title', icon: '✏️' },
+    { label: 'Update navigation menu', icon: '🧭' },
+    { label: 'Modify subscriber count display', icon: '📊' },
+    { label: 'Change video gallery layout', icon: '🎬' },
+    { label: 'Update footer information', icon: '📝' },
+    { label: 'Customize call-to-action button', icon: '🔔' }
+  ];
 
-      <CardContent className="flex-1 flex flex-col p-0">
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-96">
+  const getChannelThumbnail = (channelData: ChannelData | null) => {
+    if (!channelData?.thumbnail) return channelData?.thumbnail || '';
+    
+    // Fix YouTube thumbnail URL to get high quality version
+    let thumbnailUrl = channelData.thumbnail;
+    
+    // Replace size parameters to get better quality
+    thumbnailUrl = thumbnailUrl.replace(/=s\d+/, '=s240');
+    thumbnailUrl = thumbnailUrl.replace(/\/s\d+/, '/s240');
+    
+    // If it's a default YouTube thumbnail URL, ensure it's high quality
+    if (thumbnailUrl.includes('yt3.ggpht.com') && !thumbnailUrl.includes('=s')) {
+      thumbnailUrl += '=s240-c-k-c0x00ffffff-no-rj';
+    }
+    
+    return thumbnailUrl;
+  };
+
+  // Track file changes from AI responses and notify parent
+  React.useEffect(() => {
+    const latestMessage = messages[messages.length - 1];
+    if (latestMessage?.type === 'bot' && latestMessage.generatedCode) {
+      console.log('🔄 Professional code generated, updating preview...');
+      onCodeGenerated?.(latestMessage.generatedCode);
+      
+      if (latestMessage.fileChanges) {
+        const newFiles = latestMessage.fileChanges.map(change => change.path);
+        setCurrentFiles(prev => [...new Set([...prev, ...newFiles])]);
+      }
+    }
+  }, [messages, onCodeGenerated]);
+
+  return (
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* Enhanced Header */}
+      <div className="border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
+        <div 
+          className="p-3 cursor-pointer hover:bg-black/20 transition-colors"
+          onClick={() => setIsHeaderExpanded(!isHeaderExpanded)}
+        >
+          {channelData ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <img 
+                  src={channelData.thumbnail} 
+                  alt={channelData.title}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-cyan-400 shadow-lg shadow-cyan-400/50 flex-shrink-0"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=80&h=80&fit=crop';
+                  }}
+                />
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-cyan-400 text-sm truncate">
+                    {channelData.title}
+                  </h3>
+                  <p className="text-xs text-purple-300 truncate">
+                    {parseInt(channelData.subscriberCount).toLocaleString()} subscribers • {parseInt(channelData.videoCount).toLocaleString()} videos
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {currentProject && (
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-400">Project Active</span>
+                  </div>
+                )}
+                {isHeaderExpanded ? <ChevronUp size={16} className="text-cyan-400" /> : <ChevronDown size={16} className="text-cyan-400" />}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-purple-500">
+                  <Bot className="text-white" size={16} />
+                </div>
+                <h3 className="font-semibold text-cyan-400 text-sm">Enhanced AI Builder</h3>
+              </div>
+              {isHeaderExpanded ? <ChevronUp size={16} className="text-cyan-400" /> : <ChevronDown size={16} className="text-cyan-400" />}
+            </div>
+          )}
+        </div>
+
+        {/* Enhanced Expanded Content */}
+        {isHeaderExpanded && (
+          <div className="px-3 pb-3 border-t border-purple-500/20">
+            <div className="mt-3">
+              <p className="text-xs font-medium text-cyan-400 mb-2">
+                {currentProject ? 'Project Status:' : 'Ready to Create:'}
+              </p>
+              {currentProject && (
+                <div className="bg-black/30 rounded-lg p-2 mb-3">
+                  <p className="text-sm text-white font-medium">{currentProject.name}</p>
+                  <p className="text-xs text-gray-300">{currentProject.description}</p>
+                  <div className="flex gap-2 mt-2">
+                    {currentProject.github_url && (
+                      <a
+                        href={currentProject.github_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded border border-gray-600 transition-colors flex items-center gap-1"
+                      >
+                        <Github size={10} />
+                        GitHub
+                      </a>
+                    )}
+                    {currentProject.netlify_url && (
+                      <a
+                        href={currentProject.netlify_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                      >
+                        <Globe size={10} />
+                        Live Site
+                      </a>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Last updated: {new Date(currentProject.updated_at).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <div className="text-xs text-gray-400">🎯 Intelligent Features Active:</div>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <div className="flex items-center gap-1 text-green-400">
+                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                    Targeted Changes
+                  </div>
+                  <div className="flex items-center gap-1 text-blue-400">
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                    Project Memory
+                  </div>
+                  <div className="flex items-center gap-1 text-purple-400">
+                    <div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div>
+                    Real YouTube Data
+                  </div>
+                  <div className="flex items-center gap-1 text-orange-400">
+                    <div className="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                    Auto Deploy
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Enhanced Messages */}
+      <ScrollArea className="flex-1 p-4" style={{ height: 'calc(100vh - 200px)' }}>
+        <div className="space-y-4">
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {message.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
-                  <Brain className="w-4 h-4 text-purple-400" />
+              {message.type === 'bot' && (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-400/50">
+                  {message.feature === 'processing' ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : message.feature === 'targeted-modification' ? (
+                    <Zap size={14} className="text-white" />
+                  ) : message.feature === 'preview-help' ? (
+                    <Lightbulb size={14} className="text-white" />
+                  ) : (
+                    <Sparkles size={14} className="text-white" />
+                  )}
                 </div>
               )}
               
               <div
-                className={`max-w-[80%] p-3 rounded-lg whitespace-pre-wrap ${
-                  message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-gray-100 border border-gray-700'
+                className={`max-w-[85%] p-3 rounded-lg ${
+                  message.type === 'user'
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                    : message.feature === 'processing'
+                    ? 'bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30 backdrop-blur-sm shadow-lg'
+                    : message.feature === 'preview-help'
+                    ? 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 backdrop-blur-sm shadow-lg'
+                    : 'bg-black/80 border border-cyan-500/30 backdrop-blur-sm shadow-lg'
                 }`}
               >
-                {message.content}
+                <p className="text-sm whitespace-pre-line leading-relaxed text-white">{message.content}</p>
                 
+                {/* Enhanced code generation status */}
                 {message.generatedCode && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <Badge variant="outline" className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">
-                      <Code className="w-3 h-3 mr-1" />
-                      Code Generated
-                    </Badge>
-                    {message.model && (
-                      <Badge variant="outline" className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-xs">
-                        {message.model}
-                      </Badge>
+                  <div className="mt-3 space-y-2">
+                    <div className="p-3 bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+                        <Zap size={14} />
+                        <span>🎯 Targeted Changes Applied!</span>
+                      </div>
+                      {message.codeDescription && (
+                        <p className="text-xs text-green-300 mt-1">{message.codeDescription}</p>
+                      )}
+                      <div className="text-xs text-gray-300 mt-2">
+                        ✨ Design preserved • 📱 Responsive • 🎨 Real YouTube data • ⚡ Live deployment
+                      </div>
+                    </div>
+                    
+                    {(message.githubUrl || message.netlifyUrl) && (
+                      <div className="flex gap-2">
+                        {message.githubUrl && (
+                          <a 
+                            href={message.githubUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg border border-gray-600 transition-colors"
+                          >
+                            <Github size={12} />
+                            <span className="text-white">Updated Repo</span>
+                          </a>
+                        )}
+                        {message.netlifyUrl && (
+                          <a 
+                            href={message.netlifyUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-3 py-2 rounded-lg transition-colors"
+                          >
+                            <Globe size={12} />
+                            <span className="text-white">Live Changes</span>
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
+                
+                <span className="text-xs opacity-70 mt-2 block text-gray-400">
+                  {message.timestamp.toLocaleTimeString()}
+                </span>
               </div>
-
-              {message.role === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-gray-600/20 flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-gray-400" />
+              
+              {message.type === 'user' && (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-pink-400/50">
+                  <User size={14} className="text-white" />
                 </div>
               )}
             </div>
           ))}
           
-          {isLoading && (
+          {(loading || isProcessing) && (
             <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center">
-                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center flex-shrink-0 animate-pulse shadow-lg shadow-cyan-400/50">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               </div>
-              <div className="bg-gray-800 text-gray-100 border border-gray-700 p-3 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+              <div className="bg-black/80 border border-cyan-500/30 backdrop-blur-sm p-4 rounded-lg shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce"></div>
                     <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
-                  <span className="text-sm text-gray-400">AI is generating your website...</span>
+                  <span className="text-sm text-cyan-400 font-medium">
+                    🎯 Making targeted changes with project memory...
+                  </span>
+                </div>
+                <div className="text-xs text-gray-400 mt-2">
+                  Preserving design • Using real channel data • Updating repository
                 </div>
               </div>
             </div>
           )}
-          
-          <div ref={messagesEndRef} />
         </div>
+      </ScrollArea>
 
-        {/* Input Area */}
-        <div className="border-t border-gray-700 p-4">
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Tell me what website to create..."
-              className="flex-1 bg-gray-800 border-gray-600 text-white"
-              disabled={isLoading}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={!input.trim() || isLoading}
-              className="bg-purple-600 hover:bg-purple-700"
+      {/* Enhanced Input */}
+      <div className="p-3 border-t border-purple-500/30 bg-black/50 backdrop-blur-sm">
+        <div className="relative">
+          <div className="flex gap-2 mb-2">
+            <div className="relative flex-1">
+              <Input
+                placeholder={`Make targeted changes to ${channelData?.title || 'your project'}... (e.g., "change hero title" or "update subscriber count")`}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="bg-black/80 border-cyan-500/50 backdrop-blur-sm pr-10 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/50"
+                disabled={loading || isProcessing}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowQuickIdeas(!showQuickIdeas)}
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-yellow-500/20"
+                disabled={loading || isProcessing}
+              >
+                <Lightbulb size={14} className="text-yellow-400" />
+              </Button>
+            </div>
+            <Button 
+              onClick={handleSendMessage} 
+              size="sm" 
+              className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 shadow-lg shadow-cyan-400/50" 
+              disabled={loading || isProcessing || !inputValue.trim()}
             >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
+              <Send size={16} />
             </Button>
           </div>
+
+          {/* Enhanced Quick Ideas */}
+          {showQuickIdeas && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-black/90 border border-cyan-500/30 rounded-lg shadow-2xl shadow-cyan-400/20 p-3 z-50 backdrop-blur-sm">
+              <h4 className="text-sm font-medium text-cyan-400 mb-2">🎯 Quick Targeted Changes:</h4>
+              <div className="grid grid-cols-1 gap-2">
+                {quickIdeas.map((idea) => (
+                  <Button
+                    key={idea.label}
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-left hover:bg-cyan-500/20 hover:border-cyan-400/50 text-white"
+                    onClick={() => {
+                      setInputValue(idea.label);
+                      setShowQuickIdeas(false);
+                    }}
+                    disabled={loading || isProcessing}
+                  >
+                    <span className="mr-2">{idea.icon}</span>
+                    {idea.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

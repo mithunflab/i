@@ -1,248 +1,317 @@
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Hero2 } from '@/components/ui/hero-2-1';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
 import { 
   Youtube, 
-  Code, 
   Zap, 
-  Globe, 
-  Star, 
-  ArrowRight,
+  Code, 
+  Rocket, 
+  Shield, 
+  Clock, 
+  Users, 
+  Star,
   CheckCircle,
-  Sparkles,
-  Brain,
-  Rocket
+  ArrowRight,
+  Globe,
+  Palette,
+  TrendingUp,
+  Play,
+  Eye,
+  Heart
 } from 'lucide-react';
 
 const Home = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
 
+  const features = [
+    {
+      icon: Youtube,
+      title: 'YouTube Channel Integration',
+      description: 'Connect your YouTube channel and automatically import videos, playlists, and channel branding into your website.'
+    },
+    {
+      icon: Zap,
+      title: 'AI Website Generation',
+      description: 'Our AI analyzes your content style and creates a custom website that perfectly matches your YouTube brand.'
+    },
+    {
+      icon: Palette,
+      title: 'Smart Design Matching',
+      description: 'AI detects your thumbnail colors, video style, and creates a cohesive design that represents your content.'
+    },
+    {
+      icon: Globe,
+      title: 'Professional Hosting',
+      description: 'Get a custom domain and professional hosting to showcase your content beyond YouTube.'
+    },
+    {
+      icon: TrendingUp,
+      title: 'Audience Growth Tools',
+      description: 'Built-in SEO, social sharing, and analytics to help grow your audience across platforms.'
+    },
+    {
+      icon: Shield,
+      title: 'Creator-Friendly',
+      description: 'No coding knowledge required. Perfect for YouTubers who want to expand their online presence.'
+    }
+  ];
+
+  const stats = [
+    { label: 'YouTube Websites Created', value: '10K+', icon: Youtube },
+    { label: 'Content Creators', value: '5K+', icon: Users },
+    { label: 'Videos Showcased', value: '500K+', icon: Play },
+    { label: 'Monthly Visitors', value: '2M+', icon: Eye }
+  ];
+
+  const pricingPlans = [
+    {
+      name: 'Creator',
+      price: 'Free',
+      description: 'Perfect for starting YouTubers',
+      features: ['1 YouTube website', 'Basic templates', 'YouTube integration', 'Community support'],
+      cta: 'Start Free'
+    },
+    {
+      name: 'Pro Creator',
+      price: '$19',
+      description: 'For growing YouTube channels',
+      features: ['5 YouTube websites', 'Premium templates', 'Custom domain', 'Analytics dashboard', 'Priority support'],
+      cta: 'Go Pro',
+      popular: true
+    },
+    {
+      name: 'Creator Studio',
+      price: '$49',
+      description: 'For YouTube businesses',
+      features: ['Unlimited websites', 'White-label options', 'Advanced integrations', 'Custom branding', '24/7 support'],
+      cta: 'Scale Up'
+    }
+  ];
+
   const handleGetStarted = () => {
-    navigate('/workspace');
+    if (user) {
+      navigate('/');
+    } else {
+      navigate('/login');
+    }
+  };
+
+  const handleLearnMore = () => {
+    navigate('/features');
+  };
+
+  const handlePricing = () => {
+    navigate('/pricing');
+  };
+
+  const handleContact = () => {
+    navigate('/contact');
+  };
+
+  const handleAbout = () => {
+    navigate('/about');
+  };
+
+  const handleWorkspace = () => {
+    if (user) {
+      navigate('/workspace');
+    } else {
+      navigate('/login');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
-      {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
-                <Youtube className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">AI Website Builder</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate('/features')}>Features</Button>
-              <Button variant="ghost" onClick={() => navigate('/pricing')}>Pricing</Button>
-              <Button variant="ghost" onClick={() => navigate('/about')}>About</Button>
-              <Button 
-                onClick={handleGetStarted}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Get Started
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-black relative">
+      <div className="absolute inset-0 bg-noise opacity-20"></div>
 
       {/* Hero Section */}
-      <section className="relative py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <Badge className="mb-6 bg-red-100 text-red-700 border-red-200">
-            <Sparkles className="w-4 h-4 mr-1" />
-            AI-Powered Website Builder
-          </Badge>
-          
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Create Amazing
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-700 block">
-              YouTube Websites
-            </span>
-            in Minutes
-          </h1>
-          
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Transform your YouTube channel into a professional website with AI. 
-            No coding required - just describe what you want and watch it come to life!
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button 
-              size="lg" 
-              onClick={handleGetStarted}
-              className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
-            >
-              <Rocket className="w-5 h-5 mr-2" />
-              Start Building Now
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              onClick={() => navigate('/features')}
-              className="border-red-200 text-red-700 hover:bg-red-50 px-8 py-6 text-lg"
-            >
-              <Brain className="w-5 h-5 mr-2" />
-              View Features
-            </Button>
-          </div>
+      <div className="relative z-10">
+        <Hero2 />
+      </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-red-600 mb-2">10K+</div>
-              <div className="text-gray-600">Websites Created</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-red-600 mb-2">5min</div>
-              <div className="text-gray-600">Average Build Time</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-red-600 mb-2">99%</div>
-              <div className="text-gray-600">Satisfaction Rate</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Powerful Features for Content Creators
+      {/* Custom Content Sections */}
+      <div className="relative z-10 py-20">
+        {/* Stats Section */}
+        <section className="max-w-7xl mx-auto px-6 mb-20">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-white mb-4">
+              Trusted by YouTubers Worldwide
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Everything you need to create a professional online presence for your YouTube channel
+            <p className="text-xl text-gray-400">
+              Helping content creators build their online presence beyond YouTube
             </p>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {stats.map((stat, index) => (
+              <Card key={index} className="bg-white/5 border-gray-800 backdrop-blur-sm cursor-pointer hover:bg-white/10 transition-all" onClick={handleGetStarted}>
+                <CardContent className="p-6 text-center">
+                  <stat.icon className="h-8 w-8 text-red-500 mx-auto mb-4" />
+                  <div className="text-3xl font-bold text-white mb-2">{stat.value}</div>
+                  <div className="text-gray-400">{stat.label}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
 
+        {/* Features Section */}
+        <section className="max-w-7xl mx-auto px-6 mb-20">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-white mb-4">
+              Everything YouTubers Need for Their Website
+            </h2>
+            <p className="text-xl text-gray-400">
+              Purpose-built tools for content creators to showcase their YouTube channel
+            </p>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-                  <Youtube className="w-6 h-6 text-red-600" />
-                </div>
-                <CardTitle>YouTube Integration</CardTitle>
-                <CardDescription>
-                  Automatically sync your channel data, videos, and branding
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <Brain className="w-6 h-6 text-blue-600" />
-                </div>
-                <CardTitle>AI-Powered Design</CardTitle>
-                <CardDescription>
-                  Smart AI creates beautiful layouts based on your content
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <Zap className="w-6 h-6 text-green-600" />
-                </div>
-                <CardTitle>Real-time Preview</CardTitle>
-                <CardDescription>
-                  See changes instantly as you customize your website
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                  <Code className="w-6 h-6 text-purple-600" />
-                </div>
-                <CardTitle>No Code Required</CardTitle>
-                <CardDescription>
-                  Build professional websites without writing a single line of code
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                  <Globe className="w-6 h-6 text-orange-600" />
-                </div>
-                <CardTitle>Mobile Responsive</CardTitle>
-                <CardDescription>
-                  Your website looks perfect on all devices automatically
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center mb-4">
-                  <Star className="w-6 h-6 text-pink-600" />
-                </div>
-                <CardTitle>Professional Templates</CardTitle>
-                <CardDescription>
-                  Choose from stunning templates designed for content creators
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            {features.map((feature, index) => (
+              <Card key={index} className="bg-white/5 border-gray-800 backdrop-blur-sm hover:bg-white/10 transition-colors cursor-pointer" onClick={handleGetStarted}>
+                <CardHeader>
+                  <feature.icon className={`h-10 w-10 ${feature.icon === Youtube ? 'text-red-500' : 'text-purple-400'} mb-4`} />
+                  <CardTitle className="text-white">{feature.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-400">{feature.description}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-red-600 to-red-700">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Ready to Build Your Website?
-          </h2>
-          <p className="text-xl text-red-100 mb-8">
-            Join thousands of creators who have built amazing websites with our AI-powered platform
-          </p>
-          <Button 
-            size="lg" 
-            onClick={handleGetStarted}
-            className="bg-white text-red-600 hover:bg-gray-50 px-8 py-6 text-lg font-semibold"
-          >
-            <Rocket className="w-5 h-5 mr-2" />
-            Start Building Today
-            <ArrowRight className="w-5 h-5 ml-2" />
-          </Button>
-        </div>
-      </section>
+        {/* Quick Action Buttons */}
+        <section className="max-w-7xl mx-auto px-6 mb-20">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Button 
+              onClick={handleWorkspace}
+              className="h-16 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 flex flex-col gap-2"
+            >
+              <Youtube size={20} />
+              <span className="text-sm">Create Website</span>
+            </Button>
+            <Button 
+              onClick={handleAbout}
+              variant="outline"
+              className="h-16 border-gray-600 text-white hover:bg-white/10 flex flex-col gap-2"
+            >
+              <Users size={20} />
+              <span className="text-sm">For Creators</span>
+            </Button>
+            <Button 
+              onClick={handlePricing}
+              variant="outline"
+              className="h-16 border-gray-600 text-white hover:bg-white/10 flex flex-col gap-2"
+            >
+              <TrendingUp size={20} />
+              <span className="text-sm">Pricing</span>
+            </Button>
+            <Button 
+              onClick={handleContact}
+              variant="outline"
+              className="h-16 border-gray-600 text-white hover:bg-white/10 flex flex-col gap-2"
+            >
+              <Heart size={20} />
+              <span className="text-sm">Support</span>
+            </Button>
+          </div>
+        </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
-              <Youtube className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">AI Website Builder</span>
+        {/* Pricing Preview */}
+        <section className="max-w-7xl mx-auto px-6 mb-20">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-white mb-4">
+              Creator-Friendly Pricing
+            </h2>
+            <p className="text-xl text-gray-400">
+              Start free, grow with your channel
+            </p>
           </div>
-          <p className="text-gray-400 mb-6">
-            The easiest way to create professional websites for your YouTube channel
-          </p>
-          <div className="flex justify-center gap-6 text-sm text-gray-400">
-            <button onClick={() => navigate('/features')}>Features</button>
-            <button onClick={() => navigate('/pricing')}>Pricing</button>
-            <button onClick={() => navigate('/about')}>About</button>
-            <button onClick={() => navigate('/contact')}>Contact</button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {pricingPlans.map((plan, index) => (
+              <Card key={index} className={`bg-white/5 border-gray-800 backdrop-blur-sm relative cursor-pointer hover:bg-white/10 transition-all ${
+                plan.popular ? 'border-red-500/50 scale-105' : ''
+              }`} onClick={handleGetStarted}>
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <Badge className="bg-gradient-to-r from-red-600 to-pink-600 text-white">
+                      Most Popular
+                    </Badge>
+                  </div>
+                )}
+                <CardHeader className="text-center">
+                  <CardTitle className="text-white">{plan.name}</CardTitle>
+                  <div className="text-3xl font-bold text-white">{plan.price}</div>
+                  <p className="text-gray-400">{plan.description}</p>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3 mb-6">
+                    {plan.features.map((feature, fIndex) => (
+                      <li key={fIndex} className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-400" />
+                        <span className="text-gray-300">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button 
+                    className="w-full bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleGetStarted();
+                    }}
+                  >
+                    {plan.cta}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-          <div className="mt-8 pt-8 border-t border-gray-800 text-sm text-gray-500">
-            © 2024 AI Website Builder. All rights reserved.
-          </div>
-        </div>
-      </footer>
+        </section>
+
+        {/* CTA Section */}
+        <section className="max-w-4xl mx-auto px-6 text-center">
+          <Card className="bg-gradient-to-r from-red-600/20 to-pink-600/20 border-red-500/30 backdrop-blur-sm cursor-pointer hover:bg-gradient-to-r hover:from-red-600/30 hover:to-pink-600/30 transition-all" onClick={handleGetStarted}>
+            <CardContent className="p-12">
+              <Youtube className="h-16 w-16 text-red-500 mx-auto mb-6" />
+              <h2 className="text-4xl font-bold text-white mb-4">
+                Ready to Showcase Your YouTube Channel?
+              </h2>
+              <p className="text-xl text-gray-300 mb-8">
+                Join thousands of YouTubers who've created stunning websites for their channels
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button 
+                  size="lg"
+                  className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleGetStarted();
+                  }}
+                >
+                  Build Your Website Free
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+                <Button 
+                  size="lg"
+                  variant="outline"
+                  className="border-gray-600 text-white hover:bg-white/10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleLearnMore();
+                  }}
+                >
+                  See Examples
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      </div>
     </div>
   );
 };

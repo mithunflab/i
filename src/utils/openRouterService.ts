@@ -18,12 +18,6 @@ interface OpenRouterResponse {
 }
 
 export class OpenRouterService {
-  // Free models available for users
-  private static freeModels = [
-    'nousresearch/deephermes-3-mistral-24b-preview:free',
-    'deepseek/deepseek-r1-0528:free'
-  ];
-
   private static async getModelPricing(model: string) {
     try {
       // Try to get pricing from database first
@@ -41,25 +35,18 @@ export class OpenRouterService {
       console.warn('Failed to get pricing from database, using fallback');
     }
 
-    // Fallback pricing data - free models have zero cost
+    // Fallback pricing data
     const fallbackPricing: Record<string, any> = {
-      'nousresearch/deephermes-3-mistral-24b-preview:free': { input_cost_per_token: 0, output_cost_per_token: 0 },
-      'deepseek/deepseek-r1-0528:free': { input_cost_per_token: 0, output_cost_per_token: 0 },
       'gpt-4o': { input_cost_per_token: 0.000005, output_cost_per_token: 0.000015 },
       'gpt-4o-mini': { input_cost_per_token: 0.00000015, output_cost_per_token: 0.0000006 },
       'gpt-4-turbo': { input_cost_per_token: 0.00001, output_cost_per_token: 0.00003 },
       'gpt-3.5-turbo': { input_cost_per_token: 0.0000005, output_cost_per_token: 0.0000015 },
       'claude-3-sonnet': { input_cost_per_token: 0.000003, output_cost_per_token: 0.000015 },
       'claude-3-haiku': { input_cost_per_token: 0.00000025, output_cost_per_token: 0.00000125 },
-      'default': { input_cost_per_token: 0, output_cost_per_token: 0 }
+      'default': { input_cost_per_token: 0.00001, output_cost_per_token: 0.00002 }
     };
 
     return fallbackPricing[model] || fallbackPricing['default'];
-  }
-
-  private static getRandomFreeModel(): string {
-    const randomIndex = Math.floor(Math.random() * this.freeModels.length);
-    return this.freeModels[randomIndex];
   }
 
   static async makeRequest(model: string, messages: any[], userId: string, requestType: string = 'chat') {
@@ -95,11 +82,7 @@ export class OpenRouterService {
         throw new Error('OpenRouter API credits limit exceeded');
       }
 
-      // Use free model if no specific model provided or if using paid model
-      const selectedModel = model && this.freeModels.includes(model) ? model : this.getRandomFreeModel();
-      console.log('🎲 Selected free model:', selectedModel);
-
-      const pricing = await this.getModelPricing(selectedModel);
+      const pricing = await this.getModelPricing(model);
 
       // Make the actual API request
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -111,7 +94,7 @@ export class OpenRouterService {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: selectedModel,
+          model: model || 'gpt-4o-mini',
           messages,
           max_tokens: 4000,
           temperature: 0.7,
@@ -140,7 +123,7 @@ export class OpenRouterService {
       const cost = (promptTokens * pricing.input_cost_per_token) + (completionTokens * pricing.output_cost_per_token);
 
       console.log('✅ OpenRouter request successful:', {
-        model: selectedModel,
+        model,
         tokensUsed,
         cost: cost.toFixed(6),
         responseTime
@@ -167,7 +150,7 @@ export class OpenRouterService {
           .insert({
             user_id: userId,
             provider: 'openrouter',
-            model: selectedModel,
+            model: model,
             tokens_used: tokensUsed,
             cost_usd: cost,
             response_time_ms: responseTime,
@@ -183,7 +166,7 @@ export class OpenRouterService {
         console.warn('Failed to log API usage:', logError);
       }
 
-      return { ...data, selectedModel };
+      return data;
     } catch (error) {
       const responseTime = Date.now() - startTime;
       
