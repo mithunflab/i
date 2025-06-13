@@ -77,9 +77,9 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex items-center gap-1 h-8 px-2 text-xs">
+        <Button variant="outline" size="sm" className="flex items-center gap-1 h-9">
           <Shield className="w-3 h-3" />
-          Verify
+          Get Verified
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -110,13 +110,13 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
           </div>
           
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)} className="text-xs px-3">
+            <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button 
               onClick={handleSubmit} 
               disabled={loading || !message.trim()}
-              className="bg-green-600 hover:bg-green-700 text-xs px-3"
+              className="bg-green-600 hover:bg-green-700"
             >
               {loading ? 'Submitting...' : 'Submit Request'}
             </Button>

@@ -1,7 +1,5 @@
-
 import { useState, useCallback, useRef } from 'react';
 import { useFileManager } from './useFileManager';
-import { useGitHubIntegration } from './useGitHubIntegration';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -16,7 +14,6 @@ export const useRealTimeCodeGeneration = () => {
   const [generatedCode, setGeneratedCode] = useState('');
   const [streamingContent, setStreamingContent] = useState('');
   const { files, updateFile, appendToChatHistory } = useFileManager();
-  const { syncToGitHub } = useGitHubIntegration();
   const { toast } = useToast();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -33,6 +30,7 @@ export const useRealTimeCodeGeneration = () => {
     setIsGenerating(true);
     setStreamingContent('');
     
+    // Abort any existing request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -40,10 +38,12 @@ export const useRealTimeCodeGeneration = () => {
     abortControllerRef.current = new AbortController();
 
     try {
-      console.log('🤖 Starting real-time AI code generation with Together AI/Groq...');
+      console.log('🤖 Starting real-time AI code generation...');
       
+      // Log chat history
       appendToChatHistory(userRequest, 'user');
 
+      // Use the edge function - removed the unsupported signal property
       const response = await supabase.functions.invoke('generate-professional-website', {
         body: {
           userRequest,
@@ -69,7 +69,7 @@ export const useRealTimeCodeGeneration = () => {
         throw new Error('No code generated from AI');
       }
 
-      console.log(`✅ AI generation completed using ${data.provider || 'unknown provider'}`);
+      console.log('✅ AI generation completed');
 
       const finalCode = data.generatedCode;
 
@@ -85,25 +85,19 @@ export const useRealTimeCodeGeneration = () => {
           userRequest,
           intent: data.parsedIntent || null,
           timestamp: new Date().toISOString(),
-          codeDescription: data.codeDescription || 'Code updated',
-          provider: data.provider || 'unknown'
+          codeDescription: data.codeDescription || 'Code updated'
         }
       };
       
       await updateFile('componentMap.json', JSON.stringify(updatedComponentMap, null, 2));
 
-      // Sync to GitHub
-      await syncToGitHub({
-        'index.html': finalCode,
-        'componentMap.json': JSON.stringify(updatedComponentMap, null, 2)
-      });
-
+      // Log success to chat history
       appendToChatHistory(data.reply || 'Changes applied successfully', 'assistant');
 
       setGeneratedCode(finalCode);
       
       toast({
-        title: `🎯 AI Changes Applied (${data.provider || 'AI'})`,
+        title: "🎯 AI Changes Applied",
         description: data.codeDescription || "Your modifications have been implemented successfully.",
       });
 
@@ -112,19 +106,19 @@ export const useRealTimeCodeGeneration = () => {
         reply: data.reply || 'Changes applied successfully',
         changes: updatedComponentMap.lastChange,
         parsedIntent: data.parsedIntent,
-        codeDescription: data.codeDescription,
-        provider: data.provider
+        codeDescription: data.codeDescription
       };
 
     } catch (error) {
       console.error('❌ Real-time generation error:', error);
       
+      // Handle specific error cases
       let errorMessage = 'Generation failed';
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           errorMessage = 'Generation was cancelled';
-        } else if (error.message.includes('API key')) {
+        } else if (error.message.includes('OpenRouter API key')) {
           errorMessage = 'AI service configuration error - please check API keys';
         } else if (error.message.includes('No code generated')) {
           errorMessage = 'AI could not generate valid code for this request';
@@ -146,7 +140,7 @@ export const useRealTimeCodeGeneration = () => {
       setIsGenerating(false);
       abortControllerRef.current = null;
     }
-  }, [files, updateFile, appendToChatHistory, syncToGitHub, toast]);
+  }, [files, updateFile, appendToChatHistory, toast]);
 
   const streamCode = useCallback(async (prompt: string, onChunk: (chunk: string) => void) => {
     try {
@@ -157,6 +151,7 @@ export const useRealTimeCodeGeneration = () => {
       });
       
       if (response?.code) {
+        // Simulate streaming by chunks for better UX
         const chunks = response.code.match(/.{1,50}/g) || [];
         
         for (const chunk of chunks) {
@@ -193,12 +188,14 @@ const extractComponents = (html: string): string[] => {
   const components = [];
   
   try {
+    // Extract CSS classes
     const classMatches = html.match(/class="([^"]+)"/g) || [];
     classMatches.forEach(match => {
       const classes = match.match(/"([^"]+)"/)?.[1].split(' ') || [];
       components.push(...classes);
     });
     
+    // Extract HTML elements
     const elementMatches = html.match(/<(\w+)[^>]*>/g) || [];
     elementMatches.forEach(match => {
       const element = match.match(/<(\w+)/)?.[1];
