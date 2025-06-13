@@ -98,13 +98,13 @@ const SimplifiedChatbot: React.FC<SimplifiedChatbotProps> = ({
         Processing
       </Badge>;
     }
-    if (deploymentStatus === 'deploying') {
+    if (deploymentStatus.status === 'deploying') {
       return <Badge variant="secondary" className="bg-purple-100 text-purple-700">
         <Loader2 className="w-3 h-3 mr-1 animate-spin" />
         Deploying
       </Badge>;
     }
-    if (deploymentStatus === 'deployed') {
+    if (deploymentStatus.status === 'deployed') {
       return <Badge variant="secondary" className="bg-green-100 text-green-700">
         <CheckCircle className="w-3 h-3 mr-1" />
         Live
