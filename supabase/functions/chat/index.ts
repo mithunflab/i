@@ -15,7 +15,7 @@ serve(async (req) => {
   try {
     const { message, projectId, channelData, generateCode = true } = await req.json();
     
-    console.log('📨 Real AI Chat request received:', {
+    console.log('📨 AI Chat request received:', {
       message: message.substring(0, 50) + '...',
       projectId,
       generateCode,
@@ -32,17 +32,15 @@ serve(async (req) => {
 
     console.log('✅ Found OpenRouter API key');
 
-    // Random model selection for variety
-    const models = [
-      'anthropic/claude-3.5-sonnet',
-      'openai/gpt-4o',
-      'google/gemini-pro-1.5',
-      'meta-llama/llama-3.1-70b-instruct',
-      'anthropic/claude-3-haiku'
+    // Free models for random selection
+    const freeModels = [
+      'nousresearch/deephermes-3-mistral-24b-preview:free',
+      'deepseek/deepseek-r1-0528:free'
     ];
     
-    const selectedModel = models[Math.floor(Math.random() * models.length)];
-    console.log('🎲 Selected AI model:', selectedModel);
+    // Randomly select one of the free models
+    const selectedModel = freeModels[Math.floor(Math.random() * freeModels.length)];
+    console.log('🎲 Selected free AI model:', selectedModel);
 
     // Enhanced prompt for real-time website generation
     const enhancedPrompt = `You are an expert web developer creating stunning, modern websites. 
@@ -69,7 +67,7 @@ Return ONLY the complete HTML code, no explanations. Make it visually stunning a
 
     console.log('🤖 Sending request to OpenRouter with enhanced prompt...');
 
-    // Call OpenRouter API
+    // Call OpenRouter API with selected free model
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -108,7 +106,7 @@ Return ONLY the complete HTML code, no explanations. Make it visually stunning a
       throw new Error('No code generated from AI');
     }
 
-    console.log('✅ Professional website generated successfully!');
+    console.log('✅ Professional website generated successfully using:', selectedModel);
 
     // Create response with enhanced features
     const aiResponse = {
