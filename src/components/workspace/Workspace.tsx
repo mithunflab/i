@@ -16,6 +16,7 @@ import RealTimeGitIndicator from './RealTimeGitIndicator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useFileManager } from '@/hooks/useFileManager';
+import { useEnhancedGitHubSync } from '@/hooks/useEnhancedGitHubSync';
 
 const Workspace = () => {
   const [searchParams] = useSearchParams();
@@ -44,9 +45,13 @@ const Workspace = () => {
 
   const { 
     files, 
-    initializeProjectFiles, 
-    syncToGitHub 
+    initializeProjectFiles
   } = useFileManager();
+
+  const { 
+    loadProjectFromGitHub,
+    syncProjectFiles 
+  } = useEnhancedGitHubSync();
   
   // Load existing project data
   useEffect(() => {
@@ -175,7 +180,7 @@ const Workspace = () => {
     };
 
     loadProject();
-  }, [user, youtubeUrl, projectId, initializeProjectFiles]);
+  }, [user, youtubeUrl, projectId, initializeProjectFiles, loadProjectFromGitHub]);
 
   const handleCodeGenerated = (code: string) => {
     console.log('🔄 Code generated in workspace, updating preview...');
