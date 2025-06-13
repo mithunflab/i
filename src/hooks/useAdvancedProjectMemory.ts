@@ -1,41 +1,54 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { ComponentMapper } from '../utils/componentMapper';
+import { useAuth } from '@/contexts/AuthContext';
 
-interface ProjectMemoryState {
-  projectId: string;
-  componentMap: any;
-  designTokens: any;
-  fileStructure: {
-    'index.html': string;
-    'style.css': string;
-    'script.js': string;
-    'design.json': string;
-    'componentMap.json': string;
+interface ChatHistoryMetadata {
+  component?: string;
+  beforeCode?: string;
+  afterCode?: string;
+  timestamp?: string;
+}
+
+interface ProjectMemory {
+  id: string;
+  currentDesign: {
+    colors: string[];
+    fonts: string[];
+    layout: string;
+    branding: any;
   };
-  changeHistory: Array<{
-    timestamp: Date;
-    component: string;
-    change: string;
-    beforeCode: string;
-    afterCode: string;
-  }>;
+  components: {
+    header: any;
+    hero: any;
+    videos: any;
+    footer: any;
+    navigation: any;
+  };
+  codeStructure: {
+    html: string;
+    css: string;
+    js: string;
+    pages: string[];
+  };
+  chatHistory: any[];
+  lastModified: Date;
   preservationRules: string[];
 }
 
-export const useAdvancedProjectMemory = (projectId: string) => {
-  const [memory, setMemory] = useState<ProjectMemoryState | null>(null);
+export const useAdvancedAIMemory = (projectId: string) => {
+  const [memory, setMemory] = useState<ProjectMemory | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   const loadProjectMemory = useCallback(async () => {
-    if (!projectId) return;
+    if (!user || !projectId) return;
 
     try {
       setLoading(true);
-      console.log('🧠 Loading advanced project memory for:', projectId);
+      console.log('🧠 Loading advanced AI memory for project:', projectId);
 
-      // Load project data
+      // Load project with all data
       const { data: project } = await supabase
         .from('projects')
         .select('*')
@@ -44,173 +57,125 @@ export const useAdvancedProjectMemory = (projectId: string) => {
 
       if (!project) return;
 
-      // Parse existing code to build memory
-      const sourceCode = project.source_code || '';
-      const mapper = new ComponentMapper({
-        colors: { primary: '#ff0000', secondary: '#666666', background: '#ffffff', text: '#333333', accent: '#0066cc' },
-        typography: { fontFamily: 'Arial, sans-serif', headingFont: 'Arial, sans-serif', fontSize: { small: '14px', medium: '16px', large: '20px', xlarge: '28px' } },
-        spacing: { small: '8px', medium: '16px', large: '24px', xlarge: '48px' },
-        breakpoints: { mobile: '768px', tablet: '1024px', desktop: '1200px' }
-      });
-
-      const componentMap = mapper.parseHTMLStructure(sourceCode);
-      const designTokens = mapper.extractDesignTokens(sourceCode);
-
-      // Load change history
+      // Load chat history
       const { data: chatHistory } = await supabase
         .from('project_chat_history')
         .select('*')
         .eq('project_id', projectId)
         .order('created_at', { ascending: true });
 
-      const projectMemory: ProjectMemoryState = {
-        projectId,
-        componentMap,
-        designTokens,
-        fileStructure: {
-          'index.html': extractHTML(sourceCode),
-          'style.css': extractCSS(sourceCode),
-          'script.js': extractJS(sourceCode),
-          'design.json': JSON.stringify(designTokens, null, 2),
-          'componentMap.json': JSON.stringify(componentMap, null, 2)
-        },
-        changeHistory: (chatHistory || []).map(msg => ({
-          timestamp: new Date(msg.created_at),
-          component: msg.metadata?.component || 'unknown',
-          change: msg.content,
-          beforeCode: msg.metadata?.beforeCode || '',
-          afterCode: msg.metadata?.afterCode || ''
-        })),
-        preservationRules: [
-          '🚫 NEVER modify unrelated components',
-          '🚫 NEVER change overall layout structure',
-          '🚫 NEVER alter design token system',
-          '🚫 NEVER remove YouTube integration',
-          '✅ ONLY modify requested component',
-          '✅ PRESERVE existing design consistency',
-          '✅ MAINTAIN responsive breakpoints'
-        ]
+      // Parse existing code structure
+      const codeStructure = parseCodeStructure(project.source_code || '');
+      const designElements = extractDesignElements(project.source_code || '');
+      const components = extractComponents(project.source_code || '');
+
+      const projectMemory: ProjectMemory = {
+        id: projectId,
+        currentDesign: designElements,
+        components: components,
+        codeStructure: codeStructure,
+        chatHistory: chatHistory || [],
+        lastModified: new Date(project.updated_at),
+        preservationRules: generatePreservationRules(project.source_code || '', project.channel_data)
       };
 
       setMemory(projectMemory);
-      console.log('✅ Advanced project memory loaded with', Object.keys(componentMap).length, 'components');
+      console.log('✅ Advanced AI memory loaded successfully');
 
     } catch (error) {
-      console.error('❌ Error loading project memory:', error);
+      console.error('❌ Error loading AI memory:', error);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [user, projectId]);
 
-  const saveChange = useCallback(async (
-    component: string,
-    change: string,
-    beforeCode: string,
-    afterCode: string
-  ) => {
+  const updateMemory = useCallback(async (updates: Partial<ProjectMemory>) => {
     if (!memory) return;
 
+    const updatedMemory = {
+      ...memory,
+      ...updates,
+      lastModified: new Date()
+    };
+
+    setMemory(updatedMemory);
+
+    // Save to database
     try {
-      // Save change to database
       await supabase
-        .from('project_chat_history')
-        .insert({
-          project_id: projectId,
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-          message_type: 'component_edit',
-          content: change,
-          metadata: {
-            component,
-            beforeCode,
-            afterCode,
-            timestamp: new Date().toISOString()
-          }
-        });
-
-      // Update local memory
-      setMemory(prev => prev ? {
-        ...prev,
-        changeHistory: [...prev.changeHistory, {
-          timestamp: new Date(),
-          component,
-          change,
-          beforeCode,
-          afterCode
-        }]
-      } : null);
-
+        .from('projects')
+        .update({
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId);
     } catch (error) {
-      console.error('❌ Error saving change:', error);
+      console.error('❌ Error updating memory:', error);
     }
   }, [memory, projectId]);
 
-  const generateContextualPrompt = useCallback((
+  const generateTargetedPrompt = useCallback((
     userRequest: string,
+    channelData: any,
     currentCode: string
-  ): string => {
+  ) => {
     if (!memory) return '';
 
-    const mapper = new ComponentMapper(memory.designTokens);
-    const targetComponent = mapper.identifyTargetComponent(userRequest);
-    
-    if (!targetComponent) {
-      return `Unable to identify target component from request: "${userRequest}"`;
-    }
-
-    const recentChanges = memory.changeHistory
-      .slice(-5)
-      .map(change => `- ${change.component}: ${change.change}`)
-      .join('\n');
+    // Analyze user request to identify target
+    const targetElement = identifyTargetElement(userRequest);
+    const changeScope = determineChangeScope(userRequest);
 
     return `
-# 🎯 ADVANCED COMPONENT-LEVEL EDITING
+# 🎯 CRITICAL: ENHANCED AI MEMORY & TARGETED MODIFICATION
 
-## PROJECT MEMORY CONTEXT
-- Project ID: ${memory.projectId}
-- Total Components: ${Object.keys(memory.componentMap).length}
-- Recent Changes: 
-${recentChanges}
+## MANDATORY PRESERVATION SYSTEM
+**NEVER MODIFY ANYTHING EXCEPT THE SPECIFIC ELEMENT REQUESTED**
 
-## USER REQUEST
-"${userRequest}"
+### Current Project Memory (PRESERVE EXACTLY)
+- **Design Colors**: ${memory.currentDesign.colors.join(', ')}
+- **Layout Style**: ${memory.currentDesign.layout}
+- **Branding Elements**: Channel logo, YouTube integration
+- **Component Structure**: ${Object.keys(memory.components).join(', ')}
+- **File Structure**: ${memory.codeStructure.pages.join(', ')}
 
-## TARGET COMPONENT IDENTIFIED
-Component: ${targetComponent}
-Type: ${memory.componentMap[targetComponent]?.type || 'unknown'}
-Selector: ${memory.componentMap[targetComponent]?.selector || 'unknown'}
+### User Request Analysis
+- **Request**: "${userRequest}"
+- **Target Element**: ${targetElement}
+- **Change Scope**: ${changeScope}
+- **Preservation Level**: MAXIMUM (95% of code unchanged)
 
-## CURRENT FILE STRUCTURE
-- index.html: ${memory.fileStructure['index.html'].length} chars
-- style.css: ${memory.fileStructure['style.css'].length} chars  
-- script.js: ${memory.fileStructure['script.js'].length} chars
+### STRICT MODIFICATION RULES
+1. 🚫 **NEVER** rewrite the entire website
+2. 🚫 **NEVER** change existing color schemes or layout
+3. 🚫 **NEVER** remove YouTube branding or channel data
+4. 🚫 **NEVER** modify components not mentioned in request
+5. ✅ **ONLY** change the specific ${targetElement} as requested
 
-## DESIGN TOKENS TO PRESERVE
-\`\`\`json
-${memory.fileStructure['design.json']}
-\`\`\`
+### Real Channel Data (USE EXACTLY)
+${channelData ? `
+- Channel: ${channelData.title}
+- Subscribers: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}
+- Videos: ${parseInt(channelData.videoCount || '0').toLocaleString()}
+- Thumbnail: ${channelData.thumbnail}
+- Real Video Data: Use actual video thumbnails and titles
+` : 'No channel data available'}
 
-## COMPONENT MAP
-\`\`\`json
-${memory.fileStructure['componentMap.json']}
-\`\`\`
-
-## PRESERVATION RULES
-${memory.preservationRules.map(rule => rule).join('\n')}
-
-## CURRENT COMPONENT CODE
+### Current Code Structure (PRESERVE)
 \`\`\`html
-${extractComponentCode(currentCode, memory.componentMap[targetComponent])}
+${currentCode.substring(0, 500)}...
 \`\`\`
 
-## CRITICAL INSTRUCTIONS
-1. **MODIFY ONLY** the ${targetComponent} component
-2. **PRESERVE ALL** other components exactly as they are
-3. **USE EXISTING** design tokens and CSS classes
-4. **MAINTAIN** file structure and organization
-5. **KEEP** all JavaScript functionality intact
+### PRESERVATION RULES
+${memory.preservationRules.map(rule => `- ${rule}`).join('\n')}
 
-Generate the complete modified code with ONLY the requested component changed.
-Use existing design patterns and maintain consistency.
+## OUTPUT REQUIREMENTS
+1. **Minimal Change**: Modify ONLY the requested ${targetElement}
+2. **Preserve Design**: Keep ALL existing styling and colors
+3. **Real Data**: Use actual YouTube channel information
+4. **Professional Quality**: Generate clean, production-ready code
+5. **Multi-File Structure**: Create separate HTML, CSS, JS files
+6. **Component Modularity**: Header, Footer, Pages as separate files
+
+**CRITICAL**: This is a TARGETED modification. Change ONLY what the user specifically requested while preserving EVERYTHING else exactly as it was.
 `;
   }, [memory]);
 
@@ -221,42 +186,147 @@ Use existing design patterns and maintain consistency.
   return {
     memory,
     loading,
-    generateContextualPrompt,
-    saveChange,
+    updateMemory,
+    generateTargetedPrompt,
     refreshMemory: loadProjectMemory
   };
 };
 
 // Helper functions
-const extractHTML = (sourceCode: string): string => {
-  return sourceCode;
+const parseCodeStructure = (sourceCode: string) => {
+  return {
+    html: sourceCode,
+    css: extractCSS(sourceCode),
+    js: extractJavaScript(sourceCode),
+    pages: ['index', 'about', 'videos', 'contact']
+  };
 };
 
-const extractCSS = (sourceCode: string): string => {
-  const cssMatch = sourceCode.match(/<style[^>]*>([\s\S]*?)<\/style>/);
-  return cssMatch ? cssMatch[1] : '';
-};
-
-const extractJS = (sourceCode: string): string => {
-  const jsMatch = sourceCode.match(/<script[^>]*>([\s\S]*?)<\/script>/);
-  return jsMatch ? jsMatch[1] : '';
-};
-
-const extractComponentCode = (html: string, component: any): string => {
-  if (!component?.selector) return 'Component not found';
+const extractDesignElements = (sourceCode: string) => {
+  const colors = [];
+  const fonts = [];
   
-  const selector = component.selector;
-  let regex: RegExp;
+  // Extract colors from CSS
+  const colorMatches = sourceCode.match(/(?:color|background)[^;]*:\s*([^;]+)/g) || [];
+  colorMatches.forEach(match => {
+    const color = match.split(':')[1]?.trim();
+    if (color && !colors.includes(color)) {
+      colors.push(color);
+    }
+  });
+
+  // Extract fonts
+  const fontMatches = sourceCode.match(/font-family[^;]*:\s*([^;]+)/g) || [];
+  fontMatches.forEach(match => {
+    const font = match.split(':')[1]?.trim();
+    if (font && !fonts.includes(font)) {
+      fonts.push(font);
+    }
+  });
+
+  return {
+    colors: colors.slice(0, 10), // Limit to prevent memory bloat
+    fonts: fonts.slice(0, 5),
+    layout: detectLayout(sourceCode),
+    branding: extractBranding(sourceCode)
+  };
+};
+
+const extractComponents = (sourceCode: string) => {
+  return {
+    header: extractComponent(sourceCode, 'header'),
+    hero: extractComponent(sourceCode, 'hero'),
+    videos: extractComponent(sourceCode, 'video'),
+    footer: extractComponent(sourceCode, 'footer'),
+    navigation: extractComponent(sourceCode, 'nav')
+  };
+};
+
+const extractComponent = (sourceCode: string, componentType: string) => {
+  // Extract component-specific HTML and styling
+  const regex = new RegExp(`<[^>]*class="[^"]*${componentType}[^"]*"[^>]*>.*?</[^>]*>`, 'gis');
+  const matches = sourceCode.match(regex);
+  return matches ? matches[0] : null;
+};
+
+const extractCSS = (sourceCode: string) => {
+  const cssMatch = sourceCode.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+  return cssMatch ? cssMatch.map(match => match.replace(/<\/?style[^>]*>/gi, '')).join('\n') : '';
+};
+
+const extractJavaScript = (sourceCode: string) => {
+  const jsMatch = sourceCode.match(/<script[^>]*>([\s\S]*?)<\/script>/gi);
+  return jsMatch ? jsMatch.map(match => match.replace(/<\/?script[^>]*>/gi, '')).join('\n') : '';
+};
+
+const detectLayout = (sourceCode: string) => {
+  if (sourceCode.includes('grid-template-columns')) return 'grid';
+  if (sourceCode.includes('flex-direction: column')) return 'vertical';
+  if (sourceCode.includes('display: flex')) return 'flexbox';
+  return 'standard';
+};
+
+const extractBranding = (sourceCode: string) => {
+  return {
+    hasLogo: sourceCode.includes('logo') || sourceCode.includes('brand'),
+    hasYouTubeIntegration: sourceCode.includes('youtube') || sourceCode.includes('subscribe'),
+    colorScheme: 'professional'
+  };
+};
+
+const generatePreservationRules = (sourceCode: string, channelData: any) => {
+  const rules = [
+    '🚫 NEVER modify the overall page layout structure',
+    '🚫 NEVER change existing color schemes or typography',
+    '🚫 NEVER remove YouTube branding or channel integration',
+    '🚫 NEVER alter navigation functionality',
+    '🚫 NEVER modify footer content unless specifically requested',
+    '🚫 NEVER change responsive design breakpoints'
+  ];
+
+  if (channelData?.title) {
+    rules.push(`🚫 NEVER change channel name: ${channelData.title}`);
+  }
+
+  if (sourceCode.includes('logo')) {
+    rules.push('🚫 NEVER remove or modify channel logo positioning');
+  }
+
+  return rules;
+};
+
+const identifyTargetElement = (userRequest: string): string => {
+  const request = userRequest.toLowerCase();
   
-  if (selector.startsWith('#')) {
-    regex = new RegExp(`<[^>]*id\\s*=\\s*["']${selector.slice(1)}["'][^>]*>[\\s\\S]*?</[^>]*>`, 'i');
-  } else if (selector.startsWith('.')) {
-    const className = selector.slice(1);
-    regex = new RegExp(`<[^>]*class\\s*=\\s*["'][^"']*${className}[^"']*["'][^>]*>[\\s\\S]*?</[^>]*>`, 'i');
-  } else {
-    regex = new RegExp(`<${selector}[^>]*>[\\s\\S]*?</${selector}>`, 'i');
+  const elementMap = {
+    'header': ['header', 'top', 'navigation', 'nav', 'menu'],
+    'hero': ['hero', 'title', 'main title', 'banner', 'heading'],
+    'videos': ['video', 'gallery', 'content', 'thumbnails'],
+    'footer': ['footer', 'bottom', 'contact'],
+    'about': ['about', 'description', 'channel info'],
+    'styling': ['color', 'style', 'background', 'theme'],
+    'content': ['text', 'content', 'description']
+  };
+
+  for (const [element, keywords] of Object.entries(elementMap)) {
+    if (keywords.some(keyword => request.includes(keyword))) {
+      return element;
+    }
+  }
+
+  return 'specific-element';
+};
+
+const determineChangeScope = (userRequest: string): 'minimal' | 'component' | 'page' => {
+  const request = userRequest.toLowerCase();
+  
+  if (request.includes('word') || request.includes('text') || request.includes('title')) {
+    return 'minimal';
   }
   
-  const match = html.match(regex);
-  return match ? match[0] : 'Component not found';
+  if (request.includes('page') || request.includes('entire') || request.includes('whole')) {
+    return 'page';
+  }
+  
+  return 'component';
 };

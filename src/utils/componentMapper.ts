@@ -287,4 +287,4 @@ Use comments to indicate unchanged sections: <!-- ... keep existing code ... -->
   }
 }
 
-export { ComponentMap, DesignTokens, ComponentMapEntry };
+export type { ComponentMap, DesignTokens, ComponentMapEntry };
