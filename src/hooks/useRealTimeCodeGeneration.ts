@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useRef } from 'react';
 import { useFileManager } from './useFileManager';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,133 +44,91 @@ export const useRealTimeCodeGeneration = () => {
       // Log chat history
       appendToChatHistory(userRequest, 'user');
 
-      // Get OpenRouter API key from Supabase table
-      const { data: openRouterKeys, error: keyError } = await supabase
-        .from('openrouter_api_keys')
-        .select('api_key')
-        .eq('is_active', true)
-        .limit(1);
-
-      if (keyError || !openRouterKeys || openRouterKeys.length === 0) {
-        throw new Error('OpenRouter API key not available');
-      }
-
-      const openRouterApiKey = openRouterKeys[0].api_key;
-
-      // Parse intent using AI workflow - Fixed optional chaining issue
-      const IntentParserClass = (window as any).IntentParser;
-      let intentParser = null;
-      let parsedIntent = null;
-      
-      if (IntentParserClass) {
-        intentParser = new IntentParserClass();
-        parsedIntent = intentParser.parseIntent(userRequest);
-      }
-
-      console.log('🎯 Parsed Intent:', parsedIntent);
-
-      // Prepare AI context with current files
-      const context = {
-        currentHTML: files['index.html'] || '',
-        currentCSS: files['styles.css'] || '',
-        currentJS: files['scripts.js'] || '',
-        componentMap: files['componentMap.json'] || '{}',
-        designSystem: files['design.json'] || '{}',
-        chatHistory: files['chatHistory.txt'] || '',
-        channelData,
-        parsedIntent,
-        preserveDesign: options.preserveDesign,
-        targetedChanges: options.targetedChanges
-      };
-
-      // Direct OpenRouter API call instead of edge function
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openRouterApiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'YouTube Website Builder'
+      // Use the edge function instead of direct OpenRouter API call
+      const response = await supabase.functions.invoke('generate-professional-website', {
+        body: {
+          userRequest,
+          channelData,
+          projectContext: {
+            projectId,
+            currentFiles: files
+          },
+          streamingEnabled: options.streaming,
+          preserveDesign: options.preserveDesign,
+          targetedChanges: options.targetedChanges,
+          currentCode: files['index.html'] || ''
         },
-        body: JSON.stringify({
-          model: 'anthropic/claude-3.5-sonnet',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a professional web developer creating YouTube channel websites. 
-              
-Channel Info: ${JSON.stringify(channelData)}
-Current Code: ${context.currentHTML}
-User Request: ${userRequest}
-
-Generate professional HTML code that ${options.preserveDesign ? 'preserves the existing design and' : ''} implements the user's request. Include real YouTube videos and channel data.`
-            },
-            {
-              role: 'user',
-              content: userRequest
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 4000
-        })
+        signal: abortControllerRef.current.signal
       });
 
-      if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.status}`);
+      if (response.error) {
+        throw new Error(response.error.message || 'Edge function error');
       }
 
-      const data = await response.json();
-      const generatedCode = data.choices?.[0]?.message?.content || '';
+      const { data } = response;
+      
+      if (!data || !data.generatedCode) {
+        throw new Error('No code generated from AI');
+      }
 
       console.log('✅ AI generation completed');
 
-      // Apply changes using AI Editor - Fixed optional chaining issue
-      let finalCode = generatedCode;
-      
-      const AIEditorClass = (window as any).AIEditor;
-      if (parsedIntent && AIEditorClass) {
-        const aiEditor = new AIEditorClass();
-        finalCode = aiEditor.applyEdit(parsedIntent, finalCode);
-        console.log('🎯 Targeted edit applied');
-      }
+      const finalCode = data.generatedCode;
 
-      // Update files
+      // Update files with the new code
       await updateFile('index.html', finalCode);
 
-      // Update component map
+      // Update component map with change tracking
       const updatedComponentMap = {
         components: extractComponents(finalCode),
         relationships: analyzeComponentRelationships(finalCode),
         lastUpdated: new Date().toISOString(),
         lastChange: {
           userRequest,
-          intent: parsedIntent,
-          timestamp: new Date().toISOString()
+          intent: data.parsedIntent || null,
+          timestamp: new Date().toISOString(),
+          codeDescription: data.codeDescription || 'Code updated'
         }
       };
       
       await updateFile('componentMap.json', JSON.stringify(updatedComponentMap, null, 2));
 
-      // Log to chat history
-      appendToChatHistory('Changes applied successfully', 'assistant');
+      // Log success to chat history
+      appendToChatHistory(data.reply || 'Changes applied successfully', 'assistant');
 
       setGeneratedCode(finalCode);
       
       toast({
         title: "🎯 AI Changes Applied",
-        description: "Your targeted modifications have been implemented while preserving the existing design.",
+        description: data.codeDescription || "Your modifications have been implemented successfully.",
       });
 
       return {
         code: finalCode,
-        reply: 'Changes applied successfully',
-        changes: updatedComponentMap.lastChange
+        reply: data.reply || 'Changes applied successfully',
+        changes: updatedComponentMap.lastChange,
+        parsedIntent: data.parsedIntent,
+        codeDescription: data.codeDescription
       };
 
     } catch (error) {
       console.error('❌ Real-time generation error:', error);
       
-      const errorMessage = error instanceof Error ? error.message : 'Generation failed';
+      // Handle specific error cases
+      let errorMessage = 'Generation failed';
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'Generation was cancelled';
+        } else if (error.message.includes('OpenRouter API key')) {
+          errorMessage = 'AI service configuration error - please check API keys';
+        } else if (error.message.includes('No code generated')) {
+          errorMessage = 'AI could not generate valid code for this request';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       appendToChatHistory(`Error: ${errorMessage}`, 'assistant');
       
       toast({
@@ -178,7 +137,7 @@ Generate professional HTML code that ${options.preserveDesign ? 'preserves the e
         variant: "destructive"
       });
       
-      throw error;
+      throw new Error(errorMessage);
     } finally {
       setIsGenerating(false);
       abortControllerRef.current = null;
@@ -186,17 +145,25 @@ Generate professional HTML code that ${options.preserveDesign ? 'preserves the e
   }, [files, updateFile, appendToChatHistory, toast]);
 
   const streamCode = useCallback(async (prompt: string, onChunk: (chunk: string) => void) => {
-    // Simulate streaming for now - in real implementation this would connect to streaming endpoint
-    const response = await generateCodeWithAI(prompt, null, '', { streaming: true, preserveDesign: true, targetedChanges: true });
-    
-    if (response?.code) {
-      // Simulate streaming by chunks
-      const chunks = response.code.match(/.{1,50}/g) || [];
+    try {
+      const response = await generateCodeWithAI(prompt, null, '', { 
+        streaming: true, 
+        preserveDesign: true, 
+        targetedChanges: true 
+      });
       
-      for (const chunk of chunks) {
-        onChunk(chunk);
-        await new Promise(resolve => setTimeout(resolve, 50));
+      if (response?.code) {
+        // Simulate streaming by chunks for better UX
+        const chunks = response.code.match(/.{1,50}/g) || [];
+        
+        for (const chunk of chunks) {
+          onChunk(chunk);
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
       }
+    } catch (error) {
+      console.error('Streaming error:', error);
+      onChunk('Error occurred during streaming');
     }
   }, [generateCodeWithAI]);
 
@@ -218,38 +185,53 @@ Generate professional HTML code that ${options.preserveDesign ? 'preserves the e
   };
 };
 
-// Helper functions
+// Helper functions for component analysis
 const extractComponents = (html: string): string[] => {
   const components = [];
-  const classMatches = html.match(/class="([^"]+)"/g) || [];
   
-  classMatches.forEach(match => {
-    const classes = match.match(/"([^"]+)"/)?.[1].split(' ') || [];
-    components.push(...classes);
-  });
+  try {
+    // Extract CSS classes
+    const classMatches = html.match(/class="([^"]+)"/g) || [];
+    classMatches.forEach(match => {
+      const classes = match.match(/"([^"]+)"/)?.[1].split(' ') || [];
+      components.push(...classes);
+    });
+    
+    // Extract HTML elements
+    const elementMatches = html.match(/<(\w+)[^>]*>/g) || [];
+    elementMatches.forEach(match => {
+      const element = match.match(/<(\w+)/)?.[1];
+      if (element) components.push(element);
+    });
+  } catch (error) {
+    console.warn('Error extracting components:', error);
+  }
   
-  return [...new Set(components)].filter(c => c.length > 0);
+  return [...new Set(components)].filter(c => c && c.length > 0);
 };
 
 const analyzeComponentRelationships = (html: string): Record<string, string[]> => {
   const relationships: Record<string, string[]> = {};
   
-  // Simple relationship analysis - in real implementation this would be more sophisticated
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  
-  doc.querySelectorAll('[class]').forEach(element => {
-    const classes = element.className.split(' ');
-    const parent = element.parentElement;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
     
-    if (parent && parent.className) {
-      const parentClasses = parent.className.split(' ');
-      classes.forEach(cls => {
-        if (!relationships[cls]) relationships[cls] = [];
-        relationships[cls].push(...parentClasses);
-      });
-    }
-  });
+    doc.querySelectorAll('[class]').forEach(element => {
+      const classes = element.className.split(' ').filter(c => c.length > 0);
+      const parent = element.parentElement;
+      
+      if (parent && parent.className) {
+        const parentClasses = parent.className.split(' ').filter(c => c.length > 0);
+        classes.forEach(cls => {
+          if (!relationships[cls]) relationships[cls] = [];
+          relationships[cls].push(...parentClasses);
+        });
+      }
+    });
+  } catch (error) {
+    console.warn('Error analyzing relationships:', error);
+  }
   
   return relationships;
 };
