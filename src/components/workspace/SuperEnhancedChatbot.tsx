@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTargetedChanges } from '@/hooks/useTargetedChanges';
-import { useAdvancedProjectMemory } from '@/hooks/useAdvancedProjectMemory';
+import { useAdvancedAIMemory } from '@/hooks/useAdvancedProjectMemory';
 import { useYouTubeIntegration } from '@/hooks/useYouTubeIntegration';
 
 interface Message {

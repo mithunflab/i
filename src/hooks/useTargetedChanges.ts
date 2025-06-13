@@ -1,7 +1,6 @@
-
 import { useCallback } from 'react';
 import { useComponentLevelEditing } from './useComponentLevelEditing';
-import { useAdvancedProjectMemory } from './useAdvancedProjectMemory';
+import { useAdvancedAIMemory } from './useAdvancedProjectMemory';
 
 interface ComponentChange {
   selector: string;
