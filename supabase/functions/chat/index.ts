@@ -42,8 +42,8 @@ serve(async (req) => {
       .limit(1);
 
     if (openrouterError) {
-      console.error('❌ Error fetching OpenRouter keys:', openrouterError);
-      throw new Error('Failed to fetch OpenRouter API keys from database');
+      console.error('❌ Database Error fetching OpenRouter keys:', openrouterError);
+      throw new Error(`Database error: ${openrouterError.message}`);
     }
 
     if (!openrouterKeys || openrouterKeys.length === 0) {
@@ -55,9 +55,15 @@ serve(async (req) => {
     console.log('✅ Found OpenRouter API key:', openrouterKeys[0].name);
 
     // Validate API key format
-    if (!openRouterApiKey || !openRouterApiKey.startsWith('sk-or-')) {
-      console.error('❌ Invalid OpenRouter API key format');
-      throw new Error('Invalid OpenRouter API key format. Please check the API key.');
+    if (!openRouterApiKey || typeof openRouterApiKey !== 'string' || openRouterApiKey.trim() === '') {
+      console.error('❌ Invalid OpenRouter API key: empty or invalid format');
+      throw new Error('Invalid OpenRouter API key format. Please check the API key in admin panel.');
+    }
+
+    // Additional validation for OpenRouter key format
+    if (!openRouterApiKey.startsWith('sk-or-')) {
+      console.error('❌ Invalid OpenRouter API key format - should start with sk-or-');
+      throw new Error('Invalid OpenRouter API key format. OpenRouter keys should start with "sk-or-".');
     }
 
     // Free models for random selection
@@ -96,14 +102,20 @@ Generate a complete, modern HTML website with:
 Return ONLY the complete HTML code, no explanations. Make it visually stunning and professional.`;
 
     console.log('🤖 Sending request to OpenRouter with enhanced prompt...');
+    console.log('🔑 API Key validation:', {
+      hasKey: !!openRouterApiKey,
+      keyLength: openRouterApiKey.length,
+      startsCorrectly: openRouterApiKey.startsWith('sk-or-'),
+      keyPrefix: openRouterApiKey.substring(0, 10) + '...'
+    });
 
-    // Call OpenRouter API with proper authentication
+    // Call OpenRouter API with proper authentication and error handling
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://ldcipixxhnrepgkyzmno.supabase.co',
+        'HTTP-Referer': supabaseUrl || 'https://ldcipixxhnrepgkyzmno.supabase.co',
         'X-Title': 'AI Website Builder'
       },
       body: JSON.stringify({
@@ -123,31 +135,48 @@ Return ONLY the complete HTML code, no explanations. Make it visually stunning a
       })
     });
 
+    console.log('📡 OpenRouter API Response Status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ OpenRouter API Error:', response.status, errorText);
+      console.error('❌ OpenRouter API Error Details:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: errorText
+      });
       
-      // Handle specific error cases
+      // Handle specific error cases with detailed messages
       if (response.status === 401) {
-        throw new Error('OpenRouter API authentication failed. Please check the API key.');
+        throw new Error('OpenRouter API authentication failed. The API key may be invalid or expired. Please check the API key in admin panel.');
       } else if (response.status === 429) {
         throw new Error('Rate limit exceeded. Please try again in a moment.');
+      } else if (response.status === 400) {
+        throw new Error(`Bad request to OpenRouter API: ${errorText}`);
+      } else if (response.status === 403) {
+        throw new Error('OpenRouter API access forbidden. Please check your API key permissions.');
       } else {
-        throw new Error(`OpenRouter API Error: ${response.status} - ${errorText}`);
+        throw new Error(`OpenRouter API Error (${response.status}): ${errorText}`);
       }
     }
 
     const data = await response.json();
+    console.log('📊 OpenRouter API Response received:', {
+      hasChoices: !!data.choices,
+      choicesLength: data.choices?.length || 0,
+      hasUsage: !!data.usage
+    });
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('❌ Invalid response structure from OpenRouter');
-      throw new Error('Invalid response from AI service');
+      console.error('❌ Invalid response structure from OpenRouter:', data);
+      throw new Error('Invalid response structure from OpenRouter API');
     }
 
     const generatedCode = data.choices[0].message.content;
 
-    if (!generatedCode) {
-      throw new Error('No code generated from AI');
+    if (!generatedCode || typeof generatedCode !== 'string') {
+      console.error('❌ No valid code generated from AI');
+      throw new Error('No valid code generated from AI');
     }
 
     console.log('✅ Professional website generated successfully using:', selectedModel);
@@ -173,7 +202,7 @@ Return ONLY the complete HTML code, no explanations. Make it visually stunning a
     
     return new Response(JSON.stringify({ 
       error: errorMessage,
-      reply: `❌ **AI Generation Error**\n\n${errorMessage}\n\n🔄 **Troubleshooting Steps:**\n1. Check your internet connection\n2. Try a simpler, more specific request\n3. Contact support if the issue persists\n\n💡 **Example**: "Create a modern landing page for a science YouTube channel"`,
+      reply: `❌ **AI Generation Error**\n\n${errorMessage}\n\n🔄 **Troubleshooting Steps:**\n1. Verify OpenRouter API key is properly configured\n2. Check API key permissions and credits\n3. Try again with a simpler request\n4. Contact admin if API key issues persist\n\n💡 **Example**: "Create a modern landing page for a science YouTube channel"`,
       generatedCode: null
     }), {
       status: 200, // Return 200 to avoid frontend errors
