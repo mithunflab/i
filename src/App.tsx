@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Home from "./pages/Home";
 import UserDashboard from "./pages/UserDashboard";
-import WorkspaceEntry from "../idea/WorkspaceEntry";
+import WorkspaceEntry from "./idea/WorkspaceEntry";
 
 const queryClient = new QueryClient();
 
