@@ -10,6 +10,8 @@ import Features from '@/pages/Features';
 import Pricing from '@/pages/Pricing';
 import Contact from '@/pages/Contact';
 import Workspace from '@/components/workspace/Workspace';
+import LoginForm from '@/components/LoginForm';
+import NotFound from '@/pages/NotFound';
 
 function App() {
   return (
@@ -23,6 +25,9 @@ function App() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/workspace" element={<Workspace />} />
+            <Route path="/login" element={<LoginForm />} />
+            <Route path="/auth" element={<LoginForm />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster />
         </div>
