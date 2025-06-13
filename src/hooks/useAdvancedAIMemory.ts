@@ -50,29 +50,46 @@ export const useAdvancedAIMemory = (projectId: string) => {
     
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('project_memory')
+      // Load from project_chat_history and projects tables instead of non-existent project_memory
+      const { data: project, error: projectError } = await supabase
+        .from('projects')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('id', projectId)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading memory:', error);
+      if (projectError && projectError.code !== 'PGRST116') {
+        console.error('Error loading project:', projectError);
         return;
       }
 
-      if (data) {
+      const { data: chatHistory, error: chatError } = await supabase
+        .from('project_chat_history')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: true });
+
+      if (chatError) {
+        console.error('Error loading chat history:', chatError);
+      }
+
+      if (project) {
         setMemory({
-          id: data.id,
-          components: data.components || {},
-          designTokens: data.design_tokens || {
+          id: project.id,
+          components: project.channel_data?.components || {},
+          designTokens: project.channel_data?.design_tokens || {
             primaryColor: '#000000',
             secondaryColor: '#666666',
             fontFamily: 'Arial, sans-serif',
             spacing: '16px'
           },
-          chatHistory: data.chat_history || [],
-          lastUpdated: new Date(data.updated_at)
+          chatHistory: (chatHistory || []).map(chat => ({
+            id: chat.id,
+            role: chat.message_type as 'user' | 'assistant',
+            content: chat.content,
+            timestamp: new Date(chat.created_at),
+            componentTarget: chat.metadata?.component
+          })),
+          lastUpdated: new Date(project.updated_at)
         });
       }
     } catch (error) {
@@ -89,15 +106,17 @@ export const useAdvancedAIMemory = (projectId: string) => {
     setMemory(updatedMemory);
 
     try {
+      // Store in projects table channel_data field
       await supabase
-        .from('project_memory')
-        .upsert({
-          project_id: projectId,
-          components: updatedMemory.components,
-          design_tokens: updatedMemory.designTokens,
-          chat_history: updatedMemory.chatHistory,
+        .from('projects')
+        .update({
+          channel_data: {
+            components: updatedMemory.components,
+            design_tokens: updatedMemory.designTokens
+          },
           updated_at: new Date().toISOString()
-        });
+        })
+        .eq('id', projectId);
     } catch (error) {
       console.error('Memory update error:', error);
     }
@@ -174,7 +193,26 @@ Please make targeted changes to the specified component while preserving the exi
         [componentId]: updatedComponent
       }
     });
-  }, [memory, updateMemory]);
+
+    // Also save to chat history
+    try {
+      await supabase
+        .from('project_chat_history')
+        .insert({
+          project_id: projectId,
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          message_type: 'assistant',
+          content: `Applied changes to ${componentId}`,
+          metadata: {
+            component: componentId,
+            action: 'AI Edit',
+            userRequest
+          }
+        });
+    } catch (error) {
+      console.error('Error saving change to chat history:', error);
+    }
+  }, [memory, updateMemory, projectId]);
 
   const refreshMemory = useCallback(async () => {
     await loadMemory();

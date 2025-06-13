@@ -12,6 +12,7 @@ interface ParsedIntent {
   prompt?: string;
   error?: string;
   suggestions?: string[];
+  parseResult?: 'success' | 'failed' | 'error';
 }
 
 export const useIntelligentChatParser = (projectId: string) => {
@@ -58,7 +59,8 @@ export const useIntelligentChatParser = (projectId: string) => {
         return {
           success: false,
           error: parseResult.error,
-          suggestions: parseResult.suggestions
+          suggestions: parseResult.suggestions,
+          parseResult: 'failed'
         };
       }
 
@@ -91,7 +93,8 @@ export const useIntelligentChatParser = (projectId: string) => {
         targetComponent: intent.targetComponentId,
         action: intent.action,
         changes: JSON.stringify(intent.updates),
-        prompt: enhancedPrompt
+        prompt: enhancedPrompt,
+        parseResult: 'success'
       };
 
     } catch (error) {
@@ -109,7 +112,8 @@ export const useIntelligentChatParser = (projectId: string) => {
           'Mention the specific component you want to change',
           'Describe the exact change you want to make',
           'Example: "Change the subscribe button color to red"'
-        ]
+        ],
+        parseResult: 'error'
       };
     } finally {
       setLoading(false);

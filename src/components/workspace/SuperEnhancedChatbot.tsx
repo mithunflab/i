@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTargetedChanges } from '@/hooks/useTargetedChanges';
-import { useAdvancedAIMemory } from '@/hooks/useAdvancedProjectMemory';
+import { useAdvancedAIMemory } from '@/hooks/useAdvancedAIMemory';
 import { useYouTubeIntegration } from '@/hooks/useYouTubeIntegration';
 import { useIntelligentChatParser } from '@/hooks/useIntelligentChatParser';
 
@@ -130,7 +129,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
           role: 'assistant',
           content: `❌ **Understanding Issue**\n\n${parseResult.error}\n\n💡 **Try These Instead**:\n${parseResult.suggestions?.map(s => `• ${s}`).join('\n') || '• Be more specific about the component and change you want'}`,
           timestamp: new Date(),
-          parseResult: 'failed',
+          parseResult: parseResult.parseResult,
           suggestions: parseResult.suggestions
         };
         
@@ -186,7 +185,7 @@ const SuperEnhancedChatbot: React.FC<SuperEnhancedChatbotProps> = ({
         content: `✅ **${parseResult.targetComponent} Updated!**\n\n**Action**: ${parseResult.action}\n**Changes**: ${parseResult.changes}\n\n${result?.reply || 'I\'ve made the targeted changes while preserving your existing design and functionality!'}`,
         timestamp: new Date(),
         component: parseResult.targetComponent,
-        parseResult: 'success'
+        parseResult: parseResult.parseResult
       };
 
       setMessages(prev => [...prev, assistantMessage]);
