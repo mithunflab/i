@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,54 +39,68 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
   
   const { user } = useAuth();
   const { toast } = useToast();
+  const channelRef = useRef<any>(null);
 
-  // Check existing verification status
   useEffect(() => {
     if (user && projectId) {
       checkVerificationStatus();
-      
-      // Set up real-time subscription for verification status changes
-      const channel = supabase
-        .channel('verification-status-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'project_verification_requests',
-            filter: `project_id=eq.${projectId}`
-          },
-          (payload) => {
-            console.log('Verification status changed:', payload);
-            if (payload.new && typeof payload.new === 'object') {
-              const newData = payload.new as VerificationData;
-              setVerificationStatus(newData.status);
-              
-              // Show notification for status changes
-              if (payload.eventType === 'UPDATE') {
-                if (newData.status === 'approved') {
-                  toast({
-                    title: "Verification Approved! 🎉",
-                    description: "Your project has been verified successfully.",
-                  });
-                } else if (newData.status === 'rejected') {
-                  toast({
-                    title: "Verification Rejected",
-                    description: newData.response_message || "Your project verification was rejected.",
-                    variant: "destructive"
-                  });
-                }
+      setupRealTimeUpdates();
+    }
+
+    return () => {
+      cleanupRealTimeUpdates();
+    };
+  }, [user?.id, projectId]);
+
+  const cleanupRealTimeUpdates = () => {
+    if (channelRef.current) {
+      console.log('Cleaning up verification status subscription');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+  };
+
+  const setupRealTimeUpdates = () => {
+    cleanupRealTimeUpdates();
+    
+    if (!user?.id || !projectId) return;
+    
+    const channelName = `verification-status-changes-${projectId}-${Date.now()}`;
+    channelRef.current = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'project_verification_requests',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          console.log('Verification status changed:', payload);
+          if (payload.new && typeof payload.new === 'object') {
+            const newData = payload.new as VerificationData;
+            setVerificationStatus(newData.status);
+            
+            if (payload.eventType === 'UPDATE') {
+              if (newData.status === 'approved') {
+                toast({
+                  title: "Verification Approved! 🎉",
+                  description: "Your project has been verified successfully.",
+                });
+              } else if (newData.status === 'rejected') {
+                toast({
+                  title: "Verification Rejected",
+                  description: newData.response_message || "Your project verification was rejected.",
+                  variant: "destructive"
+                });
               }
             }
           }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [user, projectId, toast]);
+        }
+      )
+      .subscribe();
+  };
 
   const checkVerificationStatus = async () => {
     try {

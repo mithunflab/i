@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -31,6 +31,7 @@ export const useRealTimeGitSync = (projectId?: string) => {
   });
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useAuth();
+  const channelRef = useRef<any>(null);
 
   const updateSyncStatus = async (status: Partial<GitSyncStatus>) => {
     if (!user || !projectId) return;
@@ -46,7 +47,6 @@ export const useRealTimeGitSync = (projectId?: string) => {
         last_sync_at: status.syncStatus === 'success' ? new Date().toISOString() : undefined
       };
 
-      // Upsert the sync status
       const { data, error } = await supabase
         .from('git_sync_status')
         .upsert(updateData, {
@@ -98,7 +98,6 @@ export const useRealTimeGitSync = (projectId?: string) => {
     await updateSyncStatus({ syncStatus: 'syncing', filesSynced: 0 });
 
     try {
-      // Call edge function to sync files to GitHub
       const { data, error } = await supabase.functions.invoke('sync-to-github', {
         body: {
           projectId,
@@ -127,12 +126,22 @@ export const useRealTimeGitSync = (projectId?: string) => {
   };
 
   useEffect(() => {
-    if (projectId) {
+    if (projectId && user) {
       checkGitConnection();
       
-      // Set up real-time subscription for git sync status
-      const channel = supabase
-        .channel('git-sync-changes')
+      // Clean up any existing channel first
+      if (channelRef.current) {
+        console.log('Cleaning up existing git sync channel');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      
+      // Create new unique channel
+      const channelName = `git-sync-changes-${projectId}-${Date.now()}`;
+      console.log('Setting up git sync channel:', channelName);
+      
+      channelRef.current = supabase
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -158,12 +167,16 @@ export const useRealTimeGitSync = (projectId?: string) => {
           }
         )
         .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
-  }, [projectId, user]);
+
+    return () => {
+      if (channelRef.current) {
+        console.log('Cleaning up git sync channel on unmount');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [projectId, user?.id]);
 
   return {
     syncStatus,

@@ -22,7 +22,6 @@ const YouTubeApiSettings = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  // Use ref to track channel subscription
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
@@ -33,7 +32,6 @@ const YouTubeApiSettings = () => {
       setLoadingData(false);
     }
     
-    // Cleanup function
     return () => {
       cleanupRealTimeUpdates();
     };
@@ -48,15 +46,15 @@ const YouTubeApiSettings = () => {
   };
 
   const setupRealTimeUpdates = () => {
-    // Clean up any existing subscription first
     cleanupRealTimeUpdates();
     
     if (!user?.id) return;
     
     console.log('Setting up real-time updates for YouTube API settings');
     
+    const channelName = `youtube-api-settings-${user.id}-${Date.now()}`;
     channelRef.current = supabase
-      .channel(`youtube-api-settings-${user.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -90,14 +88,12 @@ const YouTubeApiSettings = () => {
     try {
       console.log('Loading YouTube API keys for user:', user.id);
       
-      // Use the apiKeyManager to get YouTube keys (now works globally)
       const allKeys = await apiKeyManager.getAllProviderKeys();
       const youtubeKeys = allKeys.youtube || [];
       
       console.log('YouTube API keys loaded from manager:', youtubeKeys);
       setExistingKeys(youtubeKeys);
       
-      // Set the first active key as default
       const activeKey = youtubeKeys.find(key => key.is_active);
       if (activeKey) {
         setApiKey(activeKey.api_key || '');
@@ -155,7 +151,6 @@ const YouTubeApiSettings = () => {
     try {
       console.log('Saving YouTube API key for user:', user.id);
       
-      // Deactivate all existing keys first
       if (existingKeys.length > 0) {
         await supabase
           .from('youtube_api_keys')
@@ -163,7 +158,6 @@ const YouTubeApiSettings = () => {
           .eq('user_id', user.id);
       }
       
-      // Insert new key into youtube_api_keys table
       const { error } = await supabase
         .from('youtube_api_keys')
         .insert({
@@ -193,7 +187,6 @@ const YouTubeApiSettings = () => {
         });
         setTimeout(() => setSaved(false), 3000);
         console.log('YouTube API key saved successfully');
-        // The real-time subscription will trigger loadApiKeys automatically
       }
     } catch (err) {
       console.error('Exception saving YouTube API key:', err);
@@ -227,7 +220,6 @@ const YouTubeApiSettings = () => {
           title: "Success",
           description: "YouTube API key deleted successfully"
         });
-        // Real-time subscription will trigger loadApiKeys automatically
       }
     } catch (err) {
       console.error('Exception deleting YouTube API key:', err);
@@ -258,7 +250,6 @@ const YouTubeApiSettings = () => {
           title: "Success",
           description: `API key ${!currentStatus ? 'activated' : 'deactivated'} successfully`
         });
-        // Real-time subscription will trigger loadApiKeys automatically
       }
     } catch (err) {
       console.error('Exception updating YouTube API key status:', err);

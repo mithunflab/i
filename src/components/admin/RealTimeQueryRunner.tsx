@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,17 +25,35 @@ const RealTimeQueryRunner = () => {
   const [isConnected, setIsConnected] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    setupRealTimeUpdates();
-    loadQueryHistory();
-  }, [user]);
+    if (user) {
+      setupRealTimeUpdates();
+      loadQueryHistory();
+    }
+
+    return () => {
+      cleanupRealTimeUpdates();
+    };
+  }, [user?.id]);
+
+  const cleanupRealTimeUpdates = () => {
+    if (channelRef.current) {
+      console.log('Cleaning up query runner real-time subscription');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+  };
 
   const setupRealTimeUpdates = () => {
+    cleanupRealTimeUpdates();
+    
     console.log('Setting up real-time updates for query runner');
     
-    const channel = supabase
-      .channel('query-runner-updates')
+    const channelName = `query-runner-updates-${Date.now()}`;
+    channelRef.current = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -57,11 +75,6 @@ const RealTimeQueryRunner = () => {
         console.log('Query runner real-time subscription status:', status);
         setIsConnected(status === 'SUBSCRIBED');
       });
-
-    return () => {
-      console.log('Cleaning up query runner real-time subscription');
-      supabase.removeChannel(channel);
-    };
   };
 
   const loadQueryHistory = () => {
@@ -103,13 +116,11 @@ const RealTimeQueryRunner = () => {
     try {
       console.log('Executing query:', query);
       
-      // Parse the query to determine the operation
       const trimmedQuery = query.trim().toLowerCase();
       let result;
       let error = null;
 
       if (trimmedQuery.startsWith('select')) {
-        // For simple SELECT queries, try to execute them directly
         if (trimmedQuery.includes('profiles')) {
           const { data, error: queryError } = await supabase
             .from('profiles')
@@ -163,7 +174,6 @@ const RealTimeQueryRunner = () => {
           result = [];
         }
       } else {
-        // For other operations, show a safe message
         error = 'Only SELECT queries are supported in the web interface for security reasons';
         result = [];
       }
@@ -178,7 +188,7 @@ const RealTimeQueryRunner = () => {
         timestamp: new Date()
       };
 
-      const newResults = [queryResult, ...results.slice(0, 9)]; // Keep last 10 results
+      const newResults = [queryResult, ...results.slice(0, 9)];
       setResults(newResults);
       saveQueryHistory(newResults);
 
@@ -276,7 +286,6 @@ const RealTimeQueryRunner = () => {
             className="bg-gray-800 border-gray-600 text-white font-mono text-sm min-h-[100px]"
           />
           
-          {/* Sample Queries */}
           <div className="flex flex-wrap gap-2">
             {sampleQueries.map((sampleQuery, index) => (
               <Button
@@ -292,7 +301,6 @@ const RealTimeQueryRunner = () => {
           </div>
         </div>
 
-        {/* Execute Button */}
         <Button 
           onClick={executeQuery}
           disabled={isExecuting}
