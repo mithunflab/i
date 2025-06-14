@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
@@ -32,7 +31,7 @@ serve(async (req) => {
     
     console.log('📝 Sync request:', { projectId, fileCount: Object.keys(files).length, createRepo });
 
-    // Enhanced user authentication with multiple fallback methods
+    // Enhanced user authentication
     const authHeader = req.headers.get('authorization');
     let user = null;
     
@@ -49,7 +48,6 @@ serve(async (req) => {
         } else {
           console.log('⚠️ Primary auth failed, trying alternative methods...');
           
-          // Try to get user info from project ownership
           const { data: project } = await supabase
             .from('projects')
             .select('user_id, profiles!inner(email)')
@@ -71,6 +69,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: false,
         error: 'Authentication required. Please log in and try again.',
+        needsAuth: true,
         timestamp: new Date().toISOString()
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -78,7 +77,7 @@ serve(async (req) => {
       });
     }
 
-    // Get project details with enhanced error handling
+    // Get project details
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('*')
@@ -89,7 +88,7 @@ serve(async (req) => {
       console.error('❌ Project not found:', projectError);
       return new Response(JSON.stringify({
         success: false,
-        error: 'Project not found or access denie -d. Please check the project ID.',
+        error: 'Project not found or access denied. Please check the project ID.',
         timestamp: new Date().toISOString()
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -99,8 +98,13 @@ serve(async (req) => {
 
     console.log('📂 Project loaded successfully:', project.name);
 
-    // Get GitHub token with enhanced lookup
-    const { data: githubTokens, error: tokenError } = await supabase
+    // Enhanced GitHub token lookup - check multiple possible token sources
+    let githubToken = null;
+    let tokenSource = '';
+
+    // First, try deployment_tokens table
+    console.log('🔍 Checking deployment_tokens table...');
+    const { data: deploymentTokens, error: deploymentError } = await supabase
       .from('deployment_tokens')
       .select('token_value, token_name')
       .eq('user_id', user.id)
@@ -109,12 +113,36 @@ serve(async (req) => {
       .order('updated_at', { ascending: false })
       .limit(1);
 
-    if (tokenError || !githubTokens || githubTokens.length === 0) {
-      console.error('❌ No GitHub token found:', tokenError);
+    if (!deploymentError && deploymentTokens && deploymentTokens.length > 0) {
+      githubToken = deploymentTokens[0].token_value;
+      tokenSource = 'deployment_tokens';
+      console.log('✅ GitHub token found in deployment_tokens');
+    } else {
+      console.log('⚠️ No tokens in deployment_tokens, checking github_api_keys...');
+      
+      // Try github_api_keys table as fallback
+      const { data: githubApiKeys, error: apiKeyError } = await supabase
+        .from('github_api_keys')
+        .select('api_token')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (!apiKeyError && githubApiKeys && githubApiKeys.length > 0) {
+        githubToken = githubApiKeys[0].api_token;
+        tokenSource = 'github_api_keys';
+        console.log('✅ GitHub token found in github_api_keys');
+      }
+    }
+
+    if (!githubToken) {
+      console.error('❌ No GitHub token found in any table');
       return new Response(JSON.stringify({
         success: false,
-        error: 'No active GitHub token found. Please configure GitHub integration in your settings first.',
+        error: 'No active GitHub token found. Please set up GitHub integration first.',
         needsGitHubSetup: true,
+        setupInstructions: 'Go to Project Settings → GitHub Integration to connect your GitHub account',
         timestamp: new Date().toISOString()
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -122,8 +150,7 @@ serve(async (req) => {
       });
     }
 
-    const githubToken = githubTokens[0].token_value;
-    console.log('🔑 GitHub token retrieved successfully');
+    console.log(`🔑 GitHub token retrieved successfully from ${tokenSource}`);
 
     let repoUrl = project.github_url;
     let repoOwner = '';
@@ -147,7 +174,7 @@ serve(async (req) => {
       if (!userResponse.ok) {
         const errorText = await userResponse.text();
         console.error('❌ GitHub user fetch failed:', errorText);
-        throw new Error(`Failed to get GitHub user info: ${userResponse.status}`);
+        throw new Error(`Failed to get GitHub user info: ${userResponse.status} - Please check your GitHub token`);
       }
 
       const githubUser = await userResponse.json();
@@ -208,7 +235,7 @@ serve(async (req) => {
     // Update git sync status to syncing
     await updateGitSyncStatus(supabase, user.id, projectId, 'syncing', 0);
 
-    // Sync files to repository with enhanced error handling
+    // Sync files to repository
     const fileSyncResults = [];
     let syncedCount = 0;
     let failedCount = 0;
@@ -267,6 +294,7 @@ serve(async (req) => {
       message: failedCount === 0 
         ? `Successfully synced all ${syncedCount} files to GitHub` 
         : `Synced ${syncedCount} files successfully, ${failedCount} failed`,
+      tokenSource,
       timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -331,7 +359,7 @@ async function syncFileToGitHub(token: string, owner: string, repo: string, path
   // Create or update file
   const updateData: any = {
     message: `${message} - Update ${path}`,
-    content: btoa(unescape(encodeURIComponent(content))), // Handle UTF-8 encoding properly
+    content: btoa(unescape(encodeURIComponent(content))),
   };
 
   if (sha) {

@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
@@ -31,9 +30,15 @@ serve(async (req) => {
 
     const { userRequest, channelData, projectId, currentCode, preserveDesign = true }: AIRequest = await req.json();
     
-    console.log('📝 Request details:', { userRequest: userRequest.substring(0, 100), projectId, hasChannelData: !!channelData });
+    console.log('📝 Request details:', { 
+      userRequest: userRequest.substring(0, 100), 
+      projectId, 
+      hasChannelData: !!channelData,
+      hasCurrentCode: !!currentCode,
+      preserveDesign 
+    });
 
-    // Get user from auth header with improved handling
+    // Enhanced user authentication
     const authHeader = req.headers.get('authorization');
     let user = null;
     
@@ -48,32 +53,34 @@ serve(async (req) => {
           user = userData.user;
           console.log('✅ User authenticated:', user.email);
         } else {
-          console.log('⚠️ Token authentication failed, proceeding without user validation');
+          console.log('⚠️ Token authentication failed:', authError?.message);
         }
       } catch (error) {
-        console.log('⚠️ Auth error, proceeding without user validation:', error.message);
+        console.log('⚠️ Auth error:', error.message);
       }
-    } else {
-      console.log('⚠️ No authorization header, proceeding without user validation');
     }
 
-    // Prioritize Groq for high-quality generation
+    // Enhanced AI generation with better error handling
     let generatedCode = '';
     let aiResponse = '';
     let usedProvider = '';
+    let generationError = null;
 
     // 1. Try Groq first (prioritized for quality)
     try {
       console.log('🤖 Trying Groq AI for high-quality generation...');
       const groqResult = await tryGroq(userRequest, channelData, currentCode, preserveDesign);
-      if (groqResult) {
+      if (groqResult && groqResult.code) {
         generatedCode = groqResult.code;
         aiResponse = groqResult.response;
         usedProvider = 'Groq';
         console.log('✅ Groq generation successful - high quality code generated');
+      } else {
+        throw new Error('No code generated from Groq');
       }
     } catch (error) {
-      console.log('⚠️ Groq failed, trying OpenRouter:', error.message);
+      console.log('⚠️ Groq failed:', error.message);
+      generationError = error.message;
     }
 
     // 2. Try OpenRouter as backup
@@ -81,28 +88,41 @@ serve(async (req) => {
       try {
         console.log('🤖 Trying OpenRouter as backup...');
         const openRouterResult = await tryOpenRouter(userRequest, channelData, currentCode, preserveDesign);
-        if (openRouterResult) {
+        if (openRouterResult && openRouterResult.code) {
           generatedCode = openRouterResult.code;
           aiResponse = openRouterResult.response;
           usedProvider = 'OpenRouter';
           console.log('✅ OpenRouter generation successful');
+        } else {
+          throw new Error('No code generated from OpenRouter');
         }
       } catch (error) {
-        console.log('⚠️ OpenRouter failed, using enhanced fallback:', error.message);
+        console.log('⚠️ OpenRouter failed:', error.message);
+        generationError = error.message;
       }
     }
 
-    // 3. Enhanced fallback generation (better quality)
+    // 3. Enhanced fallback generation
     if (!generatedCode) {
       console.log('🤖 Using enhanced fallback generation...');
-      const fallbackResult = generateEnhancedFallbackCode(userRequest, channelData, currentCode);
-      generatedCode = fallbackResult.code;
-      aiResponse = fallbackResult.response;
-      usedProvider = 'Enhanced Fallback';
-      console.log('✅ Enhanced fallback generation used');
+      try {
+        const fallbackResult = generateEnhancedFallbackCode(userRequest, channelData, currentCode);
+        generatedCode = fallbackResult.code;
+        aiResponse = fallbackResult.response;
+        usedProvider = 'Enhanced Fallback';
+        console.log('✅ Enhanced fallback generation used');
+      } catch (error) {
+        console.error('❌ Even fallback generation failed:', error.message);
+        throw new Error(`All AI providers failed. Last error: ${generationError || error.message}`);
+      }
     }
 
-    // Update project in database only if user is authenticated and projectId exists
+    // Validate generated code
+    if (!generatedCode || generatedCode.length < 100) {
+      throw new Error('Generated code is too short or invalid');
+    }
+
+    // Update project in database if user is authenticated and projectId exists
     if (projectId && generatedCode && user) {
       console.log('💾 Updating project in database...');
       try {
@@ -136,6 +156,8 @@ serve(async (req) => {
       provider: usedProvider,
       codeQuality: usedProvider === 'Groq' ? 'high' : usedProvider === 'OpenRouter' ? 'good' : 'standard',
       codeDescription: `High-quality website generated using ${usedProvider}`,
+      codeLength: generatedCode.length,
+      hasChannelData: !!channelData,
       timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -147,6 +169,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: false,
       error: error.message,
+      provider: 'none',
       timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -204,7 +227,7 @@ User Request: ${userRequest}
 
 ${channelData ? `Channel Data: ${JSON.stringify(channelData, null, 2)}` : ''}
 
-${currentCode ? `Current Code to enhance: ${currentCode}` : 'Create a new modern website'}
+${currentCode ? `Current Code to enhance: ${currentCode.substring(0, 2000)}...` : 'Create a new modern website'}
 
 Generate a stunning, professional website that exceeds expectations and incorporates the user's request while using the provided channel data.
 `;
@@ -228,6 +251,7 @@ Generate a stunning, professional website that exceeds expectations and incorpor
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error('Groq API error details:', errorText);
     throw new Error(`Groq API error: ${response.status} - ${errorText}`);
   }
 
@@ -267,7 +291,7 @@ User Request: ${userRequest}
 
 ${channelData ? `Channel Data: ${JSON.stringify(channelData, null, 2)}` : ''}
 
-${currentCode ? `Current Code to modify: ${currentCode}` : 'Create a new website'}
+${currentCode ? `Current Code to modify: ${currentCode.substring(0, 2000)}...` : 'Create a new website'}
 
 Generate a complete, professional website that incorporates the user's request${channelData ? ' while using the provided channel data' : ''}.
 `;
@@ -476,81 +500,32 @@ function generateEnhancedFallbackCode(userRequest: string, channelData: any, cur
             font-weight: 500;
         }
         
-        /* Videos Section */
-        .videos-section {
+        /* Request Display */
+        .request-section {
             background: #f8f9fa;
-            padding: 80px 0;
-        }
-        
-        .section-title {
+            padding: 60px 0;
             text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 50px;
-            color: #333;
-            position: relative;
         }
         
-        .section-title::after {
-            content: '';
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80px;
-            height: 4px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            border-radius: 2px;
-        }
-        
-        .videos-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 30px;
-        }
-        
-        .video-card {
+        .request-box {
             background: white;
+            padding: 30px;
             border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            margin: 0 auto;
         }
         
-        .video-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        .request-title {
+            font-size: 1.5rem;
+            color: #667eea;
+            margin-bottom: 15px;
         }
         
-        .video-thumbnail {
-            position: relative;
-            padding-bottom: 56.25%;
-            height: 0;
-            overflow: hidden;
-        }
-        
-        .video-thumbnail iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-        
-        .video-info {
-            padding: 20px;
-        }
-        
-        .video-title {
+        .request-text {
             font-size: 1.1rem;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 10px;
-            line-height: 1.4;
-        }
-        
-        .video-stats {
             color: #666;
-            font-size: 0.9rem;
+            font-style: italic;
         }
         
         /* Footer */
@@ -576,32 +551,6 @@ function generateEnhancedFallbackCode(userRequest: string, channelData: any, cur
             margin: 0 auto 20px;
         }
         
-        .social-links {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .social-link {
-            display: inline-block;
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            text-decoration: none;
-            transition: all 0.3s ease;
-        }
-        
-        .social-link:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-        
         /* Animations */
         @keyframes fadeInUp {
             from {
@@ -619,23 +568,7 @@ function generateEnhancedFallbackCode(userRequest: string, channelData: any, cur
             .hero h1 { font-size: 2.5rem; } 
             .hero p { font-size: 1.1rem; }
             .stats-grid { grid-template-columns: 1fr; }
-            .videos-grid { grid-template-columns: 1fr; }
             .stat-card { padding: 30px 20px; }
-        }
-        
-        /* Loading animation */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -678,60 +611,31 @@ function generateEnhancedFallbackCode(userRequest: string, channelData: any, cur
         </div>
     </section>
 
-    ${videos.length > 0 ? `
-    <section class="videos-section">
+    <section class="request-section">
         <div class="container">
-            <h2 class="section-title">Latest Videos</h2>
-            <div class="videos-grid">
-                ${videos.slice(0, 6).map(video => `
-                    <div class="video-card">
-                        <div class="video-thumbnail">
-                            <iframe src="${video.embedUrl}" title="${video.title}" frameborder="0" allowfullscreen></iframe>
-                        </div>
-                        <div class="video-info">
-                            <h3 class="video-title">${video.title}</h3>
-                            <div class="video-stats">${parseInt(video.viewCount || 0).toLocaleString()} views</div>
-                        </div>
-                    </div>
-                `).join('')}
+            <div class="request-box">
+                <h2 class="request-title">Latest Request</h2>
+                <p class="request-text">"${userRequest}"</p>
             </div>
         </div>
     </section>
-    ` : ''}
 
     <footer class="footer">
         <div class="container">
             <div class="footer-content">
                 <h3>${channelTitle}</h3>
-                <p>Request: "${userRequest}"</p>
-                <p>Thank you for visiting our professional channel website!</p>
-            </div>
-            <div class="social-links">
-                <a href="https://www.youtube.com/${channelData?.customUrl || '@channel'}" target="_blank" class="social-link">▶</a>
-                <a href="#" class="social-link">📧</a>
-                <a href="#" class="social-link">📱</a>
+                <p>Professional website generated with enhanced AI technology</p>
+                <p>Thank you for visiting our channel website!</p>
             </div>
             <p style="color: #7f8c8d; margin-top: 20px;">&copy; 2024 ${channelTitle}. All rights reserved.</p>
         </div>
     </footer>
 
     <script>
-        // Enhanced interactivity
         document.addEventListener('DOMContentLoaded', function() {
-            // Smooth scrolling for anchor links
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-                anchor.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const target = document.querySelector(this.getAttribute('href'));
-                    if (target) {
-                        target.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start'
-                        });
-                    }
-                });
-            });
-
+            console.log('Enhanced ${channelTitle} website loaded successfully!');
+            console.log('User request: "${userRequest}"');
+            
             // Animate stats on scroll
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
@@ -741,19 +645,9 @@ function generateEnhancedFallbackCode(userRequest: string, channelData: any, cur
                 });
             });
 
-            document.querySelectorAll('.stat-card, .video-card').forEach(card => {
+            document.querySelectorAll('.stat-card').forEach(card => {
                 observer.observe(card);
             });
-
-            // Add loading states for external content
-            document.querySelectorAll('iframe').forEach(iframe => {
-                iframe.addEventListener('load', function() {
-                    this.style.opacity = '1';
-                });
-            });
-
-            console.log('Enhanced ${channelTitle} website loaded successfully!');
-            console.log('User request: "${userRequest}"');
         });
     </script>
 </body>
@@ -761,6 +655,6 @@ function generateEnhancedFallbackCode(userRequest: string, channelData: any, cur
 
   return {
     code: enhancedCode,
-    response: `Enhanced professional website generated for ${channelTitle} - modern design with advanced features and animations!`
+    response: `Enhanced professional website generated for ${channelTitle} with your request: "${userRequest}"`
   };
 }
