@@ -1,7 +1,7 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { User } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { supabase, checkConnection, retrySupabaseRequest } from '@/integrations/supabase/client';
+import type { User, Session } from '@supabase/supabase-js';
 
 interface Profile {
   id: string;
@@ -16,25 +16,31 @@ interface Profile {
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
+  session: Session | null;
   loading: boolean;
   isLoading: boolean;
+  connectionStatus: 'connected' | 'disconnected' | 'reconnecting';
   login: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
   logout: () => Promise<void>;
   loginWithGoogle: () => Promise<{ error: any }>;
   loginAsAdmin: (email: string, password: string) => Promise<{ error: any }>;
+  refreshAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
+  session: null,
   loading: true,
   isLoading: true,
+  connectionStatus: 'disconnected',
   login: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
   logout: async () => {},
   loginWithGoogle: async () => ({ error: null }),
   loginAsAdmin: async () => ({ error: null }),
+  refreshAuth: async () => {},
 });
 
 export const useAuth = () => {
@@ -48,111 +54,244 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('disconnected');
+  const mountedRef = useRef(true);
+  const authSubscriptionRef = useRef<any>(null);
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const profileRequest = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return;
-      }
+        if (error) throw error;
+        return data;
+      };
 
-      if (data) {
+      const data = await retrySupabaseRequest(profileRequest);
+      
+      if (data && mountedRef.current) {
         setProfile({
           ...data,
           role: data.role as 'admin' | 'user'
         });
       }
     } catch (error) {
-      console.error('Error in fetchProfile:', error);
+      console.error('Error fetching profile:', error);
+      if (mountedRef.current) {
+        setProfile(null);
+      }
+    }
+  };
+
+  const refreshAuth = async () => {
+    try {
+      setConnectionStatus('reconnecting');
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+      
+      if (error) throw error;
+      
+      if (currentSession && mountedRef.current) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+        await fetchProfile(currentSession.user.id);
+        setConnectionStatus('connected');
+      } else if (mountedRef.current) {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setConnectionStatus('disconnected');
+      }
+    } catch (error) {
+      console.error('Error refreshing auth:', error);
+      if (mountedRef.current) {
+        setConnectionStatus('disconnected');
+      }
     }
   };
 
   const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      setConnectionStatus('reconnecting');
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (!error && data.session) {
+        setConnectionStatus('connected');
+      }
+      
+      return { error };
+    } catch (error) {
+      setConnectionStatus('disconnected');
+      return { error };
+    }
   };
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: fullName ? { full_name: fullName } : undefined
+    try {
+      setConnectionStatus('reconnecting');
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: fullName ? { full_name: fullName } : undefined
+        }
+      });
+      
+      if (!error) {
+        setConnectionStatus('connected');
       }
-    });
-    return { error };
+      
+      return { error };
+    } catch (error) {
+      setConnectionStatus('disconnected');
+      return { error };
+    }
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
+    try {
+      await supabase.auth.signOut();
+      if (mountedRef.current) {
+        setProfile(null);
+        setSession(null);
+        setUser(null);
+        setConnectionStatus('disconnected');
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
   };
 
   const loginWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`
-      }
-    });
-    return { error };
+    try {
+      setConnectionStatus('reconnecting');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`
+        }
+      });
+      return { error };
+    } catch (error) {
+      setConnectionStatus('disconnected');
+      return { error };
+    }
   };
 
   const loginAsAdmin = async (email: string, password: string) => {
-    // For now, just use regular login - you can implement special admin logic here later
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    return login(email, password);
   };
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-      setLoading(false);
-    });
+    mountedRef.current = true;
+    let connectionCheckInterval: NodeJS.Timeout;
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
-    });
+    const initializeAuth = async () => {
+      try {
+        // Check connection health first
+        const isConnected = await checkConnection();
+        if (!isConnected) {
+          setConnectionStatus('disconnected');
+          setLoading(false);
+          return;
+        }
 
-    return () => subscription.unsubscribe();
+        // Set up auth state listener first
+        authSubscriptionRef.current = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+          console.log('Auth event:', event, currentSession?.user?.id);
+          
+          if (mountedRef.current) {
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
+            
+            if (currentSession?.user) {
+              setConnectionStatus('connected');
+              // Use setTimeout to prevent deadlock
+              setTimeout(() => {
+                if (mountedRef.current) {
+                  fetchProfile(currentSession.user.id);
+                }
+              }, 0);
+            } else {
+              setProfile(null);
+              setConnectionStatus('disconnected');
+            }
+          }
+        });
+
+        // Then get initial session
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (mountedRef.current) {
+          setSession(initialSession);
+          setUser(initialSession?.user ?? null);
+          
+          if (initialSession?.user) {
+            setConnectionStatus('connected');
+            await fetchProfile(initialSession.user.id);
+          } else {
+            setConnectionStatus('disconnected');
+          }
+          
+          setLoading(false);
+        }
+
+        // Set up periodic connection health checks
+        connectionCheckInterval = setInterval(async () => {
+          if (mountedRef.current) {
+            const isHealthy = await checkConnection();
+            if (!isHealthy && connectionStatus === 'connected') {
+              setConnectionStatus('reconnecting');
+              setTimeout(refreshAuth, 1000);
+            }
+          }
+        }, 30000); // Check every 30 seconds
+
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mountedRef.current) {
+          setConnectionStatus('disconnected');
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      mountedRef.current = false;
+      if (authSubscriptionRef.current) {
+        authSubscriptionRef.current.subscription?.unsubscribe();
+      }
+      if (connectionCheckInterval) {
+        clearInterval(connectionCheckInterval);
+      }
+    };
   }, []);
 
   return (
     <AuthContext.Provider value={{ 
       user, 
       profile,
+      session,
       loading, 
       isLoading: loading,
+      connectionStatus,
       login,
       signUp,
       logout,
       loginWithGoogle,
-      loginAsAdmin
+      loginAsAdmin,
+      refreshAuth
     }}>
       {children}
     </AuthContext.Provider>

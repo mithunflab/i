@@ -1,12 +1,12 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Shield, CheckCircle, Clock, XCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, retrySupabaseRequest } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,91 +37,114 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
     additionalInfo: ''
   });
   
-  const { user } = useAuth();
+  const { user, connectionStatus } = useAuth();
   const { toast } = useToast();
   const channelRef = useRef<any>(null);
+  const mountedRef = useRef(true);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
-  useEffect(() => {
-    if (user && projectId) {
-      checkVerificationStatus();
-      setupRealTimeUpdates();
-    }
-
-    return () => {
-      cleanupRealTimeUpdates();
-    };
-  }, [user?.id, projectId]);
-
-  const cleanupRealTimeUpdates = () => {
+  const cleanupRealTimeUpdates = useCallback(() => {
     if (channelRef.current) {
       console.log('Cleaning up verification status subscription');
-      supabase.removeChannel(channelRef.current);
+      try {
+        supabase.removeChannel(channelRef.current);
+      } catch (error) {
+        console.error('Error removing verification channel:', error);
+      }
       channelRef.current = null;
     }
-  };
-
-  const setupRealTimeUpdates = () => {
-    cleanupRealTimeUpdates();
-    
-    if (!user?.id || !projectId) return;
-    
-    const channelName = `verification-status-changes-${projectId}-${Date.now()}`;
-    channelRef.current = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'project_verification_requests',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          console.log('Verification status changed:', payload);
-          if (payload.new && typeof payload.new === 'object') {
-            const newData = payload.new as VerificationData;
-            setVerificationStatus(newData.status);
-            
-            if (payload.eventType === 'UPDATE') {
-              if (newData.status === 'approved') {
-                toast({
-                  title: "Verification Approved! 🎉",
-                  description: "Your project has been verified successfully.",
-                });
-              } else if (newData.status === 'rejected') {
-                toast({
-                  title: "Verification Rejected",
-                  description: newData.response_message || "Your project verification was rejected.",
-                  variant: "destructive"
-                });
-              }
-            }
-          }
-        }
-      )
-      .subscribe();
-  };
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = undefined;
+    }
+  }, []);
 
   const checkVerificationStatus = async () => {
+    if (!user?.id || !mountedRef.current) return;
+    
     try {
-      const { data, error } = await supabase
-        .from('project_verification_requests')
-        .select('status, response_message')
-        .eq('project_id', projectId)
-        .eq('user_id', user?.id)
-        .single();
+      const statusRequest = async () => {
+        const { data, error } = await supabase
+          .from('project_verification_requests')
+          .select('status, response_message')
+          .eq('project_id', projectId)
+          .eq('user_id', user.id)
+          .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error checking verification status:', error);
-        return;
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+        return data;
+      };
+
+      const verificationData = await retrySupabaseRequest(statusRequest) as VerificationData | null;
+      
+      if (mountedRef.current) {
+        setVerificationStatus(verificationData?.status || 'none');
       }
-
-      const verificationData = data as VerificationData | null;
-      setVerificationStatus(verificationData?.status || 'none');
     } catch (error) {
       console.error('Error in checkVerificationStatus:', error);
     }
   };
+
+  const setupRealTimeUpdates = useCallback(() => {
+    if (!user?.id || !projectId || connectionStatus !== 'connected' || !mountedRef.current) {
+      return;
+    }
+
+    cleanupRealTimeUpdates();
+    
+    const channelName = `verification-status-${projectId}-${user.id}-${Date.now()}`;
+    
+    try {
+      channelRef.current = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'project_verification_requests',
+            filter: `project_id=eq.${projectId}`
+          },
+          (payload) => {
+            console.log('Verification status changed:', payload);
+            if (payload.new && typeof payload.new === 'object' && mountedRef.current) {
+              const newData = payload.new as VerificationData;
+              setVerificationStatus(newData.status);
+              
+              if (payload.eventType === 'UPDATE') {
+                if (newData.status === 'approved') {
+                  toast({
+                    title: "Verification Approved! 🎉",
+                    description: "Your project has been verified successfully.",
+                  });
+                } else if (newData.status === 'rejected') {
+                  toast({
+                    title: "Verification Rejected",
+                    description: newData.response_message || "Your project verification was rejected.",
+                    variant: "destructive"
+                  });
+                }
+              }
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('Verification subscription status:', status);
+          if (status === 'CHANNEL_ERROR' && mountedRef.current) {
+            // Retry connection after delay
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (mountedRef.current) {
+                setupRealTimeUpdates();
+              }
+            }, 5000);
+          }
+        });
+    } catch (error) {
+      console.error('Error setting up verification real-time updates:', error);
+    }
+  }, [user?.id, projectId, connectionStatus, toast, cleanupRealTimeUpdates]);
 
   const handleSubmit = async () => {
     if (!user || !formData.contactEmail.trim() || !formData.websiteDescription.trim()) {
@@ -135,54 +158,70 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
 
     setLoading(true);
     try {
-      const requestData = {
-        project_id: projectId,
-        user_id: user.id,
-        project_name: projectName,
-        project_url: projectData?.netlify_url || projectData?.github_url || '',
-        contact_email: formData.contactEmail.trim(),
-        website_description: formData.websiteDescription.trim(),
-        additional_info: formData.additionalInfo.trim(),
-        project_data: projectData,
-        status: 'pending',
-        verification_type: 'youtube_website'
+      const submitRequest = async () => {
+        const requestData = {
+          project_id: projectId,
+          user_id: user.id,
+          project_name: projectName,
+          project_url: projectData?.netlify_url || projectData?.github_url || '',
+          contact_email: formData.contactEmail.trim(),
+          website_description: formData.websiteDescription.trim(),
+          additional_info: formData.additionalInfo.trim(),
+          project_data: projectData,
+          status: 'pending',
+          verification_type: 'youtube_website'
+        };
+
+        const { error } = await supabase
+          .from('project_verification_requests')
+          .upsert(requestData, {
+            onConflict: 'project_id,user_id',
+            ignoreDuplicates: false
+          });
+
+        if (error) throw error;
       };
 
-      const { error } = await supabase
-        .from('project_verification_requests')
-        .upsert(requestData, {
-          onConflict: 'project_id,user_id',
-          ignoreDuplicates: false
+      await retrySupabaseRequest(submitRequest);
+
+      if (mountedRef.current) {
+        toast({
+          title: "Verification Requested",
+          description: "Your project has been submitted for verification review. You'll receive real-time updates on the status.",
         });
 
-      if (error) {
-        console.error('Error submitting verification request:', error);
+        setOpen(false);
+        setVerificationStatus('pending');
+      }
+    } catch (error: any) {
+      console.error('Error in handleSubmit:', error);
+      if (mountedRef.current) {
         toast({
           title: "Error",
-          description: "Failed to submit verification request. Please try again.",
+          description: error.message || "Failed to submit verification request. Please try again.",
           variant: "destructive"
         });
-        return;
       }
-
-      toast({
-        title: "Verification Requested",
-        description: "Your project has been submitted for verification review. You'll receive real-time updates on the status.",
-      });
-
-      setOpen(false);
-      setVerificationStatus('pending');
-    } catch (error) {
-      console.error('Error in handleSubmit:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive"
-      });
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    if (user && projectId && connectionStatus === 'connected') {
+      checkVerificationStatus();
+      setupRealTimeUpdates();
+    }
+
+    return () => {
+      mountedRef.current = false;
+      cleanupRealTimeUpdates();
+    };
+  }, [user?.id, projectId, connectionStatus, setupRealTimeUpdates]);
 
   const getButtonContent = () => {
     if (isVerified) {
@@ -226,7 +265,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
     }
   };
 
-  const isDisabled = isVerified || verificationStatus === 'pending' || verificationStatus === 'approved';
+  const isDisabled = isVerified || verificationStatus === 'pending' || verificationStatus === 'approved' || connectionStatus !== 'connected';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -300,7 +339,7 @@ const ProjectVerificationDialog: React.FC<ProjectVerificationDialogProps> = ({
             </Button>
             <Button 
               onClick={handleSubmit} 
-              disabled={loading || !formData.contactEmail.trim() || !formData.websiteDescription.trim()}
+              disabled={loading || !formData.contactEmail.trim() || !formData.websiteDescription.trim() || connectionStatus !== 'connected'}
               className="bg-green-600 hover:bg-green-700"
             >
               {loading ? 'Submitting...' : 'Submit Request'}

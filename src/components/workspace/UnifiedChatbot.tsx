@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -36,8 +36,10 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController>();
   
-  const { user } = useAuth();
+  const { user, connectionStatus } = useAuth();
   const { 
     isGenerating, 
     isSyncing, 
@@ -48,16 +50,25 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
 
   // Initialize with welcome message
   useEffect(() => {
+    mountedRef.current = true;
+    
     if (messages.length === 0) {
       const welcomeMessage: Message = {
         id: '1',
         type: 'bot',
-        content: `🚀 **Unified AI Website Builder Ready!**\n\n${channelData ? `**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n` : ''}✨ **New Features:**\n• Reliable AI generation with multiple providers (OpenRouter → Groq → Fallback)\n• Automatic GitHub sync and repository creation\n• Real-time status updates\n• Error recovery and comprehensive logging\n\n💡 **Tell me what you want to create or modify!**`,
+        content: `🚀 **Unified AI Website Builder Ready!**\n\n${channelData ? `**Channel**: ${channelData.title}\n**Subscribers**: ${parseInt(channelData.subscriberCount || '0').toLocaleString()}\n\n` : ''}✨ **Enhanced Features:**\n• Reliable AI generation with multiple providers\n• Automatic GitHub sync and repository creation\n• Real-time status updates with connection monitoring\n• Error recovery and comprehensive logging\n• Connection health monitoring\n\n💡 **Tell me what you want to create or modify!**\n\n${connectionStatus !== 'connected' ? '⚠️ **Connection Status**: ' + connectionStatus + ' - Some features may be limited' : '✅ **Connection Status**: Connected and ready'}`,
         timestamp: new Date()
       };
       setMessages([welcomeMessage]);
     }
-  }, [channelData, messages.length]);
+
+    return () => {
+      mountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [channelData, connectionStatus]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -66,13 +77,19 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
 
   // Handle code generation results
   useEffect(() => {
-    if (generatedCode) {
-      onCodeGenerated?.(generatedCode);
+    if (generatedCode && onCodeGenerated && mountedRef.current) {
+      onCodeGenerated(generatedCode);
     }
   }, [generatedCode, onCodeGenerated]);
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isGenerating || !user) return;
+  const handleSendMessage = useCallback(async () => {
+    if (!inputValue.trim() || isGenerating || !user || !mountedRef.current) return;
+
+    // Abort any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -81,15 +98,17 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
       timestamp: new Date()
     };
 
+    if (!mountedRef.current) return;
     setMessages(prev => [...prev, userMessage]);
     
     const processingMessage: Message = {
       id: (Date.now() + 1).toString(),
       type: 'bot',
-      content: `🔄 **Processing your request...**\n\n🤖 Generating code with AI...\n📁 Will auto-sync to GitHub when complete...\n\n⚡ Using multiple AI providers for reliability`,
+      content: `🔄 **Processing your request...**\n\n🤖 Generating code with AI...\n📁 Will auto-sync to GitHub when complete...\n\n⚡ Using multiple AI providers for reliability\n🔗 Connection: ${connectionStatus}`,
       timestamp: new Date()
     };
 
+    if (!mountedRef.current) return;
     setMessages(prev => [...prev, processingMessage]);
     
     const currentInput = inputValue;
@@ -108,6 +127,8 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
         }
       );
 
+      if (!mountedRef.current) return;
+
       // Remove processing message
       setMessages(prev => prev.filter(msg => msg.id !== processingMessage.id));
 
@@ -115,7 +136,7 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
         const successMessage: Message = {
           id: (Date.now() + 2).toString(),
           type: 'bot',
-          content: `✅ **Generation Complete!**\n\n🤖 **AI Provider**: ${result.provider}\n📝 **Response**: ${result.reply}\n\n${result.syncResult ? `🚀 **GitHub Sync**: ${result.syncResult.syncedFiles}/${result.syncResult.totalFiles} files synced\n📁 **Repository**: [View on GitHub](${result.syncResult.repositoryUrl})\n🔗 **Commit**: ${result.syncResult.commitHash}\n\n` : '⚠️ **Note**: GitHub sync was skipped or failed\n\n'}💡 **What's next?** Tell me what else you'd like to modify!`,
+          content: `✅ **Generation Complete!**\n\n🤖 **AI Provider**: ${result.provider}\n📝 **Response**: ${result.reply}\n\n${result.syncResult ? `🚀 **GitHub Sync**: ${result.syncResult.syncedFiles}/${result.syncResult.totalFiles} files synced\n📁 **Repository**: [View on GitHub](${result.syncResult.repositoryUrl})\n🔗 **Commit**: ${result.syncResult.commitHash}\n\n` : '⚠️ **Note**: GitHub sync was skipped or failed\n\n'}💡 **What's next?** Tell me what else you'd like to modify!\n\n🔗 **Connection Status**: ${connectionStatus}`,
           timestamp: new Date(),
           metadata: {
             provider: result.provider,
@@ -127,7 +148,7 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
         setMessages(prev => [...prev, successMessage]);
         
         // Update project data if callback provided
-        if (onProjectUpdate && result.syncResult?.repositoryUrl) {
+        if (onProjectUpdate && result.syncResult?.repositoryUrl && mountedRef.current) {
           onProjectUpdate({
             ...projectData,
             github_url: result.syncResult.repositoryUrl,
@@ -138,33 +159,35 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
         const errorMessage: Message = {
           id: (Date.now() + 2).toString(),
           type: 'bot',
-          content: `❌ **Generation Failed**\n\n**Error**: ${result?.error || 'Unknown error'}\n\n🔄 **Please try again** - the system will automatically try different AI providers.\n\n💡 **Tip**: Try being more specific about what you want to change.`,
+          content: `❌ **Generation Failed**\n\n**Error**: ${result?.error || 'Unknown error'}\n\n🔄 **Please try again** - the system will automatically try different AI providers.\n\n💡 **Tip**: Try being more specific about what you want to change.\n\n🔗 **Connection Status**: ${connectionStatus}`,
           timestamp: new Date()
         };
 
         setMessages(prev => [...prev, errorMessage]);
       }
     } catch (error) {
+      if (!mountedRef.current) return;
+      
       // Remove processing message
       setMessages(prev => prev.filter(msg => msg.id !== processingMessage.id));
       
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
         type: 'bot',
-        content: `❌ **Unexpected Error**\n\n${error instanceof Error ? error.message : 'Unknown error occurred'}\n\n🔄 Please try again.`,
+        content: `❌ **Unexpected Error**\n\n${error instanceof Error ? error.message : 'Unknown error occurred'}\n\n🔄 Please try again.\n\n🔗 **Connection Status**: ${connectionStatus}`,
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, errorMessage]);
     }
-  };
+  }, [inputValue, isGenerating, user, channelData, projectData, generateAndSync, onProjectUpdate, connectionStatus]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
   const getStatusIcon = () => {
     if (isGenerating) return <Loader2 className="animate-spin" size={16} />;
@@ -175,18 +198,20 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
   const getStatusText = () => {
     if (isGenerating) return 'Generating with AI...';
     if (isSyncing) return 'Syncing to GitHub...';
-    return 'Ready';
+    return `Ready (${connectionStatus})`;
   };
 
   const getStatusColor = () => {
     if (isGenerating) return 'bg-blue-500';
     if (isSyncing) return 'bg-purple-500';
-    return 'bg-green-500';
+    if (connectionStatus === 'connected') return 'bg-green-500';
+    if (connectionStatus === 'reconnecting') return 'bg-yellow-500';
+    return 'bg-red-500';
   };
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Enhanced Header */}
+      {/* Enhanced Header with Connection Status */}
       <div className="p-4 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
@@ -209,8 +234,8 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
           </div>
         </div>
 
-        {/* Status Indicators */}
-        <div className="grid grid-cols-3 gap-2 text-xs">
+        {/* Enhanced Status Indicators */}
+        <div className="grid grid-cols-4 gap-2 text-xs">
           <div className="flex items-center gap-1 text-blue-400">
             <div className={`w-2 h-2 rounded-full ${isGenerating ? 'bg-blue-400 animate-pulse' : 'bg-gray-600'}`}></div>
             AI Generation
@@ -223,10 +248,24 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
             <div className={`w-2 h-2 rounded-full ${lastSyncResult ? 'bg-green-400' : 'bg-gray-600'}`}></div>
             {lastSyncResult ? 'Synced' : 'Ready'}
           </div>
+          <div className="flex items-center gap-1">
+            <div className={`w-2 h-2 rounded-full ${
+              connectionStatus === 'connected' ? 'bg-green-400' : 
+              connectionStatus === 'reconnecting' ? 'bg-yellow-400 animate-pulse' : 
+              'bg-red-400'
+            }`}></div>
+            <span className={
+              connectionStatus === 'connected' ? 'text-green-400' : 
+              connectionStatus === 'reconnecting' ? 'text-yellow-400' : 
+              'text-red-400'
+            }>
+              {connectionStatus}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Messages */}
+      {/* Messages with Enhanced Error Handling */}
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map((message) => (
@@ -300,7 +339,7 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
         </div>
       </ScrollArea>
 
-      {/* Enhanced Input */}
+      {/* Enhanced Input with Connection Status */}
       <div className="p-4 border-t border-purple-500/30 bg-black/50 backdrop-blur-sm">
         <div className="flex gap-2">
           <Input
@@ -309,11 +348,11 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
             onKeyPress={handleKeyPress}
             placeholder={`Tell me what to create or modify${channelData ? ` for ${channelData.title}` : ''}...`}
             className="flex-1 bg-black/80 border-cyan-500/50 text-white placeholder-gray-400 focus:border-cyan-400"
-            disabled={isGenerating || isSyncing || !user}
+            disabled={isGenerating || isSyncing || !user || connectionStatus === 'disconnected'}
           />
           <Button 
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isGenerating || isSyncing || !user}
+            disabled={!inputValue.trim() || isGenerating || isSyncing || !user || connectionStatus === 'disconnected'}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
           >
             {isGenerating || isSyncing ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
@@ -322,6 +361,14 @@ const UnifiedChatbot: React.FC<UnifiedChatbotProps> = ({
         
         {!user && (
           <p className="text-xs text-red-400 mt-2">Please log in to use AI generation</p>
+        )}
+        
+        {connectionStatus === 'disconnected' && user && (
+          <p className="text-xs text-red-400 mt-2">Connection lost - please check your internet connection</p>
+        )}
+        
+        {connectionStatus === 'reconnecting' && user && (
+          <p className="text-xs text-yellow-400 mt-2">Reconnecting to services...</p>
         )}
       </div>
     </div>

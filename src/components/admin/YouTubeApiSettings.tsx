@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Youtube, Key, Save, AlertCircle, CheckCircle, Wifi } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, retrySupabaseRequest } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiKeyManager } from '@/utils/apiKeyManager';
@@ -17,70 +18,32 @@ const YouTubeApiSettings = () => {
   const [loadingData, setLoadingData] = useState(true);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
-  const [isConnected, setIsConnected] = useState(true);
   const [existingKeys, setExistingKeys] = useState<any[]>([]);
-  const { user } = useAuth();
+  const { user, connectionStatus } = useAuth();
   const { toast } = useToast();
   
   const channelRef = useRef<any>(null);
+  const mountedRef = useRef(true);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
-  useEffect(() => {
-    if (user?.id) {
-      loadApiKeys();
-      setupRealTimeUpdates();
-    } else {
-      setLoadingData(false);
-    }
-    
-    return () => {
-      cleanupRealTimeUpdates();
-    };
-  }, [user?.id]);
-
-  const cleanupRealTimeUpdates = () => {
+  const cleanupRealTimeUpdates = useCallback(() => {
     if (channelRef.current) {
       console.log('Cleaning up YouTube API real-time subscription');
-      supabase.removeChannel(channelRef.current);
+      try {
+        supabase.removeChannel(channelRef.current);
+      } catch (error) {
+        console.error('Error removing YouTube API channel:', error);
+      }
       channelRef.current = null;
     }
-  };
-
-  const setupRealTimeUpdates = () => {
-    cleanupRealTimeUpdates();
-    
-    if (!user?.id) return;
-    
-    console.log('Setting up real-time updates for YouTube API settings');
-    
-    const channelName = `youtube-api-settings-${user.id}-${Date.now()}`;
-    channelRef.current = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'youtube_api_keys',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('Real-time update for YouTube API key:', payload);
-          loadApiKeys();
-          toast({
-            title: "Real-time Update",
-            description: "YouTube API keys updated in real-time"
-          });
-          setIsConnected(true);
-        }
-      )
-      .subscribe((status) => {
-        console.log('Real-time subscription status:', status);
-        setIsConnected(status === 'SUBSCRIBED');
-      });
-  };
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = undefined;
+    }
+  }, []);
 
   const loadApiKeys = async () => {
-    if (!user?.id) {
+    if (!user?.id || !mountedRef.current) {
       setLoadingData(false);
       return;
     }
@@ -92,27 +55,83 @@ const YouTubeApiSettings = () => {
       const youtubeKeys = allKeys.youtube || [];
       
       console.log('YouTube API keys loaded from manager:', youtubeKeys);
-      setExistingKeys(youtubeKeys);
       
-      const activeKey = youtubeKeys.find(key => key.is_active);
-      if (activeKey) {
-        setApiKey(activeKey.api_key || '');
-        setApiKeyName(activeKey.name || '');
+      if (mountedRef.current) {
+        setExistingKeys(youtubeKeys);
+        
+        const activeKey = youtubeKeys.find(key => key.is_active);
+        if (activeKey) {
+          setApiKey(activeKey.api_key || '');
+          setApiKeyName(activeKey.name || '');
+        }
+        
+        setError('');
       }
-      
-      setError('');
     } catch (err) {
       console.error('Exception loading YouTube API keys:', err);
-      setError('Failed to load API keys');
-      toast({
-        title: "Error",
-        description: "Failed to load API keys",
-        variant: "destructive"
-      });
+      if (mountedRef.current) {
+        setError('Failed to load API keys');
+        toast({
+          title: "Error",
+          description: "Failed to load API keys",
+          variant: "destructive"
+        });
+      }
     } finally {
-      setLoadingData(false);
+      if (mountedRef.current) {
+        setLoadingData(false);
+      }
     }
   };
+
+  const setupRealTimeUpdates = useCallback(() => {
+    if (!user?.id || connectionStatus !== 'connected' || !mountedRef.current) {
+      return;
+    }
+
+    cleanupRealTimeUpdates();
+    
+    console.log('Setting up real-time updates for YouTube API settings');
+    
+    const channelName = `youtube-api-settings-${user.id}-${Date.now()}`;
+    
+    try {
+      channelRef.current = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'youtube_api_keys',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Real-time update for YouTube API key:', payload);
+            if (mountedRef.current) {
+              loadApiKeys();
+              toast({
+                title: "Real-time Update",
+                description: "YouTube API keys updated in real-time"
+              });
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('YouTube API real-time subscription status:', status);
+          if (status === 'CHANNEL_ERROR' && mountedRef.current) {
+            // Retry connection after delay
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (mountedRef.current) {
+                setupRealTimeUpdates();
+              }
+            }, 5000);
+          }
+        });
+    } catch (error) {
+      console.error('Error setting up YouTube API real-time updates:', error);
+    }
+  }, [user?.id, connectionStatus, toast, loadApiKeys, cleanupRealTimeUpdates]);
 
   const saveApiKey = async () => {
     if (!apiKey.trim()) {
@@ -151,33 +170,31 @@ const YouTubeApiSettings = () => {
     try {
       console.log('Saving YouTube API key for user:', user.id);
       
-      if (existingKeys.length > 0) {
-        await supabase
+      const saveRequest = async () => {
+        if (existingKeys.length > 0) {
+          await supabase
+            .from('youtube_api_keys')
+            .update({ is_active: false })
+            .eq('user_id', user.id);
+        }
+        
+        const { error } = await supabase
           .from('youtube_api_keys')
-          .update({ is_active: false })
-          .eq('user_id', user.id);
-      }
-      
-      const { error } = await supabase
-        .from('youtube_api_keys')
-        .insert({
-          user_id: user.id,
-          name: apiKeyName.trim(),
-          api_key: apiKey.trim(),
-          quota_used: 0,
-          quota_limit: 10000,
-          is_active: true
-        });
+          .insert({
+            user_id: user.id,
+            name: apiKeyName.trim(),
+            api_key: apiKey.trim(),
+            quota_used: 0,
+            quota_limit: 10000,
+            is_active: true
+          });
 
-      if (error) {
-        console.error('Error inserting YouTube API key:', error);
-        setError(`Failed to save API key: ${error.message}`);
-        toast({
-          title: "Error",
-          description: `Failed to save API key: ${error.message}`,
-          variant: "destructive"
-        });
-      } else {
+        if (error) throw error;
+      };
+
+      await retrySupabaseRequest(saveRequest);
+
+      if (mountedRef.current) {
         setSaved(true);
         setApiKey('');
         setApiKeyName('');
@@ -185,81 +202,107 @@ const YouTubeApiSettings = () => {
           title: "Success",
           description: "YouTube API key saved successfully"
         });
-        setTimeout(() => setSaved(false), 3000);
+        setTimeout(() => {
+          if (mountedRef.current) {
+            setSaved(false);
+          }
+        }, 3000);
         console.log('YouTube API key saved successfully');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Exception saving YouTube API key:', err);
-      setError('Failed to save API key');
-      toast({
-        title: "Error",
-        description: "Failed to save API key",
-        variant: "destructive"
-      });
+      if (mountedRef.current) {
+        setError(`Failed to save API key: ${err.message}`);
+        toast({
+          title: "Error",
+          description: `Failed to save API key: ${err.message}`,
+          variant: "destructive"
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
   const deleteApiKey = async (keyId: string) => {
     try {
-      const { error } = await supabase
-        .from('youtube_api_keys')
-        .delete()
-        .eq('id', keyId);
+      const deleteRequest = async () => {
+        const { error } = await supabase
+          .from('youtube_api_keys')
+          .delete()
+          .eq('id', keyId);
 
-      if (error) {
-        console.error('Error deleting YouTube API key:', error);
-        toast({
-          title: "Error",
-          description: `Failed to delete API key: ${error.message}`,
-          variant: "destructive"
-        });
-      } else {
+        if (error) throw error;
+      };
+
+      await retrySupabaseRequest(deleteRequest);
+
+      if (mountedRef.current) {
         toast({
           title: "Success",
           description: "YouTube API key deleted successfully"
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Exception deleting YouTube API key:', err);
-      toast({
-        title: "Error",
-        description: "Failed to delete API key",
-        variant: "destructive"
-      });
+      if (mountedRef.current) {
+        toast({
+          title: "Error",
+          description: `Failed to delete API key: ${err.message}`,
+          variant: "destructive"
+        });
+      }
     }
   };
 
   const toggleKeyStatus = async (keyId: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('youtube_api_keys')
-        .update({ is_active: !currentStatus })
-        .eq('id', keyId);
+      const toggleRequest = async () => {
+        const { error } = await supabase
+          .from('youtube_api_keys')
+          .update({ is_active: !currentStatus })
+          .eq('id', keyId);
 
-      if (error) {
-        console.error('Error updating YouTube API key status:', error);
-        toast({
-          title: "Error",
-          description: `Failed to update API key status: ${error.message}`,
-          variant: "destructive"
-        });
-      } else {
+        if (error) throw error;
+      };
+
+      await retrySupabaseRequest(toggleRequest);
+
+      if (mountedRef.current) {
         toast({
           title: "Success",
           description: `API key ${!currentStatus ? 'activated' : 'deactivated'} successfully`
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Exception updating YouTube API key status:', err);
-      toast({
-        title: "Error",
-        description: "Failed to update API key status",
-        variant: "destructive"
-      });
+      if (mountedRef.current) {
+        toast({
+          title: "Error",
+          description: `Failed to update API key status: ${err.message}`,
+          variant: "destructive"
+        });
+      }
     }
   };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    if (user?.id && connectionStatus === 'connected') {
+      loadApiKeys();
+      setupRealTimeUpdates();
+    } else {
+      setLoadingData(false);
+    }
+    
+    return () => {
+      mountedRef.current = false;
+      cleanupRealTimeUpdates();
+    };
+  }, [user?.id, connectionStatus, setupRealTimeUpdates]);
 
   if (loadingData) {
     return (
@@ -283,9 +326,9 @@ const YouTubeApiSettings = () => {
             <Youtube className="h-5 w-5 text-red-500" />
             Add YouTube API Key
             <div className="ml-auto flex items-center gap-2">
-              <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-400' : 'text-red-400'}`} />
+              <Wifi className={`h-4 w-4 ${connectionStatus === 'connected' ? 'text-green-400' : connectionStatus === 'reconnecting' ? 'text-yellow-400' : 'text-red-400'}`} />
               <span className="text-xs text-gray-400">
-                {isConnected ? 'Real-time Connected' : 'Disconnected'}
+                {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'reconnecting' ? 'Reconnecting' : 'Disconnected'}
               </span>
             </div>
           </CardTitle>
@@ -349,7 +392,7 @@ const YouTubeApiSettings = () => {
 
           <Button 
             onClick={saveApiKey} 
-            disabled={isLoading}
+            disabled={isLoading || connectionStatus !== 'connected'}
             className="w-full bg-red-600 hover:bg-red-700"
           >
             <Save className="mr-2 h-4 w-4" />
@@ -387,6 +430,7 @@ const YouTubeApiSettings = () => {
                     variant="outline"
                     onClick={() => toggleKeyStatus(key.id, key.is_active)}
                     className={key.is_active ? 'border-yellow-600 text-yellow-400' : 'border-green-600 text-green-400'}
+                    disabled={connectionStatus !== 'connected'}
                   >
                     {key.is_active ? 'Deactivate' : 'Activate'}
                   </Button>
@@ -395,6 +439,7 @@ const YouTubeApiSettings = () => {
                     variant="outline"
                     onClick={() => deleteApiKey(key.id)}
                     className="border-red-600 text-red-400 hover:bg-red-600 hover:text-white"
+                    disabled={connectionStatus !== 'connected'}
                   >
                     Delete
                   </Button>
